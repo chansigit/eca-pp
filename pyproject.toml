@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ecasteps"
 version = "0.2.0"
-description = "Standalone, orchestrator-free curation steps for the Open Cell Atlas pipeline"
+description = "Data curation tools for the Open Cell Atlas pipeline"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

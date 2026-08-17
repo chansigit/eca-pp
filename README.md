@@ -1,9 +1,9 @@
 # ecasteps
 
-Standalone curation steps for the Open Cell Atlas pipeline. Each step is a
-plain CLI — **h5ad in → files out + `result.json`** — with no workflow
-framework, no daemon, and no network access by default, so it can be driven by
-anything: a shell loop, Snakemake, an agent, or a human.
+Data curation tools for the Open Cell Atlas pipeline. Each step is a
+command-line tool — **h5ad in → files out + `result.json`** — that runs
+offline by default and reports through exit codes, so steps compose cleanly
+into scripts and larger workflows.
 
 Currently shipped: **`ecasteps-standardize`**, which turns a single-sample
 `.h5ad` of unknown provenance into a standardized form the rest of the
