@@ -1,7 +1,7 @@
 # standardize 步骤 · 需求规格(v2)
 
-> eca-prefect-v3 · 2026-08-16
-> 分期:**v0.1 已交付**(F1/F3/F2)→ **v0.2 本期**(F4a/F4/F5/F7)→ **v0.3 后置**(F6/F8)
+> eca-prefect-v3 · 2026-08-17
+> 分期:**v0.1 已交付**(F1/F3/F2)→ **v0.2 已交付**(F4a/F4/F5/F7)→ **v0.3 后置**(F6/F8)
 > 原则:从 eca-prefect-v2 继承的是**需求**,不是代码;实现可以重写。
 
 ## 1. 目标与架构原则
@@ -99,7 +99,7 @@ velocity 等其他 layer 保留(列随 F4 基因丢弃同步裁剪)。
 | 级 | 机制 | 说明 |
 |---|---|---|
 | T0 | `--species CODE` 显式声明 | 永远最高优先级;批量可复现跑法 |
-| T1 | 确定性推断(实现进 stangene:`infer_species`) | 证据投票:Ensembl 前缀(ENSG/ENSMUSG/…,近乎判决)、命名惯例大小写、各物种 mt/hb 基因命中。只写主干规则,不追长尾 |
+| T1 | 确定性推断(已实现于 stangene:`infer_species`) | 规则级联:① 稳定 ID 前缀(ENSG/ENSMUSG/FBgn/…,≥95% 一致即判决,混合前缀=矛盾直接停);② 特异线粒体命名风格(果蝇 `mt:`、线虫 nduo-*);③ 命名惯例圈定候选组后,与各候选物种 bundled 参考的 **symbol 交集率**裁决(margin ≥5pp);④ 灵长类平票默认 human(降置信 0.75,证据留注)。mt/hb 命中只进证据不做裁决。只写主干规则,不追长尾 |
 | T2 | LLM 单次调用(`--llm` 显式开启,默认关) | T1 证据矛盾时:抽样基因名 + T1 计票摘要,一次 structured-output 调用;有 T3 兜底 |
 | T3 | 阻塞待决(exit 3) | result.json 给全部证据,驾驶员拍板后带 `--species` 重跑 |
 
@@ -165,7 +165,7 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
 ```
 
 - v0.1 产出:仅 `result.json`;**v0.2 起产出 `standardized.h5ad` + `result.json`**。
-- 本期新增参数:`--species` / `--llm`(F4a)、`--keep-unmapped`(F4)。
+- v0.2 新增参数:`--species` / `--llm`(F4a)、`--keep-unmapped`(F4)。
 - report.md / qc.png 随 F8(v0.3)加入。
 
 ## 7. 退出码与 result.json
@@ -193,8 +193,10 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
   "species": { "resolved": "human", "code": "hs",
                "source": "cli | inferred | llm | null",
                "confidence": 0.99,
-               "evidence": { "ensembl_prefix_hits": {}, "naming_convention": "",
-                             "mito_hits": {}, "hb_hits": {} } },
+               "evidence": { "n_features": 0, "rule": "ensembl_prefix | idiosyncratic_mito | symbol_overlap | primate_default | conflicting_prefixes | insufficient",
+                             "ensembl_prefix_hits": {}, "naming_convention": "",
+                             "mito_hits": {}, "hb_hits": {},
+                             "symbol_overlap": {}, "note": "仅 primate_default 时" } },
   "metrics": {
     "n_cells": 0, "n_vars": 0, "n_genes_detected": 0,
     "counts_source": "layer:<name> | X | raw | recovered",
@@ -208,7 +210,10 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
                        "genes_unmappable": { "unmapped": 0, "ambiguous": 0,
                                              "non_gene_feature": 0 },
                        "keep_unmapped": false },
-    "qc": { "n_mt_genes": 0, "n_hb_genes": 0, "overwritten_obs_cols": [] },
+    "qc": { "n_mt_genes": 0, "n_hb_genes": 0, "overwritten_obs_cols": [],
+            "median_pct_counts_mt": 0.0, "median_pct_counts_hb": 0.0,
+            "median_counts_per_cell": 0.0, "median_genes_per_cell": 0.0 },
+    "raw_dropped": true,  // 仅当输入携带 .raw 时出现(F4 裁剪后 raw 必失配,弃)
     "timings": { "f1_validate": 0.0, "load": 0.0, "f2_counts": 0.0,
                  "f3_gates": 0.0, "f4a_species": 0.0, "f4_harmonize": 0.0,
                  "f5_qc": 0.0, "f7_build_write": 0.0, "total": 0.0 }
@@ -222,7 +227,8 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
 
 ## 8. 非功能需求
 
-- **可复现**:同输入同参数 → 同输出;默认无网络、无 LLM。
+- **可复现**:同输入同参数 → 同判定与同产物(result.json 的时间戳/耗时字段除外);
+  默认无网络、无 LLM。
 - **幂等**:所有写盘原子化(临时文件 + rename),重跑安全。
 - **失败三分**:rejected ≠ error ≠ needs_review,是给驾驶员的正式接口。
 - **可移植 / 可发行**:ecasteps 是规范 pip 包(pyproject.toml,py≥3.10;依赖 =
@@ -254,7 +260,7 @@ bash scripts/test-in-container.sh            # python:3.12-slim 容器(Apptainer
 | 用例 | 期望 |
 |---|---|
 | ENSG 前缀基因名 | species=human,source=inferred |
-| ENSMUSG 前缀 / 鼠式大小写 symbol | species=mouse,source=inferred |
+| ENSMUSG 前缀 ID / 纯 symbol 数据(交集率) | species=mouse / human,source=inferred |
 | 证据矛盾、无 `--species` 无 `--llm` | exit 3,species.evidence 完整 |
 | `--species hs` 显式声明 | source=cli,跳过推断 |
 | `--llm` 开启且 T1 矛盾(mock LLM) | source=llm;LLM 失败 → 回退 exit 3 |
@@ -264,9 +270,10 @@ bash scripts/test-in-container.sh            # python:3.12-slim 容器(Apptainer
 | 丢弃比例 > 30% | status=needs_review(exit 0) |
 | 丢弃后基因不足 | exit 2,rejected_at=final_gate |
 | 已知 MT-/HB- 基因构造 | pct_counts_mt / pct_counts_hb 数值正确 |
+| 全无 mt/hb 基因的矩阵 | status=ok,不触发 review;命中数=0 记于 metrics.qc |
 | 数据自带 pct_counts_mt 列 | 原列改名 `__original`,新列为权威值,入账 |
 | 正常全流程 | standardized.h5ad 满足 I1–I4;counts 源层已改名;写盘原子(中断不留半成品) |
-| 重跑同输入 | 输出逐字节可复现(I8 时间戳除外) |
+| 重跑同输入 | result.json 判定与统计完全一致(时间戳/耗时字段除外) |
 
 ## 10. 代码布局
 
