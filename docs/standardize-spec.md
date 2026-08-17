@@ -1,23 +1,26 @@
 # standardize 步骤 · 需求规格(v2)
 
-> eca-prefect-v3 · 2026-08-17
-> 分期:**v0.1 已交付**(F1/F3/F2)→ **v0.2 已交付**(F4a/F4/F5/F7)→ **v0.3 后置**(F6/F8)
+> eca-pp · 2026-08-17
+> 分期:**v0.1 已交付**(F1/F3/F2)→ **v0.2 已交付**(F4a/F4/F5/F7)。
+> 原 F6(元数据角色识别)**移出本环节**,独立为 agent 型环节
+> [identify-columns](identify-columns-spec.md);F8(报告物)留此待做。
 > 原则:从 eca-prefect-v2 继承的是**需求**,不是代码;实现可以重写。
 
 ## 1. 目标与架构原则
 
 把任意来源的单样本 `.h5ad` 变成下游可无条件信赖的**标准形**,以独立 CLI 交付:
-无框架依赖、无常驻进程、默认不联网,可被任何驾驶员(脚本 / Snakemake / agent / 人)调用。
+无框架依赖、无常驻进程、默认不联网,可被任何调用方(脚本 / Snakemake / agent / 人)调用。
 
 三条架构原则,贯穿所有功能块:
 
 1. **两层分工**:步骤 = 确定性 CLI(h5ad in → files out + result.json);
-   驾驶层消费 result.json 与退出码。Agent SDK / agent loop **只存在于驾驶层**。
-2. **步骤内 LLM 上限 = 两处单次调用**(anthropic SDK,structured output),
-   均显式开启(`--llm`)、默认关、有确定性回退:物种解析 T2(§5.2)、
-   metacols 排名(§5.5,v0.3)。
-3. **拍板权归驾驶层**:凡是"选哪个"的可逆决策(batch 列、物种存疑、counts 歧义),
-   步骤只给证据与排名,不替驾驶员定;定不了就 exit 3 阻塞待决。
+   编排层消费 result.json 与退出码。Agent SDK / agent loop **只存在于编排层**。
+2. **本环节内 LLM 仅一处单次调用**(anthropic SDK,structured output):
+   物种解析 T2(§5.2),显式开启(`--llm`)、默认关、有确定性回退。
+   列角色识别已移出为显式声明的 agent 型环节(identify-columns),
+   其规则见该环节自己的规格。
+3. **拍板权归编排层**:凡是"选哪个"的可逆决策(batch 列、物种存疑、counts 歧义),
+   步骤只给证据与排名,不替调用方定;定不了就 exit 3 阻塞待决。
 
 ## 2. 输出契约(完整目标,验收以此为准)
 
@@ -29,8 +32,8 @@
 | I2 | `X` = log1p(normalize_total(counts, 1e4)),float32,在**最终基因空间**上计算 | v0.2 | 嵌入、QC UMAP |
 | I3 | `var_names` = 规范基因 symbol(make_unique 去重);**未映射基因默认丢弃**(可关);原名与 mapping 溯源在 `var` | v0.2 | mito/hb 检测、跨数据集合并 |
 | I4 | 常规 QC 列存在且为本步**权威计算**:`pct_counts_mt`、`pct_counts_hb`、`total_counts`、`n_genes_by_counts`(scanpy 惯例名)——这是本步写入 obs 的**唯一常规内容** | v0.2 | QC 图、filter_cells、dissect 诊断 |
-| I5 | 批次候选全部以真实 obs 列存在(barcode/复合派生列由本步物化)+ 完整排名溯源;**不写 `obs.sample`,不拍板** | v0.3 | doublets 分组、Harmony/MrVI 校正(经 `--batch-col`) |
-| I6 | cell_type / organ / tissue 候选排名溯源(只记录,不写规范列) | v0.3 | annotation_qc、atlas、dissect(经显式列参数) |
+| I5 | ~~批次候选识别~~ **移交 identify-columns 环节**(派生列以 TSV 值文件交付,本步不再物化) | 移出 | doublets 分组、Harmony/MrVI 校正(经 `--batch-col`) |
+| I6 | ~~cell_type / organ / tissue 识别~~ **移交 identify-columns 环节** | 移出 | annotation_qc、atlas、dissect(经显式列参数) |
 | I7 | 已通过硬 QC 门,否则不产出 h5ad | v0.1 ✅ | 整条链 |
 | I8 | 溯源完整:counts 来源、物种判定、基因映射、丢弃统计、角色排名全部可查(var / uns / result.json) | 全程 | 人 / agent 审查 |
 
@@ -48,8 +51,8 @@ obs 哲学:**原有列原样保留**(batch 候选活在里面),本步只增 I4 �
 | F4 | 基因名统一(stangene;改名 + **默认丢弃未映射**,§5.3) | v0.2 | ✅ 已交付 |
 | F5 | QC 指标(物种感知 mt/hb;权威计算,§5.4) | v0.2 | ✅ 已交付 |
 | F7 | 构建标准形 + 原子写盘(没有写盘,F4/F5 白算——随本期) | v0.2 | ✅ 已交付 |
-| F6 | 元数据角色识别(stanmetacols;**只记录不拍板**,§5.5) | v0.3 | 后置 |
-| F8 | 报告物(report.md + qc.png) | v0.3 | 后置 |
+| F6 | 元数据角色识别 | — | **移出**:独立环节 identify-columns,从零实现,不依赖 stanmetacols |
+| F8 | 报告物(report.md + qc.png) | 待排期 | 后置 |
 
 验收记录:v0.1 13 项 + v0.2 19 项 = **32 项测试全绿 × 双环境**(Sherlock dl2025
 原生 155s;`python:3.12-slim` Apptainer 容器纯本地源码安装 384s)。
@@ -85,9 +88,9 @@ stancounts 白名单(`counts/count/raw_counts/umi/...`)接不住奇名 layer 时
 1. **确定性扫描 + 一致性校验**:普查所有非排除 layer 的整数性;对整数候选验证
    `log1p(normalize_total(candidate)) ≈ X`(抽样逐行非零集合 + 单一缩放比)。
    唯一通过 → 直接采用,记 `name_recognized: false`。数学确认,非猜测。
-2. **显式覆盖**:`--counts-layer NAME`,驾驶员拍板后指定,跳过一切推断。
+2. **显式覆盖**:`--counts-layer NAME`,调用方拍板后指定,跳过一切推断。
 3. **needs_review 挂钩**:候选歧义 / 逆推但旁有未识别整数 layer / 不可恢复但有
-   可疑 layer → result.json 附全部 layer 诊断表,供驾驶员决策后重跑。
+   可疑 layer → result.json 附全部 layer 诊断表,供调用方决策后重跑。
 
 counts 采纳后,若来源是奇名 layer,该层在 F7 **改名**为 `counts`(不存两份);
 velocity 等其他 layer 保留(列随 F4 基因丢弃同步裁剪)。
@@ -101,7 +104,7 @@ velocity 等其他 layer 保留(列随 F4 基因丢弃同步裁剪)。
 | T0 | `--species CODE` 显式声明 | 永远最高优先级;批量可复现跑法 |
 | T1 | 确定性推断(已实现于 stangene:`infer_species`) | 规则级联:① 稳定 ID 前缀(ENSG/ENSMUSG/FBgn/…,≥95% 一致即判决,混合前缀=矛盾直接停);② 特异线粒体命名风格(果蝇 `mt:`、线虫 nduo-*);③ 命名惯例圈定候选组后,与各候选物种 bundled 参考的 **symbol 交集率**裁决(margin ≥5pp);④ 灵长类平票默认 human(降置信 0.75,证据留注)。mt/hb 命中只进证据不做裁决。只写主干规则,不追长尾 |
 | T2 | LLM 单次调用(`--llm` 显式开启,默认关) | T1 证据矛盾时:抽样基因名 + T1 计票摘要,一次 structured-output 调用;有 T3 兜底 |
-| T3 | 阻塞待决(exit 3) | result.json 给全部证据,驾驶员拍板后带 `--species` 重跑 |
+| T3 | 阻塞待决(exit 3) | result.json 给全部证据,调用方拍板后带 `--species` 重跑 |
 
 物种确定后,mt/hb 识别是 stangene 精确基因集查询,**不涉及任何猜测**。
 stangene 未覆盖的物种 → T3(补参考数据的问题,不是猜的问题)。
@@ -131,28 +134,15 @@ unmapped)逐行注释后,应用策略:
   (后缀 `__original`,信息无损),覆盖行为记入 result.json。
 - mt/hb 基因集命中数(`n_mt_genes` / `n_hb_genes`)记入 result.json(metrics.qc);
   命中为 0 → 对应列全 0,**不触发 needs_review**——预过滤矩阵(上游已剔 mt 基因)
-  与无 RBC 血红蛋白的物种(果蝇/线虫)都是正常情况,驾驶员按需查 metrics.qc。
+  与无 RBC 血红蛋白的物种(果蝇/线虫)都是正常情况,调用方按需查 metrics.qc。
 
-### 5.5 F6 · 元数据角色识别:识别不拍板(v0.3)
+### 5.5 (原 F6)元数据角色识别 —— 已移出
 
-v2 的 normalize_roles(top-1 过 0.5 分 → 拷贝 `sample`/`cell_type_*`/`organ`/
-`tissue` 规范列)**整体废弃**——拍板权上移驾驶层。F6 只做两件事:
-
-1. **全角色候选排名**(stanmetacols 十角色;LLM 单次可选、默认关、启发式回退),
-   完整写入 `uns["metacols"]` 与 result.json。
-2. **物化派生批次列**:barcode 前/后缀、复合列拼接这类"不存在于 obs 的候选"以
-   确定性变换写成真实列(如 `batch_from_barcode`)——保证"每个候选都有列可指"。
-
-约定:
-
-- **不写任何规范角色列**;源列一概不动。
-- **消费侧显式传列**:doublets、integration、dissect 一律带显式列参数
-  (`--batch-col` 等),由驾驶层读排名拍板传入;无默认猜测。batch 的消费者含
-  doublets(按批检测,链条上早于 integration)——driver 拍一次板,传两处。
-- **iteration 归驾驶层**:integration 的 batch 选择由驾驶层(Agent SDK)按排名
-  逐个试 `--batch-col`,以积分指标定案;standardize 不重跑,loop 不进步骤。
-- 一个批次候选都没有 → `needs_review`(非阻塞):无批次时 doublets 整体跑、
-  integration 不校正,是否接受由驾驶员定。
+列角色识别(批次列 / 细胞类型列)独立为 agent 型环节 **identify-columns**,
+从零实现(不依赖 stanmetacols),以小规模整合试验做经验验证。
+规格见 [identify-columns-spec.md](identify-columns-spec.md)。
+本环节维持的约定不变:standardize 不写任何规范角色列,源列一概不动;
+下游工具经显式列参数(`--batch-col` 等)消费识别结论。
 
 ## 6. CLI 接口(签名即终态,后续只增不改)
 
@@ -170,11 +160,11 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
 
 ## 7. 退出码与 result.json
 
-| 退出码 | 语义 | 覆盖 | 驾驶员动作 |
+| 退出码 | 语义 | 覆盖 | 调用方动作 |
 |---|---|---|---|
 | 0 | ok(含非阻塞 needs_review) | 门全过、counts 可得、物种已定 | 跑下一步;needs_review 另行复核 |
 | 2 | 永久性数据问题 | QC 拒绝(含 F4 丢弃后)、counts 不可恢复、非法 h5ad | 跳过,记录,**不重试** |
-| 3 | **阻塞待决** | 物种定不了;counts 歧义 | 读 result.json 证据 → 拍板 → 补参数重跑(`--species` / `--counts-layer`)。**agent 驾驶员的标准挂钩点** |
+| 3 | **阻塞待决** | 物种定不了;counts 歧义 | 读 result.json 证据 → 拍板 → 补参数重跑(`--species` / `--counts-layer`)。**编排层 agent 的标准挂钩点** |
 | 1 | 意外错误 | I/O、内存、bug | 重试或人工介入 |
 
 区分标准:2 = 重试与补参数都救不回;3 = **补一个决策就能成**;1 = 原样重试可能就好。
@@ -219,9 +209,7 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
                  "f5_qc": 0.0, "f7_build_write": 0.0, "total": 0.0 }
   },
   "layers": [ { "name": "", "dtype": "", "is_integer": true,
-                "sparsity": 0.9, "max": 0, "consistent_with_X": null } ],
-  // v0.3(F6)加入:全角色排名 + 物化的派生批次列
-  "metacols": { "method": "llm | heuristic", "ranking": {}, "derived_columns": [] }
+                "sparsity": 0.9, "max": 0, "consistent_with_X": null } ]
 }
 ```
 
@@ -230,7 +218,7 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
 - **可复现**:同输入同参数 → 同判定与同产物(result.json 的时间戳/耗时字段除外);
   默认无网络、无 LLM。
 - **幂等**:所有写盘原子化(临时文件 + rename),重跑安全。
-- **失败三分**:rejected ≠ error ≠ needs_review,是给驾驶员的正式接口。
+- **失败三分**:rejected ≠ error ≠ needs_review,是给调用方的正式接口。
 - **可移植 / 可发行**:ecasteps 是规范 pip 包(pyproject.toml,py≥3.10;依赖 =
   标准科学栈 + stancounts/stangene/stanmetacols,重依赖走 extras:`[llm]`
   `[doublets]` `[gpu]`)。代码不绑定任何集群。部署形态三选:
@@ -294,7 +282,8 @@ run.sh             Sherlock 环境引导(唯一集群相关文件)
 ## 11. 不做的事(non-goals)
 
 - 非 h5ad 输入(mtx / Seurat)——格式转换是上游步骤(stanobj 领域);
-- watch-dir 扫描、样本发现、重试、调度、batch 列拍板、integration 迭代——驾驶层职责;
-- 步骤内 Agent loop——**永不**。允许的 LLM 仅两处单次调用(§1 原则 2);
-- 多样本批处理——一次调用一个样本,批量由驾驶员循环;
-- obs 原始列剥离——如需"干净版",做成驾驶层定案后的可选清理,不是本步默认行为。
+- watch-dir 扫描、样本发现、重试、调度、batch 列拍板、integration 迭代——编排层职责;
+- 环节内 Agent loop——**确定性环节内永不**(agent 型环节须显式声明,
+  本环节不是;standardize 内 LLM 仅物种解析一处单次调用,§1 原则 2);
+- 多样本批处理——一次调用一个样本,批量由调用方循环;
+- obs 原始列剥离——如需"干净版",做成编排层定案后的可选清理,不是本步默认行为。
