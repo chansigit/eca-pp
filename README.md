@@ -44,6 +44,12 @@ Both files are written atomically: a crash never leaves a torn output.
 
 ## Exit codes — the caller's contract
 
+`0` success · `2` permanent data problem, don't retry · `3` blocked on a
+decision, re-run with a flag · `1` unexpected error.
+
+<details>
+<summary>Full table</summary>
+
 | code | meaning | caller's action |
 |---|---|---|
 | 0 | success (`result.json` may carry non-blocking review notes) | use the outputs |
@@ -51,7 +57,15 @@ Both files are written atomically: a crash never leaves a torn output.
 | 3 | blocked on a decision (ambiguous counts layer, unresolvable species) | read the evidence in `result.json`, re-run with `--counts-layer` / `--species` |
 | 1 | unexpected error | retry / investigate |
 
+</details>
+
 ## Options
+
+All flags are optional; with none given, everything is inferred and default
+gates apply.
+
+<details>
+<summary>Flag reference</summary>
 
 | flag | default | effect |
 |---|---|---|
@@ -61,6 +75,8 @@ Both files are written atomically: a crash never leaves a torn output.
 | `--no-gate` | off | disable both gates (e.g. for rare, deliberately small samples); metrics are still computed and recorded |
 | `--keep-unmapped` | off | keep features that cannot be mapped to a canonical gene (unknown names, ambiguous old symbols, spike-ins) under their original names, instead of dropping them. Drops are counted per category in `result.json`; cells are never removed either way. |
 | `--llm` | off | allow one LLM call as a species-inference fallback (needs `ANTHROPIC_API_KEY`); any failure falls back to exit 3 |
+
+</details>
 
 ## How it works
 
