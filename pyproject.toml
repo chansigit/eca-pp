@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ecasteps"
-version = "0.2.0"
+version = "0.3.0"
 description = "Data curation tools for the Open Cell Atlas pipeline"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -20,10 +20,15 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
 llm = ["anthropic>=0.60"]
+probe = ["scanpy>=1.10", "harmonypy>=0.0.9,<0.2", "scikit-learn>=1.1",
+         "umap-learn>=0.5", "leidenalg>=0.10"]  # <0.2: classic numpy build, no torch
+agent = ["claude-agent-sdk>=0.1", "anyio>=4.0"]
 # 下期: doublets = ["scrublet"], gpu = ["scvi-tools"] …
 
 [project.scripts]
 ecasteps-standardize = "ecasteps.standardize:cli"
+ecasteps-integration-probe = "ecasteps.probe:cli"
+ecasteps-identify-columns = "ecasteps.identify_columns:cli"
 
 [project.urls]
 Repository = "https://github.com/chansigit/eca-pp"

@@ -15,8 +15,15 @@ code 3, optionally with LLM assistance) for a human or an agent to settle.
 Steps run offline by default and report through exit codes, so they compose
 cleanly into scripts and larger workflows.
 
-The first step, **`ecasteps-standardize`**, turns a single-sample `.h5ad` of
-unknown provenance into a standardized form the rest of the pipeline can trust.
+Two steps are available:
+
+- **`ecasteps-standardize`** turns a single-sample `.h5ad` of unknown
+  provenance into a standardized form the rest of the pipeline can trust.
+- **`ecasteps-identify-columns`** identifies the batch column (for
+  integration) and the cell-type column among the obs columns — an
+  agent-driven step that verifies its candidates by running small-scale
+  integration trials (**`ecasteps-integration-probe`**, also usable
+  standalone) and records every decision with its evidence.
 
 ## Quick start
 

@@ -1,6 +1,7 @@
 # identify-columns 环节 · 需求规格
 
-> eca-pp · 2026-08-17 · v0.3 · 状态:待终审(代码未动工)
+> eca-pp · 2026-08-17 · v0.3 · 状态:✅ 已交付(53 项测试 × 双环境;
+> Tabula Muris Marrow 真 agent 实跑验证)
 > 前置:standardize 已交付;本环节从其范围中移出(原 F6),从零实现,不依赖 stanmetacols。
 
 ## 1. 目标与定位
@@ -173,6 +174,9 @@ ecasteps-identify-columns SRC.h5ad -o OUTDIR \
     "derived": [ { "label": "", "kind": "barcode | composite", "n_groups": 0 } ]
   },
   "candidates": { "batch": [], "cell_type": [] },
+  // 完整决策审计:每轮 action/候选/理由 + agent 实际 Read 的文件(含 UMAP 图)
+  "decisions": [ { "action": "", "candidate": "", "reason": "",
+                   "tools_used": [ { "tool": "Read", "target": "trial_1_umap.png" } ] } ],
   "trials": [ { "batch_col": "",
                 "metrics": { "ilisi_pre": 0.0, "ilisi_post": 0.0,
                              "ilisi_norm_pre": 0.0, "ilisi_norm_post": 0.0,

@@ -24,7 +24,7 @@ exec apptainer exec --cleanenv \
   V="$REPO/.ctr-venv/bin"
   echo "[container] pip install from local sources ..."
   "$V/pip" install -q --cache-dir "$PIP_CACHE" \
-      "$STANCOUNTS_SRC" "$STANGENE_SRC" "$REPO" pytest
+      "$STANCOUNTS_SRC" "$STANGENE_SRC" "$REPO[probe]" pytest
   cd "$REPO"
   echo "[container] running acceptance suite ..."
   exec "$V/python" -m pytest tests -q
