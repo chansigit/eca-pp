@@ -3,7 +3,7 @@
 # live here, none in the Python code. On any other machine, skip this file and
 # `pip install -e .` into a normal environment instead.
 #
-# Fixups (same three as eca-prefect-v2, minus .testdeps which v0.1 doesn't need):
+# Fixups:
 #   - unset PYTHONPATH    : drop Lmod's py3.12 numpy/h5py that shadow the venv
 #   - ml load hdf5/1.14.4 : dl2025's h5py needs libhdf5.so.310 at runtime
 #   - dl2025 venv python  : prebuilt shared env (anndata, scipy, stancounts, pytest)

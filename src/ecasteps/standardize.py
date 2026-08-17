@@ -84,13 +84,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-genes", type=int, default=5000,
                    help="reject samples below this many detected genes (default 5000)")
     p.add_argument("--counts-layer", default=None, metavar="NAME",
-                   help="use this layer as counts (driver's override; skips inference)")
+                   help="use this layer as counts (skips inference)")
     p.add_argument("--no-gate", action="store_true",
                    help="disable the hard QC gates (metrics still recorded)")
     p.add_argument("--species", default=None, metavar="CODE",
-                   help="species code, e.g. hs/mm (skips inference; the driver's call)")
+                   help="species code, e.g. hs/mm (skips inference)")
     p.add_argument("--llm", action="store_true",
-                   help="allow single-shot LLM fallbacks (F4a T2 / F6; off by default)")
+                   help="allow one LLM call as a species-inference fallback "
+                        "(off by default; needs ANTHROPIC_API_KEY)")
     p.add_argument("--keep-unmapped", action="store_true",
                    help="keep unmappable features under their original names "
                         "instead of dropping them (default: drop)")

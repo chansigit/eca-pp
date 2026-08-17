@@ -5,9 +5,8 @@ command-line tool — **h5ad in → files out + `result.json`** — that runs
 offline by default and reports through exit codes, so steps compose cleanly
 into scripts and larger workflows.
 
-Currently shipped: **`ecasteps-standardize`**, which turns a single-sample
-`.h5ad` of unknown provenance into a standardized form the rest of the
-pipeline can trust.
+**`ecasteps-standardize`** turns a single-sample `.h5ad` of unknown
+provenance into a standardized form the rest of the pipeline can trust.
 
 ## What standardize does
 
@@ -21,9 +20,8 @@ pipeline can trust.
    inference (stable-ID prefixes, mitochondrial naming styles, symbol overlap
    with bundled references) → optional single LLM call (`--llm`) → otherwise
    stops and asks the caller to decide.
-4. **Harmonizes gene names** to canonical symbols (via
-   [stangene](https://github.com/chansigit)), dropping unmappable features by
-   default (`--keep-unmapped` to keep them).
+4. **Harmonizes gene names** to canonical symbols (via stangene), dropping
+   unmappable features by default (`--keep-unmapped` to keep them).
 5. **Computes per-cell QC columns** — `pct_counts_mt`, `pct_counts_hb`,
    `total_counts`, `n_genes_by_counts` — with species-aware mito/hemoglobin
    gene sets. Columns of the same name brought by the data are preserved under
@@ -42,12 +40,8 @@ ecasteps-standardize SRC.h5ad -o OUTDIR \
     [--counts-layer NAME] [--no-gate] [--keep-unmapped]
 ```
 
-On Stanford Sherlock, use the bootstrap wrapper instead (compute nodes only):
-
-```bash
-bash run.sh standardize SRC.h5ad -o OUTDIR [...]
-bash run.sh test tests -q
-```
+On Stanford Sherlock, `bash run.sh standardize ...` wraps the same command
+with the cluster environment set up (compute nodes only).
 
 ## Exit codes — the caller's contract
 
@@ -65,19 +59,21 @@ reviewing a run never requires reopening the h5ad.
 
 ## Install
 
+Requires Python ≥ 3.10. The stancounts and stangene dependencies are not on
+PyPI; install them from their source checkouts first:
+
 ```bash
-pip install <stancounts-src> <stangene-src> .
+pip install /path/to/stancounts /path/to/stangene
+pip install .
 ```
 
-Requires Python ≥ 3.10. The `stancounts` and `stangene` dependencies are
-installed from their source directories for now (not yet on PyPI). Optional
-extras: `.[llm]` for the LLM species fallback, `.[test]` for pytest.
+Optional extras: `.[llm]` for the LLM species fallback, `.[test]` for pytest.
 
 ## Container
 
-No cluster dependency: the full test suite passes inside a stock
-`python:3.12-slim` image with everything pip-installed from local sources.
-On Sherlock this is exercised via Apptainer:
+The full test suite passes inside a stock `python:3.12-slim` image with
+everything pip-installed from local sources. On Sherlock this is exercised
+via Apptainer:
 
 ```bash
 apptainer pull python312-slim.sif docker://python:3.12-slim
@@ -94,15 +90,15 @@ src/ecasteps/
   harmonize.py     gene-name harmonization, default drop of unmappables
   qc.py            gate metrics + per-cell QC columns
   build.py         standard-form assembly + atomic h5ad write
-  result.py        result.json schema + exit codes (shared by future steps)
+  result.py        result.json schema + exit codes
   atomic_io.py     atomic writes
-tests/             32 acceptance tests (run natively or in the container)
-run.sh             Sherlock env bootstrap (the only cluster-specific file)
+tests/             acceptance tests (run natively or in the container)
+run.sh             environment bootstrap for Stanford Sherlock
 ```
 
 ## Docs
 
 - [`docs/tutorial.md`](docs/tutorial.md) — hands-on walkthrough on a real
   dataset (Tabula Muris droplet, 12 organs), with per-stage timings. Chinese.
-- [`docs/standardize-spec.md`](docs/standardize-spec.md) — requirements &
-  design document (the internal F1–F8 numbering and phase plan live there).
+- [`docs/standardize-spec.md`](docs/standardize-spec.md) — requirements and
+  design document.
