@@ -175,8 +175,10 @@ ecasteps-identify-columns SRC.h5ad -o OUTDIR \
   },
   "candidates": { "batch": [], "cell_type": [] },
   // 完整决策审计:每轮 action/候选/理由 + agent 实际 Read 的文件(含 UMAP 图)
+  // + raw_reply:agent 该轮回复全文(结构化决策块之外的分析叙述,"实验笔记")
   "decisions": [ { "action": "", "candidate": "", "reason": "",
-                   "tools_used": [ { "tool": "Read", "target": "trial_1_umap.png" } ] } ],
+                   "tools_used": [ { "tool": "Read", "target": "trial_1_umap.png" } ],
+                   "raw_reply": "" } ],
   "trials": [ { "batch_col": "",
                 "metrics": { "ilisi_pre": 0.0, "ilisi_post": 0.0,
                              "ilisi_norm_pre": 0.0, "ilisi_norm_post": 0.0,

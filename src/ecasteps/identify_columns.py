@@ -260,6 +260,7 @@ class ClaudeAgentPolicy:
                 "probe", "adopt", "conclude_unnecessary", "conclude_no_batch",
                 "give_up")
             decision["tools_used"] = tools_used
+            decision["raw_reply"] = reply  # the agent's full lab-note text
             return decision
         except Exception as exc:  # noqa: BLE001
             raise PolicyUnavailable(f"unparseable agent decision: {exc}")
@@ -365,7 +366,8 @@ def _run(args, res: dict, policy) -> int:
         decisions.append({"action": action,
                           "candidate": decision.get("candidate"),
                           "reason": decision.get("reason", ""),
-                          "tools_used": decision.get("tools_used", [])})
+                          "tools_used": decision.get("tools_used", []),
+                          "raw_reply": decision.get("raw_reply", "")})
         log.info("policy: %s %s — %s", action, decision.get("candidate"),
                  decision.get("reason"))
 
