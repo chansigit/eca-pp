@@ -85,8 +85,9 @@ ecasteps-integration-probe SRC.h5ad -o OUTDIR --batch-col SPEC \
     `(iLISI−1)/(n_batches−1)`。整合前 iLISI 已高 → 判定 ②(无需校正);
     整合后提升量是校正收益的核心信号。
   - **cLISI**(细胞类型纯度):整合前 / 后,归一 `(n_types−cLISI)/(n_types−1)`。
-    守"同类聚齐、异类不混";无细胞类型候选列时用整合前 PCA 的 KMeans
-    伪标签,`clisi_labels: "annotated" | "pseudo"` 如实标注。
+    守"同类聚齐、异类不混";无细胞类型候选列时,在**整合前的 kNN 图上跑
+    Leiden**(固定 seed 与 resolution)取伪标签——图社区才贴合转录组的
+    簇结构,`clisi_labels: "annotated" | "pseudo"` 如实标注。
   - `harmony_converged`:**不收敛/崩溃是合法观测结果**(status=ok、如实
     记录)——病态批次的最强信号。
   - 预检随附:n_batches、每组细胞数分布、微组占比、批次×细胞类型混杂度、
@@ -95,7 +96,8 @@ ecasteps-integration-probe SRC.h5ad -o OUTDIR --batch-col SPEC \
   着色),供 agent 视觉复核与人工复盘。纪律:**指标定案,图只做旁证与
   否决**(以图否决须写明理由入 trials)。
 - 退出码:0 = 试验完成(无论整合好坏);2 = 输入不合法;1 = 意外错误。
-- 依赖走 extras `[probe]`:scanpy、harmonypy、scikit-learn、umap-learn。
+- 依赖走 extras `[probe]`:scanpy、harmonypy、scikit-learn、umap-learn、
+  leidenalg(伪标签 Leiden 用)。
 
 **为何固定 Harmony 而非 scVI**:probe 是诊断仪器,不是生产整合器——要灵敏
 不要鲁棒。Harmony 秒级、CPU、seed 稳定,且对病态批次"崩得响亮"(此脆弱性
