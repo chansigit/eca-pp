@@ -94,37 +94,6 @@ gates apply.
    same-named columns brought by the data survive under a `__original` suffix.
 6. **Write atomically** — the standard-form h5ad plus `result.json`.
 
-## Testing
-
-```bash
-pip install .[test] && pytest tests -q       # any machine
-bash run.sh test tests -q                    # Sherlock compute node
-```
-
-The same suite also passes inside a stock `python:3.12-slim` container with
-everything pip-installed from local sources — on Sherlock via Apptainer:
-
-```bash
-apptainer pull python312-slim.sif docker://python:3.12-slim
-bash scripts/test-in-container.sh
-```
-
-## Layout
-
-```
-src/ecasteps/
-  standardize.py   CLI + pipeline flow
-  countsloc.py     counts location: layer census + consistency proof (stancounts)
-  species.py       species resolution ladder
-  harmonize.py     gene-name harmonization, default drop of unmappables
-  qc.py            gate metrics + per-cell QC columns
-  build.py         standard-form assembly + atomic h5ad write
-  result.py        result.json schema + exit codes
-  atomic_io.py     atomic writes
-tests/             acceptance tests (run natively or in the container)
-run.sh             environment bootstrap for Stanford Sherlock
-```
-
 ## Docs
 
 - [`docs/tutorial.md`](docs/tutorial.md) — hands-on walkthrough on a real

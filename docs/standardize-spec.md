@@ -236,6 +236,14 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
 
 ## 9. 验收测试
 
+跑法(双环境,同一套测试):
+
+```bash
+bash run.sh test tests -q                    # Sherlock 原生(计算节点)
+pip install .[test] && pytest tests -q       # 任意机器
+bash scripts/test-in-container.sh            # python:3.12-slim 容器(Apptainer)
+```
+
 **v0.1(已过,13 项 × 双环境)**:整数 X / 白名单层 / 奇名层一致性采纳 /
 仅 log1p 逆推 / scaled X + counts 层 / `--counts-layer` 覆盖 / `--no-gate` /
 逆推旁有可疑层 needs_review / 双候选阻塞 / 指定层缺失阻塞 /
@@ -260,7 +268,23 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
 | 正常全流程 | standardized.h5ad 满足 I1–I4;counts 源层已改名;写盘原子(中断不留半成品) |
 | 重跑同输入 | 输出逐字节可复现(I8 时间戳除外) |
 
-## 10. 不做的事(non-goals)
+## 10. 代码布局
+
+```
+src/ecasteps/
+  standardize.py   CLI + 流程 ①–⑪
+  countsloc.py     counts 定位:layer 普查 + 一致性证明(围绕 stancounts)
+  species.py       物种解析四级阶梯(F4a)
+  harmonize.py     基因名统一 + 默认丢弃(F4)
+  qc.py            门指标 + 逐细胞 QC 列(F5)
+  build.py         标准形装配 + 原子 h5ad 写盘(F7)
+  result.py        result.json schema + 退出码(未来各步骤共用)
+  atomic_io.py     原子写
+tests/             验收测试(原生与容器同一套);dsets.py 构造真实基因名数据
+run.sh             Sherlock 环境引导(唯一集群相关文件)
+```
+
+## 11. 不做的事(non-goals)
 
 - 非 h5ad 输入(mtx / Seurat)——格式转换是上游步骤(stanobj 领域);
 - watch-dir 扫描、样本发现、重试、调度、batch 列拍板、integration 迭代——驾驶层职责;
