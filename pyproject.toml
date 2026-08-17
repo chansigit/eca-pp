@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecasteps"
+version = "0.2.0"
+description = "Standalone, orchestrator-free curation steps for the Open Cell Atlas pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.22",
+    "scipy>=1.7",
+    "h5py>=3.8",
+    "anndata>=0.8",
+    "stancounts>=0.3",
+    "stangene>=0.5",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+llm = ["anthropic>=0.60"]
+# 下期: doublets = ["scrublet"], gpu = ["scvi-tools"] …
+
+[project.scripts]
+ecasteps-standardize = "ecasteps.standardize:cli"
+
+[project.urls]
+Repository = "https://github.com/chansigit/eca-pp"
+
+[tool.setuptools.packages.find]
+where = ["src"]

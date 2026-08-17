@@ -1,0 +1,134 @@
+"""Acceptance tests, v0.1 set (spec §9): F1 → F3 → F2, result.json, exit codes.
+
+Since v0.2 these run through the FULL pipeline (species → harmonize → QC →
+write), so the synthetic datasets use real human reference genes (see dsets.py);
+every counts-location assertion is unchanged.
+
+Run on a compute node:  bash run.sh test tests -q
+"""
+
+from __future__ import annotations
+
+import anndata as ad
+import numpy as np
+import scipy.sparse as sp
+
+from dsets import G, N, RNG, lognorm, make_counts, run_cli, write_h5ad
+from ecasteps.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
+
+# ---------------------------------------------------------------- happy paths
+
+def test_integer_counts_in_X(tmp_path):
+    src = write_h5ad(tmp_path / "s.h5ad", sp.csr_matrix(make_counts()))
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "ok"
+    assert res["metrics"]["counts_source"] == "X"
+    assert res["metrics"]["n_cells"] == N
+    assert res["metrics"]["n_genes_detected"] >= 5000
+
+def test_counts_in_whitelist_layer(tmp_path):
+    c = make_counts()
+    src = write_h5ad(tmp_path / "s.h5ad", lognorm(c), {"counts": sp.csr_matrix(c)})
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "ok"
+    assert res["metrics"]["counts_source"] == "layer:counts"
+
+def test_odd_named_layer_adopted_by_consistency(tmp_path):
+    c = make_counts()
+    src = write_h5ad(tmp_path / "s.h5ad", lognorm(c), {"RNA_raw": sp.csr_matrix(c)})
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "ok"
+    assert res["metrics"]["counts_source"] == "layer:RNA_raw"
+    assert res["metrics"]["counts_adopted_by"] == "consistency_check"
+    assert res["metrics"]["counts_name_recognized"] is False
+    (entry,) = [e for e in res["layers"] if e["name"] == "RNA_raw"]
+    assert entry["consistent_with_X"] is True
+
+def test_lognorm_only_recovers(tmp_path):
+    src = write_h5ad(tmp_path / "s.h5ad", lognorm(make_counts()))
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "ok"
+    assert res["metrics"]["counts_source"].startswith("recovered")
+    assert res["metrics"]["x_normalization"]["is_log1p"] is True
+
+def test_scaled_X_with_counts_layer(tmp_path):
+    c = make_counts()
+    Xs = np.asarray(lognorm(c).todense())
+    Xs = ((Xs - Xs.mean(0)) / (Xs.std(0) + 1e-6)).astype(np.float32)  # z-scored
+    src = write_h5ad(tmp_path / "s.h5ad", Xs, {"counts": sp.csr_matrix(c)})
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "ok"
+    assert res["metrics"]["counts_source"] == "layer:counts"
+
+def test_counts_layer_override(tmp_path):
+    c = make_counts()
+    src = write_h5ad(tmp_path / "s.h5ad", lognorm(c), {"mystery": sp.csr_matrix(c)})
+    code, res = run_cli(tmp_path, src, "--counts-layer", "mystery")
+    assert code == EXIT_OK and res["status"] == "ok"
+    assert res["metrics"]["counts_source"] == "layer:mystery"
+    assert res["metrics"]["counts_adopted_by"] == "override"
+
+def test_no_gate_lets_tiny_sample_through(tmp_path):
+    src = write_h5ad(tmp_path / "s.h5ad", sp.csr_matrix(make_counts(n=50)))
+    code, res = run_cli(tmp_path, src, "--no-gate")
+    assert code == EXIT_OK and res["status"] == "ok"
+    assert res["metrics"]["n_cells"] == 50
+
+
+# ---------------------------------------------------------- review & blocking
+
+def test_recovered_with_inconsistent_layer_needs_review(tmp_path):
+    c = make_counts()
+    shuffled = c[:, RNG.permutation(G)]  # integer, but not X's counts
+    src = write_h5ad(tmp_path / "s.h5ad", lognorm(c), {"weird": sp.csr_matrix(shuffled)})
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "needs_review"
+    assert res["metrics"]["counts_source"].startswith("recovered")
+    assert any("weird" in r for r in res["reasons"])
+    (entry,) = [e for e in res["layers"] if e["name"] == "weird"]
+    assert entry["consistent_with_X"] is False
+
+def test_ambiguous_candidates_block(tmp_path):
+    c = make_counts()
+    src = write_h5ad(tmp_path / "s.h5ad", lognorm(c),
+                     {"a": sp.csr_matrix(c), "b": sp.csr_matrix(c.copy())})
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_BLOCKED and res["status"] == "needs_review"
+    assert res["rejected_at"] is None
+    assert any("--counts-layer" in r for r in res["reasons"])
+
+def test_missing_designated_layer_blocks(tmp_path):
+    src = write_h5ad(tmp_path / "s.h5ad", sp.csr_matrix(make_counts()))
+    code, res = run_cli(tmp_path, src, "--counts-layer", "nope")
+    assert code == EXIT_BLOCKED and res["status"] == "needs_review"
+
+
+# ----------------------------------------------------------------- rejections
+
+def test_too_few_cells_rejects_before_load(tmp_path, monkeypatch):
+    src = write_h5ad(tmp_path / "s.h5ad", sp.csr_matrix(make_counts(n=50)))
+
+    def boom(*a, **k):  # the pre-gate must fire from HDF5 metadata alone
+        raise AssertionError("read_h5ad must not be called for a pre-gate reject")
+
+    monkeypatch.setattr(ad, "read_h5ad", boom)
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_REJECTED and res["status"] == "rejected"
+    assert res["rejected_at"] == "pre_gate"
+    assert res["metrics"]["n_cells"] == 50
+
+def test_too_few_genes_rejects(tmp_path):
+    c = np.zeros((N, G), dtype=np.float32)
+    c[:, :100] = RNG.poisson(1.0, size=(N, 100))
+    src = write_h5ad(tmp_path / "s.h5ad", sp.csr_matrix(c))
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_REJECTED and res["status"] == "rejected"
+    assert res["rejected_at"] in ("pre_gate", "final_gate")
+
+def test_not_h5ad_rejects(tmp_path):
+    junk = tmp_path / "junk.h5ad"
+    junk.write_text("this is not hdf5")
+    code, res = run_cli(tmp_path, junk)
+    assert code == EXIT_REJECTED and res["status"] == "rejected"
+    assert res["rejected_at"] == "input"
+    assert res["reasons"]
