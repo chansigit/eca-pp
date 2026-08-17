@@ -87,7 +87,9 @@ echo $?        # → 3
 --counts-layer NAME   # 指定 counts 所在 layer
 --keep-unmapped       # 保留映射不上的基因(默认丢弃;上面 290 个会被留下、维持原名)
 --llm                 # 物种推断失败时允许一次 LLM 兜底(默认关)
---min-cells 100 --min-genes 5000 --no-gate   # QC 门阈值 / 跳过门
+--min-cells 100 --min-genes 5000   # QC 硬门:低于阈值整样本拒绝(exit 2,不产出 h5ad)
+--no-gate                          # 跳过上述两道门(如珍稀小样本);指标照算照记
+
 ```
 
 ## 5. 批量 12 个器官(真实运行记录)

@@ -40,6 +40,22 @@ ecasteps-standardize SRC.h5ad -o OUTDIR \
     [--counts-layer NAME] [--no-gate] [--keep-unmapped]
 ```
 
+`--species` accepts a short code or full name: `hs`/`human`, `mm`/`mouse`,
+`rn`/`rat`, `dr`/`zebrafish`, `dm`/`fruit_fly`, `ce`/`c_elegans`,
+`cyno`/`cynomolgus`, `rhesus`, `marmoset`, `lemur`/`mouse_lemur`.
+An unrecognized value exits 3 with the supported list in `result.json`.
+
+Samples below `--min-cells` / `--min-genes` (cells; detected genes) are
+rejected with exit 2 and no h5ad is produced. `--no-gate` disables both
+thresholds — useful for rare, deliberately small samples — while the
+metrics are still computed and recorded in `result.json`.
+
+By default, features that cannot be mapped to a canonical gene — unknown
+names, ambiguous old symbols, and non-gene features such as ERCC spike-ins —
+are removed from the matrix (counted per category under
+`harmonization.genes_dropped` in `result.json`; cells are never removed).
+`--keep-unmapped` keeps them instead, under their original names.
+
 On Stanford Sherlock, `bash run.sh standardize ...` wraps the same command
 with the cluster environment set up (compute nodes only).
 

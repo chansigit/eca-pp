@@ -88,7 +88,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-gate", action="store_true",
                    help="disable the hard QC gates (metrics still recorded)")
     p.add_argument("--species", default=None, metavar="CODE",
-                   help="species code, e.g. hs/mm (skips inference)")
+                   help="species (skips inference): hs=human, mm=mouse, rn=rat, "
+                        "dr=zebrafish, dm=fruit_fly, ce=c_elegans, "
+                        "cyno=cynomolgus, rhesus, marmoset, lemur=mouse_lemur; "
+                        "full names accepted too")
     p.add_argument("--llm", action="store_true",
                    help="allow one LLM call as a species-inference fallback "
                         "(off by default; needs ANTHROPIC_API_KEY)")
