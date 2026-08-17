@@ -1,9 +1,19 @@
 # ecasteps
 
-Data curation tools for the Open Cell Atlas pipeline. Each step is a
-command-line tool — **h5ad in → files out + `result.json`** — that runs
-offline by default and reports through exit codes, so steps compose cleanly
-into scripts and larger workflows.
+Mining scRNA-seq datasets from the published literature is slow, manual work.
+Public datasets are pervasively non-standard: raw counts hide in arbitrarily
+named layers or arrive already log-transformed, the species goes unstated,
+gene identifiers mix outdated and ambiguous symbols with spike-ins, and
+metadata follows no convention. Curating datasets at atlas scale means
+resolving the same ambiguities over and over by hand.
+
+**ecasteps** automates this curation for the Open Cell Atlas pipeline. Each
+step is a command-line tool — **h5ad in → files out + `result.json`** — that
+resolves everything it can deterministically, records the evidence behind
+every decision, and escalates only the genuinely ambiguous cases (exit
+code 3, optionally with LLM assistance) for a human or an agent to settle.
+Steps run offline by default and report through exit codes, so they compose
+cleanly into scripts and larger workflows.
 
 **`ecasteps-standardize`** turns a single-sample `.h5ad` of unknown
 provenance into a standardized form the rest of the pipeline can trust.
