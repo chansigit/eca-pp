@@ -10,9 +10,9 @@ import anndata as ad
 import numpy as np
 import scipy.sparse as sp
 
-import ecasteps.species as species_ladder
+import ecasteps.standardize.species as species_ladder
 from dsets import G, N, lognorm, make_counts, ref_genes, run_cli, write_h5ad
-from ecasteps.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
+from ecasteps.core.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
 
 _T1_NONE = {"species": None, "confidence": 0.0, "evidence": {"rule": "insufficient"}}
 

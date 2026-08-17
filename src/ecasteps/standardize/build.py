@@ -13,7 +13,7 @@ import os
 import numpy as np
 import scipy.sparse as sp
 
-from ecasteps.atomic_io import atomic_write
+from ecasteps.core.atomic_io import atomic_write
 
 H5AD_FILENAME = "standardized.h5ad"
 TARGET_SUM = 1e4

@@ -26,9 +26,9 @@ agent = ["claude-agent-sdk>=0.2", "anyio>=4.0"]
 # 下期: doublets = ["scrublet"], gpu = ["scvi-tools"] …
 
 [project.scripts]
-ecasteps-standardize = "ecasteps.standardize:cli"
-ecasteps-integration-probe = "ecasteps.probe:cli"
-ecasteps-identify-columns = "ecasteps.identify_columns:cli"
+ecasteps-standardize = "ecasteps.standardize.cli:cli"
+ecasteps-integration-probe = "ecasteps.probe.cli:cli"
+ecasteps-identify-columns = "ecasteps.identify_columns.cli:cli"
 
 [project.urls]
 Repository = "https://github.com/chansigit/eca-pp"

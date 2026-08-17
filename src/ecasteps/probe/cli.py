@@ -19,8 +19,8 @@ import time
 import numpy as np
 import pandas as pd
 
-from ecasteps.columns import ColumnSpecError, resolve_spec
-from ecasteps.result import EXIT_ERROR, EXIT_OK, EXIT_REJECTED, new_result, write_result
+from ecasteps.core.colspec import ColumnSpecError, resolve_spec
+from ecasteps.core.result import EXIT_ERROR, EXIT_OK, EXIT_REJECTED, new_result, write_result
 
 log = logging.getLogger("ecasteps.probe")
 
@@ -180,7 +180,7 @@ def _umap_panel(adata, batch: pd.Series, ct: pd.Series, ct_kind: str,
             ax.legend(fontsize=6, markerscale=1.5, frameon=False)
     fig.tight_layout()
     path = os.path.join(outdir, UMAP_FILENAME)
-    from ecasteps.atomic_io import atomic_write
+    from ecasteps.core.atomic_io import atomic_write
     with atomic_write(path) as tmp:
         fig.savefig(tmp, dpi=110, format="png")
     plt.close(fig)

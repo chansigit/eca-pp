@@ -267,17 +267,18 @@ bash scripts/test-in-container.sh            # python:3.12-slim 容器(Apptainer
 
 ```
 src/ecasteps/
-  standardize.py   CLI + 流程 ①–⑪
-  countsloc.py     counts 定位:layer 普查 + 一致性证明(围绕 stancounts)
-  species.py       物种解析四级阶梯(F4a)
-  harmonize.py     基因名统一 + 默认丢弃(F4)
-  qc.py            门指标 + 逐细胞 QC 列(F5)
-  build.py         标准形装配 + 原子 h5ad 写盘(F7)
-  result.py        result.json schema + 退出码(未来各步骤共用)
-  atomic_io.py     原子写
-tests/             验收测试(原生与容器同一套);dsets.py 构造真实基因名数据
-run.sh             Sherlock 环境引导(唯一集群相关文件)
+  core/                跨环节契约:result.json+退出码、原子写、列SPEC(colspec)
+  standardize/         环节1(确定性):cli + countsloc/species/harmonize/qc/build
+  identify_columns/    环节2(agent 型):cli + obsprofile + policies(agent 全在此)
+  probe/               独立工具(确定性仪器):integration-probe
+tests/                 验收测试(原生与容器同一套);dsets/intdata 构造数据
+run.sh                 Sherlock 环境引导(唯一集群相关文件)
 ```
+
+组织规则:一个环节=一个子包,`cli.py` 是唯一入口;`core/` 是环节间唯一横向
+依赖;agent 相关代码只存在于 agent 型环节的 `policies.py`;extras 与子包对齐
+(`[probe]`→probe+identify_columns,`[agent]`→policies)。未来环节
+(doublets/integrate/dissect)以平级子包加入。
 
 ## 11. 不做的事(non-goals)
 

@@ -6,7 +6,7 @@ import json
 
 import numpy as np
 
-from ecasteps.probe import main
+from ecasteps.probe.cli import main
 from intdata import make_integration_h5ad
 
 RNG = np.random.default_rng(7)

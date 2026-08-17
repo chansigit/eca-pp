@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import numpy as np
 
 from ecasteps import __version__
-from ecasteps.atomic_io import write_bytes_atomic
+from ecasteps.core.atomic_io import write_bytes_atomic
 
 SCHEMA_VERSION = 2  # v0.2: adds species / harmonization / qc blocks + "output"
 

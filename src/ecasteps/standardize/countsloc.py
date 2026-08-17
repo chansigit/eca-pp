@@ -25,7 +25,7 @@ import scipy.sparse as sp
 import stancounts
 from stancounts.counts import DEFAULT_EXCLUDE_LAYERS, DEFAULT_PREFER_LAYERS
 
-from ecasteps.qc import is_integer_matrix
+from ecasteps.standardize.qc import is_integer_matrix
 
 PREFER = set(DEFAULT_PREFER_LAYERS)
 EXCLUDE = set(DEFAULT_EXCLUDE_LAYERS)
