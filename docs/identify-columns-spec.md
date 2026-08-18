@@ -53,7 +53,7 @@ result.json 输出 → 退出码汇报);内部由 Agent SDK 驱动"提出候选 
 
 ## 4. 判定准则(写入 agent prompt,全文见附录 A)
 
-1. **先分类,后选择**。分组列归类为:技术分组(lane/channel/library/run/
+1. **先归类,后选择**。分组列归类为:技术分组(lane/channel/library/run/
    pool/hash)、供体分组(donor/mouse/patient)、实验条件(disease/
    treatment/timepoint/genotype)、注释列、QC 数值列、标识符。
 2. **候选范围**:批次候选 = 任何"需要跨其对齐细胞身份"的分组——技术分组、
