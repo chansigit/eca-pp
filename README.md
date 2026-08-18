@@ -28,31 +28,34 @@ Two steps are available:
 ## Quick start
 
 ```bash
-# stancounts and stangene are not on PyPI yet — install from source checkouts
-pip install /path/to/stancounts /path/to/stangene
-pip install .
+pip install git+https://github.com/chansigit/stancounts \
+            git+https://github.com/chansigit/stangene
+pip install ".[probe,agent]"   # from a checkout of this repo
 
 ecasteps-standardize SRC.h5ad -o out/sample1
-echo $?          # 0 = success; see the exit-code table below
+ecasteps-identify-columns out/sample1/standardized.h5ad -o out/sample1_columns
+echo $?                        # 0 = success; see the exit-code table below
 ```
 
-On Stanford Sherlock, `bash run.sh standardize ...` wraps the same command
-with the cluster environment set up (compute nodes only). Python ≥ 3.10.
-Optional extras: `.[llm]` (LLM species fallback), `.[test]` (pytest).
+Python ≥ 3.10. Extras: `[probe]` (scanpy/harmonypy stack, needed by
+identify-columns and the probe), `[agent]` (Claude Agent SDK for
+identify-columns; authenticates via `ANTHROPIC_API_KEY` or the Claude Code
+CLI's stored credentials), `[llm]` (LLM species fallback for standardize),
+`[test]` (pytest). On Stanford Sherlock, `bash run.sh <tool> ...` wraps the
+same commands with the cluster environment set up (compute nodes only).
 
 ## What you get
 
-| file | contents |
+| tool | outputs |
 |---|---|
-| `OUTDIR/standardized.h5ad` | `layers["counts"]` (integer raw counts) · `X` = log-normalized counts (float32) · canonical gene symbols in `var_names` with the original names and full mapping provenance in `var` · per-cell QC columns in `obs` (`pct_counts_mt`, `pct_counts_hb`, `total_counts`, `n_genes_by_counts`) · run provenance in `uns` |
-| `OUTDIR/result.json` | every decision and its evidence: status + reasons, species evidence, a per-layer census, gene-drop statistics (`genes_kept`/`genes_dropped` — features, never cells), QC gene-set hit counts, and wall-time per stage. **Written on failure too** — reviewing a run never requires reopening the h5ad. |
-
-Both files are written atomically: a crash never leaves a torn output.
+| standardize | `standardized.h5ad` — integer counts layer · log-normalized `X` · canonical gene symbols with full mapping provenance in `var` · authoritative QC columns in `obs` (`pct_counts_mt`, `pct_counts_hb`, `total_counts`, `n_genes_by_counts`) · run provenance in `uns` |
+| identify-columns | the verdict in `result.json → columns` (batch column + whether correction is even needed, cell-type column, each with confidence and evidence) · `batch.tsv` when the batch is a derived column (barcode/composite) · one UMAP panel per trial · a full audit trail (`decisions` with the agent's per-round reasoning and tool use, `trials` with iLISI/cLISI metrics) |
+| every tool | `result.json` — every decision and its evidence, per-stage wall times, **written on failure too**. All writes are atomic: a crash never leaves a torn output. |
 
 ## Exit codes — the caller's contract
 
 `0` success · `2` permanent data problem, don't retry · `3` blocked on a
-decision, re-run with a flag · `1` unexpected error.
+decision, re-run with a flag or decide from the evidence · `1` unexpected error.
 
 <details>
 <summary>Full table</summary>
@@ -61,18 +64,18 @@ decision, re-run with a flag · `1` unexpected error.
 |---|---|---|
 | 0 | success (`result.json` may carry non-blocking review notes) | use the outputs |
 | 2 | permanent data problem (too few cells/genes, no recoverable counts, not an h5ad) | skip this sample; retrying cannot help |
-| 3 | blocked on a decision (ambiguous counts layer, unresolvable species) | read the evidence in `result.json`, re-run with `--counts-layer` / `--species` |
+| 3 | blocked on a decision (ambiguous counts layer, unresolvable species, undecidable batch column) | read the evidence in `result.json`; re-run with `--counts-layer` / `--species`, or settle the column choice yourself |
 | 1 | unexpected error | retry / investigate |
 
 </details>
 
 ## Options
 
-All flags are optional; with none given, everything is inferred and default
-gates apply.
+All flags are optional; with none given, everything is inferred and defaults
+apply.
 
 <details>
-<summary>Flag reference</summary>
+<summary>ecasteps-standardize flags</summary>
 
 | flag | default | effect |
 |---|---|---|
@@ -85,25 +88,48 @@ gates apply.
 
 </details>
 
+<details>
+<summary>ecasteps-identify-columns flags</summary>
+
+| flag | default | effect |
+|---|---|---|
+| `--max-probes N` | 6 | budget of integration trials the agent may run |
+| `--n-cells N` | adaptive | probe subsample size; default `clamp(50 × max_batches, 5000, 30000)` |
+| `--no-probe` | off | profile + candidate ranking only, no trials (degraded mode, exit 3) |
+| `--seed N` | 0 | sampling / integration seed; same input + seed → same trial metrics |
+
+Without Agent SDK credentials the step degrades the same way as
+`--no-probe`. `ECASTEPS_CLAUDE_CLI` can point at a specific `claude`
+executable. Downstream tools accept the identified batch as
+`--batch-col <obs column or batch.tsv path>`.
+
+</details>
+
 ## How it works
 
-1. **Validate & fast-reject** — input checks and the cell-count gate run on
-   HDF5 metadata, before the matrix is loaded.
-2. **Locate the raw counts** — recognized layer names, integer X, or log1p
-   reversal; an oddly-named candidate layer is *proven* to be the true counts
-   by a deterministic consistency check against X.
-3. **Resolve the species** — explicit flag → deterministic inference
-   (stable-ID prefixes, mitochondrial naming styles, symbol overlap with
-   bundled references) → optional single LLM call → otherwise stop and ask.
-4. **Harmonize gene names** to canonical symbols (via stangene); unmappable
-   features are dropped by default.
-5. **Compute QC columns** with species-aware mito/hemoglobin gene sets;
-   same-named columns brought by the data survive under a `__original` suffix.
-6. **Write atomically** — the standard-form h5ad plus `result.json`.
+**standardize** — validate & fast-reject from HDF5 metadata → locate the raw
+counts (recognized layers, integer X, or log1p reversal, with a deterministic
+consistency proof for oddly-named layers) → resolve the species (flag →
+deterministic inference → optional LLM → stop and ask) → harmonize gene names
+(unmappable features dropped by default) → compute species-aware QC columns →
+write atomically.
+
+**identify-columns** — profile every obs column (stats + sampled values,
+group-size health, a nesting/equivalence graph) and enumerate derived
+candidates (barcode prefixes, composites) → classify candidates
+(technical / donor / condition are eligible batches; annotation, QC and
+identifier columns never are) → an agent picks candidates bottom-up and
+verifies each with a small-scale Harmony trial (iLISI mixing gain, cLISI
+structure preservation, convergence, UMAP panel) → concludes one of four
+verdicts: batch + correction recommended, batch + correction unnecessary,
+no batch structure, or undecidable (exit 3). Every round is recorded.
 
 ## Docs
 
 - [`docs/tutorial.md`](docs/tutorial.md) — hands-on walkthrough on a real
   dataset (Tabula Muris droplet, 12 organs), with per-stage timings. Chinese.
-- [`docs/standardize-spec.md`](docs/standardize-spec.md) — requirements and
-  design document.
+- [`docs/standardize-spec.md`](docs/standardize-spec.md) — standardize
+  requirements and design.
+- [`docs/identify-columns-spec.md`](docs/identify-columns-spec.md) —
+  identify-columns requirements and design, including the agent doctrine
+  and the full prompt.
