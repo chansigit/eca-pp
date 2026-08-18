@@ -141,7 +141,59 @@ A.uns["ecasteps_standardize"]       # {step_version, species, counts_source, ...
 ## 7. 别的机器 / 容器
 
 代码零集群依赖:任意机器
-`pip install <stancounts源码> <stangene源码> <本repo>` 后用
-`ecasteps-standardize` 命令;Sherlock 容器环境用
-`bash scripts/test-in-container.sh` 一键验证(python:3.12-slim + Apptainer,
-32 项验收测试)。
+
+```bash
+pip install git+https://github.com/chansigit/stancounts \
+            git+https://github.com/chansigit/stangene
+pip install ".[probe,agent]"        # 本 repo 的 checkout
+```
+
+Sherlock 容器环境用 `bash scripts/test-in-container.sh` 一键验证
+(python:3.12-slim + Apptainer,53 项验收测试)。
+
+## 8. 识别批次列 / 细胞类型列(identify-columns)
+
+### 8.1 先配置 LLM 凭据(二选一;不配也能降级运行)
+
+**方式 A:Claude 订阅(推荐)**——安装 Claude Code CLI 并登录一次:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+claude          # 首次运行按提示登录;凭据写入 ~/.claude/.credentials.json
+```
+
+之后 identify-columns 不需要任何环境变量,计费走订阅额度。
+
+**方式 B:API key**:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+同时启用 standardize 的 `--llm` 物种回退;计费走 API 余额。
+
+可选项:`ECASTEPS_CLAUDE_CLI=/path/to/claude` 指定 CLI 可执行文件
+(glibc 较老的系统需用 npm 版 CLI,备选方案见 run.sh 头部注释)。
+
+**不配置会怎样**:不报错——降级为"画像 + 候选排名"(exit 3,等你确认),
+全部确定性功能不受影响。
+
+### 8.2 跑一个真样本(Marrow,3652 细胞)
+
+```bash
+bash run.sh python -m ecasteps.identify_columns \
+    data/out/Marrow/standardized.h5ad -o data/out/Marrow_idc
+```
+
+真实结果(约 90 秒,agent 一轮试验即判定):
+
+```
+columns.batch     = channel   correction=unnecessary
+  ← agent 从列间关系图看出 channel ≡ mouse.id,探一列即覆盖两个候选;
+    整合前 iLISI 0.92(批次本已混合)、校正增益仅 0.013 → 无需校正
+columns.cell_type = cell_ontology_class
+```
+
+查证据:`result.json` 的 `decisions`(每轮决策 + agent 回复全文)、
+`trials`(指标)、`trial_1_umap.png`(图)。下游消费:
+`--batch-col channel`;`correction=unnecessary` 时 integration 应跳过校正。
