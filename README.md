@@ -49,7 +49,7 @@ same commands with the cluster environment set up (compute nodes only).
 | tool | outputs |
 |---|---|
 | standardize | `standardized.h5ad` — integer counts layer · log-normalized `X` · canonical gene symbols with full mapping provenance in `var` · authoritative QC columns in `obs` (`pct_counts_mt`, `pct_counts_hb`, `total_counts`, `n_genes_by_counts`) · run provenance in `uns` |
-| identify-columns | the verdict in `result.json → columns` (batch column + whether correction is even needed, cell-type column, each with confidence and evidence) · `batch.tsv` when the batch is a derived column (barcode/composite) · one UMAP panel per trial · a full audit trail (`decisions` with the agent's per-round reasoning and tool use, `trials` with iLISI/cLISI metrics) |
+| identify-columns | the verdict in `result.json → columns` (batch column + whether correction is even needed, cell-type column, each with confidence and evidence) · `batch.tsv` when the batch is a derived column (barcode/composite) · one UMAP panel per trial · a full audit trail (`decisions` with the agent's per-round reasoning, tool use, and token/cost usage — totals in `metrics.llm` with a billing URL, `trials` with iLISI/cLISI metrics) |
 | every tool | `result.json` — every decision and its evidence, per-stage wall times, **written on failure too**. All writes are atomic: a crash never leaves a torn output. |
 
 ## Exit codes — the caller's contract
@@ -97,6 +97,7 @@ apply.
 | `--n-cells N` | adaptive | probe subsample size; default `clamp(50 × max_batches, 5000, 30000)` |
 | `--no-probe` | off | profile + candidate ranking only, no trials (degraded mode, exit 3) |
 | `--seed N` | 0 | sampling / integration seed; same input + seed → same trial metrics |
+| `--model ID` | the `claude` CLI's default | agent model (e.g. `claude-sonnet-5`); also settable via `ECASTEPS_AGENT_MODEL`. The model actually used is recorded per round in `result.json` and summarized in `metrics.llm.models`. |
 
 Without Agent SDK credentials the step degrades the same way as
 `--no-probe`. `ECASTEPS_CLAUDE_CLI` can point at a specific `claude`

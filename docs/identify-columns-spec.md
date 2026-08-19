@@ -127,7 +127,7 @@ scVI / MrVI),批次列的身份判定与层级选择与整合方法无关。已�
 
 ```bash
 ecasteps-identify-columns SRC.h5ad -o OUTDIR \
-    [--max-probes 6] [--n-cells 5000] [--no-probe] [--seed 0]
+    [--max-probes 6] [--n-cells 5000] [--no-probe] [--seed 0] [--model ID]
 ```
 
 流程:
@@ -146,6 +146,9 @@ ecasteps-identify-columns SRC.h5ad -o OUTDIR \
   判定 ①;整合前 iLISI 已高 → 判定 ②;候选集为空且证据充分 → 判定 ③;
   候选耗尽或达 max-probes 上限而无合格者 → 判定 ④(exit 3)。
 - `--no-probe`:仅输出画像与候选排名(降级模式:速度快,但证据有限)。
+- `--model ID`(或环境变量 `ECASTEPS_AGENT_MODEL`):指定 agent 模型;
+  缺省沿用 claude CLI 的默认模型。每轮实际使用的模型记录在
+  `decisions[].usage.model`,汇总于 `metrics.llm.models`。
 - **无 API 凭据 / Agent SDK 不可用**:确定性降级——画像与启发式排名照常
   产出,status=needs_review,exit 3。
 - 退出码沿用全项目契约:0 / 3 / 2 / 1。
@@ -182,7 +185,10 @@ ecasteps-identify-columns SRC.h5ad -o OUTDIR \
   // + raw_reply:agent 该轮回复全文(含结构化决策块之外的分析叙述)
   "decisions": [ { "action": "", "candidate": "", "reason": "",
                    "tools_used": [ { "tool": "Read", "target": "trial_1_umap.png" } ],
-                   "raw_reply": "" } ],
+                   "raw_reply": "",
+                   "usage": { "model": "", "cost_usd": 0.0, "input_tokens": 0,
+                              "output_tokens": 0, "cache_creation_tokens": 0,
+                              "cache_read_tokens": 0, "num_turns": 0 } } ],
   "trials": [ { "batch_col": "",
                 "metrics": { "ilisi_pre": 0.0, "ilisi_post": 0.0,
                              "ilisi_norm_pre": 0.0, "ilisi_norm_post": 0.0,
@@ -201,7 +207,14 @@ ecasteps-identify-columns SRC.h5ad -o OUTDIR \
     "cell_type": { "value": "", "kind": "existing", "confidence": 0.0,
                    "evidence": "" }
   },
-  "metrics": { "timings": {} }
+  "metrics": {
+    "timings": {},
+    // LLM 用量汇总:cost_complete=false 表示部分调用未上报单价(如订阅认证)
+    "llm": { "calls": 0, "models": [], "input_tokens": 0, "output_tokens": 0,
+             "cache_creation_tokens": 0, "cache_read_tokens": 0,
+             "cost_usd": 0.0, "cost_complete": true,
+             "billing_url": "https://claude.ai/settings/usage(订阅)或 https://console.anthropic.com/settings/usage(API key)" }
+  }
 }
 ```
 
@@ -210,8 +223,9 @@ ecasteps-identify-columns SRC.h5ad -o OUTDIR \
 - **逐轮审计**:agent 的每次选择与理由记入 decisions/trials;同输入同 seed
   下 probe 指标完全可复现(agent 的选择顺序可能不同,但每条证据可独立
   复算验证)。
-- **调用开销有界**:agent 调用次数受 max-probes 与流程结构约束,不存在
-  无上界的循环。
+- **调用开销有界且可见**:agent 调用次数受 max-probes 与流程结构约束,
+  不存在无上界的循环;每轮的 token 用量与费用记入 `decisions[].usage`,
+  汇总于 `metrics.llm`(附账户级账单查询 URL)。
 - 打包:extras `[probe]`(scanpy/harmonypy/scikit-learn/umap-learn/
   leidenalg)、`[agent]`(claude-agent-sdk);核心包不引入重依赖。
 - 验收沿用双环境流程(原生 + 容器);agent 相关测试以 mock 驱动,不发起

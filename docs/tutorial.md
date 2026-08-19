@@ -175,14 +175,19 @@ export ANTHROPIC_API_KEY=sk-ant-...
 可选项:`ECASTEPS_CLAUDE_CLI=/path/to/claude` 指定 CLI 可执行文件
 (glibc 较老的系统需用 npm 版 CLI,备选方案见 run.sh 头部注释)。
 
+**选择模型**:`--model claude-sonnet-5`(或环境变量
+`ECASTEPS_AGENT_MODEL`)。不指定则沿用 claude CLI 的默认模型——注意订阅
+账户的默认往往是最贵的档位;这类任务用 Sonnet 通常足够。每轮实际使用的
+模型会记录在 `decisions[].usage.model`,汇总在 `metrics.llm.models`。
+
 **不配置会怎样**:不报错——降级为"画像 + 候选排名"(exit 3,等你确认),
 全部确定性功能不受影响。
 
 ### 8.2 跑一个真样本(Marrow,3652 细胞)
 
 ```bash
-bash run.sh python -m ecasteps.identify_columns \
-    data/out/Marrow/standardized.h5ad -o data/out/Marrow_idc
+bash run.sh identify-columns data/out/Marrow/standardized.h5ad \
+    -o data/out/Marrow_idc
 ```
 
 真实结果(约 90 秒,agent 一轮试验即判定):
@@ -197,3 +202,9 @@ columns.cell_type = cell_ontology_class
 查证据:`result.json` 的 `decisions`(每轮决策 + agent 回复全文)、
 `trials`(指标)、`trial_1_umap.png`(图)。下游消费:
 `--batch-col channel`;`correction=unnecessary` 时 integration 应跳过校正。
+
+**费用可见**:每轮的 token 用量与费用记录在 `decisions[].usage`,汇总在
+`metrics.llm`。账户级总消费查询:订阅方式在
+<https://claude.ai/settings/usage>,API key 方式在
+<https://console.anthropic.com/settings/usage>(result.json 里的
+`billing_url` 会按认证方式给出对应地址)。

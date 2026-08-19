@@ -72,6 +72,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-probe", action="store_true",
                    help="profile + ranking only (degraded mode, exit 3)")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--model", default=os.environ.get("ECASTEPS_AGENT_MODEL"),
+                   help="agent model ID (e.g. claude-sonnet-5); default: "
+                        "$ECASTEPS_AGENT_MODEL, else the claude CLI's "
+                        "default model")
     return p
 
 
@@ -219,6 +223,35 @@ def _best_cell_type(candidates: dict) -> str | None:
     return ct[0]["label"] if ct else None
 
 
+def _billing_url() -> str:
+    """Where the caller can review the account-level total spend."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "https://console.anthropic.com/settings/usage"
+    return "https://claude.ai/settings/usage"  # subscription (CLI credentials)
+
+
+def _tally_llm(res: dict, usage: dict | None) -> None:
+    """Aggregate per-round agent usage into metrics.llm (tokens + dollars)."""
+    if not usage or not any(v is not None for v in usage.values()):
+        return
+    llm = res["metrics"].setdefault("llm", {
+        "calls": 0, "models": [], "input_tokens": 0, "output_tokens": 0,
+        "cache_creation_tokens": 0, "cache_read_tokens": 0,
+        "cost_usd": 0.0, "cost_complete": True, "billing_url": _billing_url()})
+    llm["calls"] += 1
+    model = usage.get("model")
+    if model and model not in llm["models"]:
+        llm["models"].append(model)
+    for k in ("input_tokens", "output_tokens",
+              "cache_creation_tokens", "cache_read_tokens"):
+        if usage.get(k):
+            llm[k] += usage[k]
+    if usage.get("cost_usd") is not None:
+        llm["cost_usd"] = round(llm["cost_usd"] + usage["cost_usd"], 6)
+    else:  # provider did not report a per-call cost (e.g. subscription auth)
+        llm["cost_complete"] = False
+
+
 def _run(args, res: dict, policy) -> int:
     import anndata as ad
 
@@ -261,7 +294,9 @@ def _run(args, res: dict, policy) -> int:
                           "candidate": decision.get("candidate"),
                           "reason": decision.get("reason", ""),
                           "tools_used": decision.get("tools_used", []),
-                          "raw_reply": decision.get("raw_reply", "")})
+                          "raw_reply": decision.get("raw_reply", ""),
+                          "usage": decision.get("usage", {})})
+        _tally_llm(res, decision.get("usage"))
         log.info("policy: %s %s — %s", action, decision.get("candidate"),
                  decision.get("reason"))
 
@@ -343,12 +378,13 @@ def main(argv=None, *, policy="auto") -> int:
     logging.basicConfig(level=logging.INFO, stream=sys.stderr,
                         format="%(levelname)s %(name)s: %(message)s")
     params = {"max_probes": args.max_probes, "n_cells": args.n_cells,
-              "no_probe": args.no_probe, "seed": args.seed}
+              "no_probe": args.no_probe, "seed": args.seed,
+              "model": args.model}
     res = new_result("identify_columns", os.path.abspath(args.src), params)
 
     if policy == "auto":
         try:
-            policy = ClaudeAgentPolicy(args.outdir)
+            policy = ClaudeAgentPolicy(args.outdir, model=args.model)
         except PolicyUnavailable as exc:
             log.warning("agent unavailable (%s) — degraded mode", exc)
             res["reasons"].append(f"agent unavailable: {exc}")

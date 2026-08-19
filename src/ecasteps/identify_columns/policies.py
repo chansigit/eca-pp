@@ -48,7 +48,7 @@ class ClaudeAgentPolicy:
     round. Construction or any exchange failure raises PolicyUnavailable —
     the caller degrades deterministically."""
 
-    def __init__(self, outdir: str):
+    def __init__(self, outdir: str, model: str | None = None):
         os.makedirs(outdir, exist_ok=True)  # the SDK needs an existing cwd
         # Auth: an explicit API key, or the Claude Code CLI's stored
         # credentials (the SDK spawns the CLI, which can use either).
@@ -67,22 +67,32 @@ class ClaudeAgentPolicy:
         # ship, while the npm-installed JS CLI runs anywhere node runs.
         cli_path = os.environ.get("ECASTEPS_CLAUDE_CLI") or shutil.which("claude")
         self._client_cls = ClaudeSDKClient
+        # model=None → the claude CLI's own default; the model actually used
+        # is captured from the reply stream into usage["model"] either way.
         self._options = ClaudeAgentOptions(
             system_prompt=PROMPT, allowed_tools=["Read"], max_turns=6,
-            cwd=outdir, permission_mode="default", cli_path=cli_path)
+            cwd=outdir, permission_mode="default", cli_path=cli_path,
+            model=model)
 
-    def _ask(self, message: str) -> tuple[str, list]:
+    def _ask(self, message: str) -> tuple[str, list, dict]:
         """One decision = one self-contained agent session (the full state is
         resent every round, so no cross-round session memory is needed — and
         every decision stays independently reproducible). Returns the reply
-        text plus the tool calls the agent made (e.g. Reading UMAP panels)."""
+        text, the tool calls the agent made (e.g. Reading UMAP panels), and
+        the session's token/cost usage."""
         import anyio
 
         async def go():
             async with self._client_cls(options=self._options) as client:
                 await client.query(message)
                 chunks, tools = [], []
+                usage = {"model": None, "cost_usd": None, "input_tokens": None,
+                         "output_tokens": None, "cache_creation_tokens": None,
+                         "cache_read_tokens": None, "num_turns": None}
                 async for msg in client.receive_response():
+                    model = getattr(msg, "model", None)  # AssistantMessage
+                    if model:
+                        usage["model"] = model
                     for block in getattr(msg, "content", []) or []:
                         text = getattr(block, "text", None)
                         if text:
@@ -92,7 +102,19 @@ class ClaudeAgentPolicy:
                             inp = getattr(block, "input", {}) or {}
                             tools.append({"tool": name,
                                           "target": inp.get("file_path", "")})
-                return "".join(chunks), tools
+                    if hasattr(msg, "total_cost_usd"):  # final ResultMessage
+                        u = getattr(msg, "usage", None) or {}
+                        get = (u.get if isinstance(u, dict)
+                               else lambda k, d=None: getattr(u, k, d))
+                        usage.update({
+                            "cost_usd": getattr(msg, "total_cost_usd", None),
+                            "input_tokens": get("input_tokens"),
+                            "output_tokens": get("output_tokens"),
+                            "cache_creation_tokens":
+                                get("cache_creation_input_tokens"),
+                            "cache_read_tokens": get("cache_read_input_tokens"),
+                            "num_turns": getattr(msg, "num_turns", None)})
+                return "".join(chunks), tools, usage
 
         try:
             return anyio.run(go)
@@ -109,7 +131,7 @@ class ClaudeAgentPolicy:
               '{"action": "probe|adopt|conclude_unnecessary|conclude_no_batch'
               '|give_up", "candidate": "<label or null>", '
               '"cell_type": "<label or null>", "reason": "<one sentence>"}')
-        reply, tools_used = self._ask(message)
+        reply, tools_used, usage = self._ask(message)
         try:
             payload = reply.split("```json", 1)[1].split("```", 1)[0]
             decision = json.loads(payload)
@@ -117,7 +139,8 @@ class ClaudeAgentPolicy:
                 "probe", "adopt", "conclude_unnecessary", "conclude_no_batch",
                 "give_up")
             decision["tools_used"] = tools_used
-            decision["raw_reply"] = reply  # the agent's full lab-note text
+            decision["raw_reply"] = reply  # the agent's full reply text
+            decision["usage"] = usage      # tokens + cost for this round
             return decision
         except Exception as exc:  # noqa: BLE001
             raise PolicyUnavailable(f"unparseable agent decision: {exc}")

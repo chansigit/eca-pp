@@ -70,7 +70,9 @@ def resolve(adata, *, cli_species: str | None = None, llm: bool = False) -> Spec
         guess = _llm_infer([str(s) for s in adata.var_names[:_LLM_SAMPLE]],
                            t1["evidence"])
         if guess is not None:
-            sp, conf = guess
+            sp, conf = guess[0], guess[1]
+            if len(guess) > 2 and guess[2]:  # token usage of the single call
+                t1["evidence"]["llm_usage"] = guess[2]
             return SpeciesResolution(sp, CODE_BY_SPECIES.get(sp), "llm", conf,
                                      t1["evidence"])
 
@@ -116,6 +118,11 @@ def _llm_infer(symbols_sample: list[str], evidence: dict):
         conf = max(0.0, min(1.0, float(parsed.confidence)))
         if conf < 0.5:  # the model itself is unsure — let T3 block instead
             return None
-        return canon, conf
+        u = getattr(resp, "usage", None)
+        usage = {"model": os.environ.get("ECASTEPS_LLM_MODEL", DEFAULT_LLM_MODEL),
+                 "input_tokens": getattr(u, "input_tokens", None),
+                 "output_tokens": getattr(u, "output_tokens", None),
+                 "billing_url": "https://console.anthropic.com/settings/usage"}
+        return canon, conf, usage
     except Exception:  # noqa: BLE001 - any failure -> deterministic T3
         return None

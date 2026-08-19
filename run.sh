@@ -18,6 +18,8 @@
 #
 # ALWAYS run on a compute node, never the login node:
 #   bash run.sh standardize SRC.h5ad -o OUTDIR [--min-cells N ...]
+#   bash run.sh identify-columns STD.h5ad -o OUTDIR [--max-probes N ...]
+#   bash run.sh integration-probe STD.h5ad --batch-col COL -o OUTDIR
 #   bash run.sh test [pytest args]
 #   bash run.sh python script.py
 set -euo pipefail
@@ -35,9 +37,11 @@ export PYTHONPATH="$REPO/src:$STANGENE_SRC"
 cmd="${1:-}"
 shift || true
 case "$cmd" in
-  standardize) exec "$DL/bin/python" -m ecasteps.standardize "$@" ;;
+  standardize)       exec "$DL/bin/python" -m ecasteps.standardize "$@" ;;
+  identify-columns)  exec "$DL/bin/python" -m ecasteps.identify_columns "$@" ;;
+  integration-probe) exec "$DL/bin/python" -m ecasteps.probe "$@" ;;
   test)        cd "$REPO"
                exec "$DL/bin/python" -m pytest -p no:cacheprovider -o addopts="" "$@" ;;
   python)      exec "$DL/bin/python" "$@" ;;
-  *) echo "usage: bash run.sh {standardize|test|python} [args...]" >&2; exit 64 ;;
+  *) echo "usage: bash run.sh {standardize|identify-columns|integration-probe|test|python} [args...]" >&2; exit 64 ;;
 esac
