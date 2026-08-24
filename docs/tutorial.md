@@ -8,7 +8,7 @@
 在**计算节点**上:
 
 ```bash
-cd /scratch/users/chensj16/projects/eca-prefect-v3
+cd /scratch/users/chensj16/projects/eca-pp
 bash run.sh standardize data/tabula_muris_droplet/Heart_and_Aorta.h5ad \
     -o data/out/Heart_and_Aorta
 echo $?        # → 0
