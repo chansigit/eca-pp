@@ -69,10 +69,12 @@ class ClaudeAgentPolicy:
         self._client_cls = ClaudeSDKClient
         # model=None → the claude CLI's own default; the model actually used
         # is captured from the reply stream into usage["model"] either way.
+        # max_buffer_size: the state message (obs profile) for wide datasets
+        # can exceed the SDK's 1 MiB default decode buffer.
         self._options = ClaudeAgentOptions(
             system_prompt=PROMPT, allowed_tools=["Read"], max_turns=6,
             cwd=outdir, permission_mode="default", cli_path=cli_path,
-            model=model)
+            model=model, max_buffer_size=32 * 1024 * 1024)
 
     def _ask(self, message: str) -> tuple[str, list, dict]:
         """One decision = one self-contained agent session (the full state is
