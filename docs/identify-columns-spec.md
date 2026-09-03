@@ -138,7 +138,9 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 ③ 确定性预检:结构性不合格与病态候选排除(§4.3、§6.1)
 ④ 试验循环(≤ max-probes):agent 按自底向上顺序选择候选 → probe →
    评估指标与 UMAP → 采纳 / 判定"无需校正" / 试验下一候选
-⑤ 细胞类型列:取值词汇判断(agent)+ cLISI 佐证(与 ④ 共用试验)
+⑤ 细胞类型列:候选按 annotation(作者标注)> cluster(算法聚类编号)
+   预排序,agent 每轮可改选(改选即时作用于后续试验的 cLISI 标签);
+   取值词汇判断(agent)+ cLISI 佐证(与 ④ 共用试验)
 ⑥ 判定写入 result.json;选中派生列时另写值文件(§8)
 ```
 
@@ -290,6 +292,16 @@ Doctrine:
    and state the reason when vetoing. If pre-integration iLISI is already
    high, conclude "correction unnecessary". If nothing qualifies, stop and
    report undecidable rather than guessing.
+7. Cell type column = the AUTHOR'S cell-type annotation (biological names
+   such as "T cell", "hepatocyte", ontology terms), NOT an algorithmic
+   clustering (leiden / louvain / seurat_clusters / numeric cluster IDs).
+   candidates.cell_type is pre-ranked (class "annotation" before
+   "cluster"; text labels before bare integers) and best_cell_type is
+   the current default. Override it when the sampled values show the
+   default is wrong. Fall back to a cluster column ONLY when no
+   annotation column exists; if none is usable, set null. Set cell_type
+   in EVERY reply, probe included: the trials use it as the cLISI label
+   column.
 Every action you take must name the candidate, the reason, and the
 expected signal, in structured form.
 ```

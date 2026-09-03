@@ -51,9 +51,11 @@ DONOR_TOKENS = ("donor", "mouse", "patient", "subject", "individual", "animal",
 CONDITION_TOKENS = ("condition", "disease", "treatment", "treat", "stim",
                     "genotype", "timepoint", "time", "stage", "diet", "dose",
                     "age", "sex", "group")
-ANNOTATION_TOKENS = ("celltype", "cell_type", "annotation", "cluster",
-                     "louvain", "leiden", "ontology", "class", "lineage",
-                     "subtype", "cell_label")
+ANNOTATION_TOKENS = ("celltype", "annotation", "ontology", "class",
+                     "lineage", "subtype", "celllabel")
+# Algorithmic cluster IDs: a valid cLISI label set only as a LAST resort —
+# never mistaken for the author's cell-type annotation when one exists.
+CLUSTER_TOKENS = ("cluster", "louvain", "leiden")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -72,10 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-probe", action="store_true",
                    help="profile + ranking only (degraded mode, exit 3)")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--model", default=os.environ.get("ECA_PP_AGENT_MODEL"),
-                   help="agent model ID (e.g. claude-sonnet-5); default: "
-                        "$ECA_PP_AGENT_MODEL, else the claude CLI's "
-                        "default model")
+    p.add_argument("--model", default=None,
+                   help="agent model ID; default: $ECA_PP_AGENT_MODEL, else "
+                        "claude-sonnet-5 (eca_pp.agent.DEFAULT_MODEL)")
     return p
 
 
@@ -86,8 +87,11 @@ def _norm(name: str) -> str:
 
 
 def classify_column(entry: dict) -> str:
-    """technical | donor | condition | annotation | qc_numeric | identifier |
-    constant | other — doctrine §4.1; structural classes win over names."""
+    """technical | donor | condition | annotation | cluster | qc_numeric |
+    identifier | constant | other — doctrine §4.1; structural classes win
+    over names. ``annotation`` (the author's cell-type labels) is checked
+    before ``cluster`` so "cluster_annotation" is an annotation, while
+    "seurat_clusters" / "leiden" are clusters."""
     if entry["is_constant"]:
         return "constant"
     if entry["is_per_cell_unique"]:
@@ -96,6 +100,7 @@ def classify_column(entry: dict) -> str:
         return "qc_numeric"
     n = _norm(entry["column"])
     for tokens, label in ((ANNOTATION_TOKENS, "annotation"),
+                          (CLUSTER_TOKENS, "cluster"),
                           (TECH_TOKENS, "technical"),
                           (DONOR_TOKENS, "donor"),
                           (CONDITION_TOKENS, "condition")):
@@ -114,16 +119,35 @@ def _pathology(entry: dict) -> str | None:
     return None
 
 
+def _numeric_labels(entry: dict) -> bool:
+    """All sampled values are bare integers (cluster IDs, not names)."""
+    keys = [k for k in entry.get("examples", {}) if k != "<NA>"]
+    return bool(keys) and all(k.lstrip("-").isdigit() for k in keys)
+
+
+CELL_TYPE_CLASS_ORDER = {"annotation": 0, "cluster": 1}
+
+
 def build_candidates(profile: dict) -> dict:
-    """{'batch': [...], 'cell_type': [...]} — classified, pre-checked,
-    bottom-up ordered (finest viable technical level first)."""
+    """{'batch': [...], 'cell_type': [...]} — classified, pre-checked.
+    batch: bottom-up ordered (finest viable technical level first).
+    cell_type: ranked — named annotation columns first, algorithmic cluster
+    columns last, numeric-ID columns after text-labelled ones within a
+    class, obs order as the final tiebreak. ``cell_type[0]`` is the
+    default the deterministic spine uses; the agent may pick any other."""
     batch, cell_type = [], []
     class_of = {e["column"]: classify_column(e) for e in profile["columns"]}
     for e in profile["columns"]:
         cls = class_of[e["column"]]
-        if cls == "annotation" and obsprofile.is_grouping_candidate(e):
+        if cls in CELL_TYPE_CLASS_ORDER and obsprofile.is_grouping_candidate(e):
+            numeric = _numeric_labels(e)
+            note = ("algorithmic cluster IDs — use only if no annotation "
+                    "column exists" if cls == "cluster" else "")
+            if numeric and cls == "annotation":
+                note = "annotation-named but values are bare integers"
             cell_type.append({"label": e["column"], "kind": "existing",
-                              "class": cls, "n_groups": e["n_unique"]})
+                              "class": cls, "n_groups": e["n_unique"],
+                              "numeric_labels": numeric, "note": note})
         if cls in ("technical", "donor", "condition", "other") \
                 and obsprofile.is_grouping_candidate(e):
             note = _pathology(e)
@@ -141,12 +165,14 @@ def build_candidates(profile: dict) -> dict:
         # the batch — structurally disqualified (doctrine §4.3).
         if d["kind"] == "composite":
             parts = d["label"].split(":", 1)[1].split("+")
-            if any(class_of.get(p) == "annotation" for p in parts):
+            if any(class_of.get(p) in CELL_TYPE_CLASS_ORDER for p in parts):
                 continue
         batch.append({"label": d["label"], "kind": d["kind"], "class": "derived",
                       "n_groups": d["n_groups"], "excluded": False, "note": ""})
     order = {"technical": 0, "donor": 1, "condition": 2, "other": 3, "derived": 4}
     batch.sort(key=lambda c: (c["excluded"], order[c["class"]], -c["n_groups"]))
+    cell_type.sort(key=lambda c: (CELL_TYPE_CLASS_ORDER[c["class"]],
+                                  c["numeric_labels"]))  # stable: obs order
     return {"batch": batch, "cell_type": cell_type}
 
 
@@ -209,7 +235,8 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
         verdict = "adopted"
     else:
         verdict = "rejected"
-    return {"batch_col": cand["label"], "spec": spec, "exit_code": code,
+    return {"batch_col": cand["label"], "spec": spec,
+            "cell_type_col": cell_type_spec, "exit_code": code,
             "metrics": {k: m.get(k) for k in
                         ("ilisi_pre", "ilisi_post", "ilisi_norm_pre",
                          "ilisi_norm_post", "clisi_norm_pre", "clisi_norm_post",
@@ -219,8 +246,20 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
 
 
 def _best_cell_type(candidates: dict) -> str | None:
+    """Top-ranked cell-type candidate (see build_candidates)."""
     ct = candidates["cell_type"]
     return ct[0]["label"] if ct else None
+
+
+def _policy_cell_type(decision: dict, candidates: dict,
+                      current: str | None) -> str | None:
+    """The agent's cell-type choice if it names a listed candidate, else
+    ``current``. Applied to EVERY decision (probe included) so the trials'
+    cLISI labels follow the agent's choice rather than the heuristic default."""
+    choice = decision.get("cell_type")
+    if choice and any(c["label"] == choice for c in candidates["cell_type"]):
+        return choice
+    return current
 
 
 def _billing_url() -> str:
@@ -270,7 +309,8 @@ def _run(args, res: dict, policy) -> int:
 
     best_ct = _best_cell_type(candidates)
     if args.no_probe or policy is None:
-        res["columns"] = {"batch": None, "cell_type": _ct_block(best_ct)}
+        res["columns"] = {"batch": None,
+                          "cell_type": _ct_block(best_ct, candidates)}
         res["status"] = "needs_review"
         res["reasons"].append(
             "degraded mode (--no-probe or agent unavailable): profile and "
@@ -299,6 +339,10 @@ def _run(args, res: dict, policy) -> int:
         _tally_llm(res, decision.get("usage"))
         log.info("policy: %s %s — %s", action, decision.get("candidate"),
                  decision.get("reason"))
+        chosen_ct = _policy_cell_type(decision, candidates, best_ct)
+        if chosen_ct != best_ct:
+            log.info("policy: cell_type %r -> %r", best_ct, chosen_ct)
+            best_ct = chosen_ct
 
         if action == "probe":
             cand = by_label.get(decision.get("candidate"))
@@ -306,7 +350,7 @@ def _run(args, res: dict, policy) -> int:
                 res["reasons"].append(
                     f"policy proposed invalid/exhausted probe "
                     f"({decision.get('candidate')!r}) — stopping")
-                return _blocked(res, best_ct)
+                return _blocked(res, best_ct, candidates)
             t0 = time.perf_counter()
             trial = _run_trial(args, adata, cand, n_cells, len(trials) + 1,
                                _ct_spec(best_ct), args.outdir)
@@ -316,7 +360,6 @@ def _run(args, res: dict, policy) -> int:
             continue
 
         chosen = decision.get("candidate")
-        ct_choice = decision.get("cell_type", best_ct)
         if action in ("adopt", "conclude_unnecessary"):
             if chosen is None:  # tolerate an omitted candidate when unambiguous
                 want = ("correction_unnecessary" if action == "conclude_unnecessary"
@@ -330,7 +373,7 @@ def _run(args, res: dict, policy) -> int:
                 res["reasons"].append(
                     f"policy concluded on unknown/unprobed candidate "
                     f"{chosen!r} — stopping")
-                return _blocked(res, best_ct)
+                return _blocked(res, best_ct, candidates)
             value, kind = chosen, "existing"
             if cand["kind"] != "existing":
                 value = os.path.join(args.outdir, "batch.tsv")
@@ -342,33 +385,52 @@ def _run(args, res: dict, policy) -> int:
                                          else "unnecessary"),
                           "confidence": 0.9,
                           "evidence": decision.get("reason", "")},
-                "cell_type": _ct_block(ct_choice)}
+                "cell_type": _ct_block(best_ct, candidates, trials)}
             res["status"] = "ok"
             return EXIT_OK
         if action == "conclude_no_batch":
-            res["columns"] = {"batch": None, "cell_type": _ct_block(ct_choice)}
+            res["columns"] = {"batch": None,
+                              "cell_type": _ct_block(best_ct, candidates)}
             res["columns"]["batch_evidence"] = decision.get("reason", "")
             res["status"] = "ok"
             return EXIT_OK
         # give_up or anything else
         res["reasons"].append(decision.get("reason", "no qualifying candidate"))
-        return _blocked(res, best_ct)
+        return _blocked(res, best_ct, candidates)
 
 
 def _ct_spec(label: str | None) -> str | None:
     return label
 
 
-def _ct_block(label: str | None) -> dict | None:
+CELL_TYPE_CONFIDENCE = {"annotation": 0.7, "cluster": 0.4}
+
+
+def _ct_block(label: str | None, candidates: dict,
+              trials: list | None = None) -> dict | None:
     if label is None:
         return None
-    return {"value": label, "kind": "existing", "confidence": 0.7,
-            "evidence": "annotation-classified column (name/value heuristics); "
-                        "cLISI in trials corroborates"}
+    cand = next((c for c in candidates["cell_type"] if c["label"] == label),
+                None)
+    cls = cand["class"] if cand else "annotation"
+    evidence = (f"{cls}-classified column (name/value heuristics)"
+                if cls == "annotation" else
+                "algorithmic cluster IDs — no author annotation column found")
+    if cand and cand["numeric_labels"]:
+        evidence += "; values are bare integers"
+    others = [c["label"] for c in candidates["cell_type"] if c["label"] != label]
+    if others:
+        evidence += f"; other candidates: {', '.join(others)}"
+    if trials and any(t.get("cell_type_col") == label for t in trials):
+        evidence += "; used as cLISI labels in the trials"
+    return {"value": label, "kind": "existing",
+            "confidence": CELL_TYPE_CONFIDENCE.get(cls, 0.5),
+            "evidence": evidence}
 
 
-def _blocked(res: dict, best_ct: str | None) -> int:
-    res["columns"] = {"batch": None, "cell_type": _ct_block(best_ct)}
+def _blocked(res: dict, best_ct: str | None, candidates: dict) -> int:
+    res["columns"] = {"batch": None,
+                      "cell_type": _ct_block(best_ct, candidates)}
     res["status"] = "needs_review"
     return EXIT_BLOCKED
 

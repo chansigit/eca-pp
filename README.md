@@ -38,10 +38,12 @@ echo $?                        # 0 = success; see the exit-code table below
 ```
 
 Python ≥ 3.10. Extras: `[probe]` (scanpy/harmonypy stack, needed by
-identify-columns and the probe), `[agent]` (Claude Agent SDK for
-identify-columns; authenticates via `ANTHROPIC_API_KEY` or the Claude Code
-CLI's stored credentials), `[llm]` (LLM species fallback for standardize),
-`[test]` (pytest). On Stanford Sherlock, `bash run.sh <tool> ...` wraps the
+identify-columns and the probe), `[agent]` (Claude Agent SDK — the only way
+eca-pp talks to Claude, for identify-columns and standardize's `--llm`
+species fallback alike; authenticates via `ANTHROPIC_API_KEY` or the Claude
+Code CLI's stored credentials; `[llm]` is an alias), `[test]` (pytest).
+Every LLM call uses one model, `claude-sonnet-5` by default, overridable with
+`--model` / `ECA_PP_AGENT_MODEL`. On Stanford Sherlock, `bash run.sh <tool> ...` wraps the
 same commands with the cluster environment set up (compute nodes only).
 
 ## What you get
@@ -84,7 +86,7 @@ apply.
 | `--min-cells N` / `--min-genes N` | 100 / 5000 | hard QC gates: samples below either threshold are rejected (exit 2, no h5ad) |
 | `--no-gate` | off | disable both gates (e.g. for rare, deliberately small samples); metrics are still computed and recorded |
 | `--keep-unmapped` | off | keep features that cannot be mapped to a canonical gene (unknown names, ambiguous old symbols, spike-ins) under their original names, instead of dropping them. Drops are counted per category in `result.json`; cells are never removed either way. |
-| `--llm` | off | allow one LLM call as a species-inference fallback (needs `ANTHROPIC_API_KEY`); any failure falls back to exit 3 |
+| `--llm` | off | allow one single-turn Agent SDK call as a species-inference fallback (same credentials and model as identify-columns); any failure falls back to exit 3 |
 
 </details>
 
@@ -97,7 +99,7 @@ apply.
 | `--n-cells N` | adaptive | probe subsample size; default `clamp(50 × max_batches, 5000, 30000)` |
 | `--no-probe` | off | profile + candidate ranking only, no trials (degraded mode, exit 3) |
 | `--seed N` | 0 | sampling / integration seed; same input + seed → same trial metrics |
-| `--model ID` | the `claude` CLI's default | agent model (e.g. `claude-sonnet-5`); also settable via `ECA_PP_AGENT_MODEL`. The model actually used is recorded per round in `result.json` and summarized in `metrics.llm.models`. |
+| `--model ID` | `claude-sonnet-5` | agent model; also settable via `ECA_PP_AGENT_MODEL`. The model actually used is recorded per round in `result.json` and summarized in `metrics.llm.models`. |
 
 Without Agent SDK credentials the step degrades the same way as
 `--no-probe`. `ECA_PP_CLAUDE_CLI` can point at a specific `claude`
@@ -118,8 +120,9 @@ write atomically.
 **identify-columns** — profile every obs column (stats + sampled values,
 group-size health, a nesting/equivalence graph) and enumerate derived
 candidates (barcode prefixes, composites) → classify candidates
-(technical / donor / condition are eligible batches; annotation, QC and
-identifier columns never are) → an agent picks candidates bottom-up and
+(technical / donor / condition are eligible batches; annotation, cluster,
+QC and identifier columns never are; cell-type candidates rank the author's
+annotation above algorithmic cluster IDs) → an agent picks candidates bottom-up and
 verifies each with a small-scale Harmony trial (iLISI mixing gain, cLISI
 structure preservation, convergence, UMAP panel) → concludes one of four
 verdicts: batch + correction recommended, batch + correction unnecessary,
