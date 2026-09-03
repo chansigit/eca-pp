@@ -2,7 +2,7 @@
 
 ``attach_counts`` runs right after F2 so the counts layer is subset together with
 the rest of the AnnData by F4's gene dropping; ``finalize`` + ``write_h5ad`` run
-last. The lognorm X is computed here directly (scipy), so ecasteps does not
+last. The lognorm X is computed here directly (scipy), so eca-pp does not
 depend on scanpy.
 """
 
@@ -13,7 +13,7 @@ import os
 import numpy as np
 import scipy.sparse as sp
 
-from ecasteps.core.atomic_io import atomic_write
+from eca_pp.core.atomic_io import atomic_write
 
 H5AD_FILENAME = "standardized.h5ad"
 TARGET_SUM = 1e4
@@ -53,7 +53,7 @@ def finalize(adata, provenance: dict) -> bool:
     raw_dropped = adata.raw is not None
     if raw_dropped:
         adata.raw = None
-    adata.uns["ecasteps_standardize"] = provenance
+    adata.uns["eca_pp_standardize"] = provenance
     return raw_dropped
 
 

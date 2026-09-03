@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sherlock-only environment bootstrap for ecasteps — ALL cluster-specific fixups
+# Sherlock-only environment bootstrap for eca-pp — ALL cluster-specific fixups
 # live here, none in the Python code. On any other machine, skip this file and
 # `pip install -e .` into a normal environment instead.
 #
@@ -10,7 +10,7 @@
 #
 # Agent SDK note: claude-agent-sdk's BUNDLED claude binary needs glibc >= 2.25
 # (CentOS 7 has 2.17). identify-columns therefore prefers the npm-installed
-# `claude` on PATH (newer anyway), overridable via ECASTEPS_CLAUDE_CLI.
+# `claude` on PATH (newer anyway), overridable via ECA_PP_CLAUDE_CLI.
 # Alternative when no npm CLI exists:
 #   ml load system polyfill-glibc
 #   polyfill-glibc --target-glibc=2.17 <site-packages>/claude_agent_sdk/_bundled/claude
@@ -37,9 +37,9 @@ export PYTHONPATH="$REPO/src:$STANGENE_SRC"
 cmd="${1:-}"
 shift || true
 case "$cmd" in
-  standardize)       exec "$DL/bin/python" -m ecasteps.standardize "$@" ;;
-  identify-columns)  exec "$DL/bin/python" -m ecasteps.identify_columns "$@" ;;
-  integration-probe) exec "$DL/bin/python" -m ecasteps.probe "$@" ;;
+  standardize)       exec "$DL/bin/python" -m eca_pp.standardize "$@" ;;
+  identify-columns)  exec "$DL/bin/python" -m eca_pp.identify_columns "$@" ;;
+  integration-probe) exec "$DL/bin/python" -m eca_pp.probe "$@" ;;
   test)        cd "$REPO"
                exec "$DL/bin/python" -m pytest -p no:cacheprovider -o addopts="" "$@" ;;
   python)      exec "$DL/bin/python" "$@" ;;

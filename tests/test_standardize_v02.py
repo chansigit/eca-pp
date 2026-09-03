@@ -10,9 +10,9 @@ import anndata as ad
 import numpy as np
 import scipy.sparse as sp
 
-import ecasteps.standardize.species as species_ladder
+import eca_pp.standardize.species as species_ladder
 from dsets import G, N, lognorm, make_counts, ref_genes, run_cli, write_h5ad
-from ecasteps.core.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
+from eca_pp.core.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
 
 _T1_NONE = {"species": None, "confidence": 0.0, "evidence": {"rule": "insufficient"}}
 
@@ -230,7 +230,7 @@ def test_standard_form_contract(tmp_path):
     # I3/I8: provenance in var + uns
     for col in ("original_feature_name", "mapping_status", "gene_symbol_harmonized"):
         assert col in out.var.columns
-    prov = out.uns["ecasteps_standardize"]
+    prov = out.uns["eca_pp_standardize"]
     assert prov["counts_source"] == "layer:RNA_raw"
     assert prov["species"] == "human"
     # I4: the four QC columns

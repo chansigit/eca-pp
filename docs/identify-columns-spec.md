@@ -35,7 +35,7 @@ result.json 输出 → 退出码汇报);内部由 Agent SDK 驱动"提出候选 
 
 细胞类型判定:已识别 / 未识别(null)/ 存疑(needs_review)。
 
-## 3. obs 画像(确定性,ecasteps 内实现)
+## 3. obs 画像(确定性,eca-pp 内实现)
 
 三层证据,整体写入 result.json;agent 与人工复核使用同一份证据:
 
@@ -75,7 +75,7 @@ result.json 输出 → 退出码汇报);内部由 Agent SDK 驱动"提出候选 
 ## 5. integration-probe · CLI 契约(确定性工具)
 
 ```bash
-ecasteps-integration-probe SRC.h5ad -o OUTDIR --batch-col SPEC \
+eca-pp-integration-probe SRC.h5ad -o OUTDIR --batch-col SPEC \
     [--cell-type-col SPEC] [--n-cells 5000] [--n-hvg 2000] [--seed 0]
 ```
 
@@ -126,7 +126,7 @@ scVI / MrVI),批次列的身份判定与层级选择与整合方法无关。已�
 ## 7. identify-columns · 环节契约
 
 ```bash
-ecasteps-identify-columns SRC.h5ad -o OUTDIR \
+eca-pp-identify-columns SRC.h5ad -o OUTDIR \
     [--max-probes 6] [--n-cells 5000] [--no-probe] [--seed 0] [--model ID]
 ```
 
@@ -146,7 +146,7 @@ ecasteps-identify-columns SRC.h5ad -o OUTDIR \
   判定 ①;整合前 iLISI 已高 → 判定 ②;候选集为空且证据充分 → 判定 ③;
   候选耗尽或达 max-probes 上限而无合格者 → 判定 ④(exit 3)。
 - `--no-probe`:仅输出画像与候选排名(降级模式:速度快,但证据有限)。
-- `--model ID`(或环境变量 `ECASTEPS_AGENT_MODEL`):指定 agent 模型;
+- `--model ID`(或环境变量 `ECA_PP_AGENT_MODEL`):指定 agent 模型;
   缺省沿用 claude CLI 的默认模型。每轮实际使用的模型记录在
   `decisions[].usage.model`,汇总于 `metrics.llm.models`。
 - **无 API 凭据 / Agent SDK 不可用**:确定性降级——画像与启发式排名照常

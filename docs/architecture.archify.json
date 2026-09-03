@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "eca-pp 架构：单样本 scRNA-seq 数据整理步骤",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "main-path",
+        "label": "主路径",
+        "focus": [
+          "src",
+          "standardize",
+          "identify",
+          "probe",
+          "outdir"
+        ],
+        "note": "源 h5ad 先标准化，再由 agent 驱动的步骤识别批次列，每次试验调用 probe。"
+      },
+      {
+        "id": "standardize-deps",
+        "label": "standardize 依赖",
+        "focus": [
+          "standardize",
+          "stancounts",
+          "stangene"
+        ],
+        "note": "counts 定位与物种/基因名规范化交给两个外部库。"
+      },
+      {
+        "id": "agent-loop",
+        "label": "agent 决策环",
+        "focus": [
+          "identify",
+          "agentsdk",
+          "probe",
+          "scanpy"
+        ],
+        "note": "identify-columns 每轮把状态发给 Claude Agent SDK，决定下一个候选或结论。"
+      },
+      {
+        "id": "shared-core",
+        "label": "共享内核",
+        "focus": [
+          "identify",
+          "core",
+          "outdir"
+        ],
+        "note": "result.json 契约、原子写与列 SPEC 由 eca_pp.core 提供，三个步骤共用。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "driver",
+      "type": "external",
+      "label": "调用方 / Driver",
+      "sublabel": "shell · Snakemake · agent · 人",
+      "tag": "Sherlock: run.sh",
+      "pos": [
+        230,
+        70
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "agentsdk",
+      "type": "external",
+      "label": "Claude Agent SDK",
+      "sublabel": "spawn claude CLI · 仅 Read 工具",
+      "pos": [
+        540,
+        70
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "src",
+      "type": "database",
+      "label": "源 .h5ad",
+      "sublabel": "来源不明的单样本",
+      "pos": [
+        30,
+        270
+      ],
+      "size": [
+        120,
+        64
+      ]
+    },
+    {
+      "id": "standardize",
+      "type": "backend",
+      "label": "eca-pp-standardize",
+      "sublabel": "定位 counts · 物种 · 基因名 · QC",
+      "pos": [
+        230,
+        260
+      ],
+      "size": [
+        200,
+        84
+      ]
+    },
+    {
+      "id": "identify",
+      "type": "backend",
+      "label": "eca-pp-identify-columns",
+      "sublabel": "obs 画像 · 候选分类 · agent 决策",
+      "pos": [
+        540,
+        260
+      ],
+      "size": [
+        200,
+        84
+      ]
+    },
+    {
+      "id": "probe",
+      "type": "backend",
+      "label": "eca-pp-integration-probe",
+      "sublabel": "子采样 · Harmony · iLISI/cLISI",
+      "pos": [
+        840,
+        260
+      ],
+      "size": [
+        200,
+        84
+      ]
+    },
+    {
+      "id": "outdir",
+      "type": "database",
+      "label": "OUTDIR",
+      "sublabel": "result.json + 各步产物",
+      "pos": [
+        1150,
+        260
+      ],
+      "size": [
+        170,
+        84
+      ]
+    },
+    {
+      "id": "stancounts",
+      "type": "external",
+      "label": "stancounts",
+      "sublabel": "counts 定位 · log1p 反推",
+      "pos": [
+        130,
+        460
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "stangene",
+      "type": "external",
+      "label": "stangene",
+      "sublabel": "物种推断 · 基因名规范化",
+      "pos": [
+        340,
+        460
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "eca_pp.core（共享内核）",
+      "sublabel": "result.json · 原子写 · 列 SPEC",
+      "pos": [
+        545,
+        460
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "scanpy",
+      "type": "external",
+      "label": "scanpy · harmonypy · umap",
+      "sublabel": "[probe] extra，按需延迟导入",
+      "pos": [
+        845,
+        460
+      ],
+      "size": [
+        190,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "eca-pp CLI 入口（三个步骤）",
+      "wraps": [
+        "standardize",
+        "identify",
+        "probe"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "driver-standardize",
+      "from": "driver",
+      "to": "standardize",
+      "label": "按序调用各步骤 · 退出码 0/1/2/3",
+      "variant": "security",
+      "labelDy": 24
+    },
+    {
+      "id": "src-standardize",
+      "from": "src",
+      "to": "standardize",
+      "label": "读取",
+      "variant": "emphasis"
+    },
+    {
+      "id": "standardize-identify",
+      "from": "standardize",
+      "to": "identify",
+      "label": "standardized.h5ad",
+      "variant": "emphasis"
+    },
+    {
+      "id": "identify-probe",
+      "from": "identify",
+      "to": "probe",
+      "label": "每次试验调用",
+      "variant": "emphasis"
+    },
+    {
+      "id": "probe-outdir",
+      "from": "probe",
+      "to": "outdir",
+      "label": "trial_N/ · UMAP 图",
+      "variant": "emphasis"
+    },
+    {
+      "id": "identify-agent",
+      "from": "identify",
+      "to": "agentsdk",
+      "label": "每轮：state → action",
+      "variant": "dashed"
+    },
+    {
+      "id": "standardize-stancounts",
+      "from": "standardize",
+      "to": "stancounts",
+      "label": "F2 counts 定位",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "standardize-stangene",
+      "from": "standardize",
+      "to": "stangene",
+      "label": "F4a/F4 物种·基因",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "identify-core",
+      "from": "identify",
+      "to": "core",
+      "label": "result.json · batch.tsv",
+      "variant": "dashed",
+      "labelDy": 24
+    },
+    {
+      "id": "probe-scanpy",
+      "from": "probe",
+      "to": "scanpy",
+      "label": "HVG·PCA·Harmony·LISI·UMAP",
+      "variant": "dashed",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "步骤契约",
+      "items": [
+        "h5ad 输入 → 文件 + result.json 输出，失败时也写",
+        "退出码：0 成功 · 2 数据永久问题 · 3 需要决策 · 1 意外错误",
+        "所有写入原子化：先写 .tmp 再 os.replace；三个步骤共用 eca_pp.core"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "standardize",
+      "items": [
+        "HDF5 元数据毫秒级快速拒绝，再加载",
+        "counts 定位：识别层 / 整数 X / log1p 反推 + 一致性证明",
+        "物种阶梯：--species → 推断 → --llm → 阻塞 (exit 3)"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "identify-columns",
+      "items": [
+        "技术/供体/条件列可为批次；注释/QC/ID 列永不",
+        "agent 自底向上挑候选，每个候选用一次 Harmony 试验验证",
+        "无 SDK 凭据或 --no-probe → 降级：只出画像与排序，exit 3"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "运行环境",
+      "items": [
+        "Sherlock 上 run.sh 负责 venv/hdf5/PYTHONPATH，只在计算节点运行",
+        "extras：[probe] scanpy 栈 · [agent] Agent SDK · [llm] anthropic",
+        "Agent SDK 优先用 PATH 上的 npm claude（旧 glibc 兼容）"
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# ecasteps-standardize 教程(Tabula Muris 实战)
+# eca-pp-standardize 教程(Tabula Muris 实战)
 
 把一个来源不明的单样本 `.h5ad` 变成下游可信赖的标准形。本教程所有输出都来自
 真实运行:`data/tabula_muris_droplet/`(小鼠 12 器官,软链接,已 gitignore)。
@@ -135,7 +135,7 @@ A.X                                 # log1p(normalize_total(counts, 1e4)), float
 A.obs[["total_counts", "n_genes_by_counts",
        "pct_counts_mt", "pct_counts_hb"]]      # 本步权威计算的 QC 列
 A.var[["original_feature_name", "mapping_status"]]   # 改名溯源
-A.uns["ecasteps_standardize"]       # {step_version, species, counts_source, ...}
+A.uns["eca_pp_standardize"]       # {step_version, species, counts_source, ...}
 ```
 
 ## 7. 别的机器 / 容器
@@ -172,11 +172,11 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 同时启用 standardize 的 `--llm` 物种回退;计费走 API 余额。
 
-可选项:`ECASTEPS_CLAUDE_CLI=/path/to/claude` 指定 CLI 可执行文件
+可选项:`ECA_PP_CLAUDE_CLI=/path/to/claude` 指定 CLI 可执行文件
 (glibc 较老的系统需用 npm 版 CLI,备选方案见 run.sh 头部注释)。
 
 **选择模型**:`--model claude-sonnet-5`(或环境变量
-`ECASTEPS_AGENT_MODEL`)。不指定则沿用 claude CLI 的默认模型——注意订阅
+`ECA_PP_AGENT_MODEL`)。不指定则沿用 claude CLI 的默认模型——注意订阅
 账户的默认往往是最贵的档位;这类任务用 Sonnet 通常足够。每轮实际使用的
 模型会记录在 `decisions[].usage.model`,汇总在 `metrics.llm.models`。
 

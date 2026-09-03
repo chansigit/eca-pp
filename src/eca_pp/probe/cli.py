@@ -19,10 +19,10 @@ import time
 import numpy as np
 import pandas as pd
 
-from ecasteps.core.colspec import ColumnSpecError, resolve_spec
-from ecasteps.core.result import EXIT_ERROR, EXIT_OK, EXIT_REJECTED, new_result, write_result
+from eca_pp.core.colspec import ColumnSpecError, resolve_spec
+from eca_pp.core.result import EXIT_ERROR, EXIT_OK, EXIT_REJECTED, new_result, write_result
 
-log = logging.getLogger("ecasteps.probe")
+log = logging.getLogger("eca_pp.probe")
 
 DEFAULT_N_CELLS = 5000
 DEFAULT_N_HVG = 2000
@@ -35,7 +35,7 @@ UMAP_FILENAME = "umap.png"
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="ecasteps-integration-probe",
+        prog="eca-pp-integration-probe",
         description="Small-scale integration trial: subsample, run Harmony on "
                     "the given batch column, report iLISI/cLISI and a UMAP "
                     "panel. Diagnoses a batch-column choice; not a production "
@@ -180,7 +180,7 @@ def _umap_panel(adata, batch: pd.Series, ct: pd.Series, ct_kind: str,
             ax.legend(fontsize=6, markerscale=1.5, frameon=False)
     fig.tight_layout()
     path = os.path.join(outdir, UMAP_FILENAME)
-    from ecasteps.core.atomic_io import atomic_write
+    from eca_pp.core.atomic_io import atomic_write
     with atomic_write(path) as tmp:
         fig.savefig(tmp, dpi=110, format="png")
     plt.close(fig)

@@ -9,8 +9,8 @@ import json
 
 import numpy as np
 
-from ecasteps.identify_columns.cli import main
-from ecasteps.identify_columns.policies import HeuristicPolicy
+from eca_pp.identify_columns.cli import main
+from eca_pp.identify_columns.policies import HeuristicPolicy
 from intdata import make_integration_h5ad
 
 

@@ -65,7 +65,7 @@ class ClaudeAgentPolicy:
         # Prefer an external `claude` (env override, then PATH): the SDK's
         # bundled native binary needs a newer glibc than old cluster OSes
         # ship, while the npm-installed JS CLI runs anywhere node runs.
-        cli_path = os.environ.get("ECASTEPS_CLAUDE_CLI") or shutil.which("claude")
+        cli_path = os.environ.get("ECA_PP_CLAUDE_CLI") or shutil.which("claude")
         self._client_cls = ClaudeSDKClient
         # model=None → the claude CLI's own default; the model actually used
         # is captured from the reply stream into usage["model"] either way.

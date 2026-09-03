@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from ecasteps.identify_columns import obsprofile
+from eca_pp.identify_columns import obsprofile
 
 N = 120
 

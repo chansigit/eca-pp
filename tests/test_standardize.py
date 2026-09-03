@@ -14,7 +14,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from dsets import G, N, RNG, lognorm, make_counts, run_cli, write_h5ad
-from ecasteps.core.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
+from eca_pp.core.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
 
 # ---------------------------------------------------------------- happy paths
 

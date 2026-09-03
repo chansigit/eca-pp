@@ -31,11 +31,11 @@ import time
 import anndata as ad
 import h5py
 
-from ecasteps import __version__
-from ecasteps.standardize import build, countsloc, harmonize
-from ecasteps.standardize import species as species_ladder
-from ecasteps.standardize.qc import apply_qc, count_n_genes_detected, has_negative
-from ecasteps.core.result import (
+from eca_pp import __version__
+from eca_pp.standardize import build, countsloc, harmonize
+from eca_pp.standardize import species as species_ladder
+from eca_pp.standardize.qc import apply_qc, count_n_genes_detected, has_negative
+from eca_pp.core.result import (
     EXIT_BLOCKED,
     EXIT_ERROR,
     EXIT_OK,
@@ -44,7 +44,7 @@ from ecasteps.core.result import (
     write_result,
 )
 
-log = logging.getLogger("ecasteps.standardize")
+log = logging.getLogger("eca_pp.standardize")
 
 
 class _Stop(Exception):
@@ -74,7 +74,7 @@ class _Timer:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="ecasteps-standardize",
+        prog="eca-pp-standardize",
         description="Standardize one single-cell h5ad sample: validate, hard-gate "
                     "QC, locate counts, resolve species, harmonize gene names, "
                     "compute QC; writes OUTDIR/standardized.h5ad + result.json.")

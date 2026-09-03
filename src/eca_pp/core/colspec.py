@@ -51,7 +51,7 @@ def read_values_tsv(path: str) -> pd.Series:
 
 
 def write_values_tsv(path: str, obs_names, values) -> str:
-    from ecasteps.core.atomic_io import atomic_write
+    from eca_pp.core.atomic_io import atomic_write
 
     df = pd.DataFrame({"cell_id": [str(x) for x in obs_names],
                        "value": [str(v) for v in values]})

@@ -19,18 +19,18 @@ import shutil
 import sys
 import time
 
-from ecasteps.identify_columns import obsprofile
-from ecasteps.identify_columns.policies import (
+from eca_pp.identify_columns import obsprofile
+from eca_pp.identify_columns.policies import (
     ClaudeAgentPolicy,
     HeuristicPolicy,  # noqa: F401 - part of the public policy surface
     PolicyUnavailable,
 )
-from ecasteps.probe import cli as probe
-from ecasteps.core.colspec import write_values_tsv
-from ecasteps.core.result import EXIT_BLOCKED, EXIT_ERROR, EXIT_OK, \
+from eca_pp.probe import cli as probe
+from eca_pp.core.colspec import write_values_tsv
+from eca_pp.core.result import EXIT_BLOCKED, EXIT_ERROR, EXIT_OK, \
     new_result, write_result
 
-log = logging.getLogger("ecasteps.identify_columns")
+log = logging.getLogger("eca_pp.identify_columns")
 
 # --- decision thresholds (v0.3 defaults; all recorded in result.json) --------
 PATHOLOGICAL_TINY_GROUP_FRAC = 0.5   # majority of groups tiny -> column is out
@@ -58,7 +58,7 @@ ANNOTATION_TOKENS = ("celltype", "cell_type", "annotation", "cluster",
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="ecasteps-identify-columns",
+        prog="eca-pp-identify-columns",
         description="Identify the batch column and cell-type column of a "
                     "standardized h5ad, verified by small-scale integration "
                     "trials; writes OUTDIR/result.json (+ batch.tsv for a "
@@ -72,9 +72,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-probe", action="store_true",
                    help="profile + ranking only (degraded mode, exit 3)")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--model", default=os.environ.get("ECASTEPS_AGENT_MODEL"),
+    p.add_argument("--model", default=os.environ.get("ECA_PP_AGENT_MODEL"),
                    help="agent model ID (e.g. claude-sonnet-5); default: "
-                        "$ECASTEPS_AGENT_MODEL, else the claude CLI's "
+                        "$ECA_PP_AGENT_MODEL, else the claude CLI's "
                         "default model")
     return p
 

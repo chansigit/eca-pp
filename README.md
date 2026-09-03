@@ -1,4 +1,4 @@
-# ecasteps
+# eca-pp
 
 Mining scRNA-seq datasets from the published literature is slow, manual work.
 Public datasets are pervasively non-standard: raw counts hide in arbitrarily
@@ -7,7 +7,7 @@ gene identifiers mix outdated and ambiguous symbols with spike-ins, and
 metadata follows no convention. Curating datasets at atlas scale means
 resolving the same ambiguities over and over by hand.
 
-**ecasteps** automates this curation for the Open Cell Atlas pipeline. Each
+**eca-pp** automates this curation for the Open Cell Atlas pipeline. Each
 step is a command-line tool — **h5ad in → files out + `result.json`** — that
 resolves everything it can deterministically, records the evidence behind
 every decision, and escalates only the genuinely ambiguous cases (exit
@@ -17,12 +17,12 @@ cleanly into scripts and larger workflows.
 
 Two steps are available:
 
-- **`ecasteps-standardize`** turns a single-sample `.h5ad` of unknown
+- **`eca-pp-standardize`** turns a single-sample `.h5ad` of unknown
   provenance into a standardized form the rest of the pipeline can trust.
-- **`ecasteps-identify-columns`** identifies the batch column (for
+- **`eca-pp-identify-columns`** identifies the batch column (for
   integration) and the cell-type column among the obs columns — an
   agent-driven step that verifies its candidates by running small-scale
-  integration trials (**`ecasteps-integration-probe`**, also usable
+  integration trials (**`eca-pp-integration-probe`**, also usable
   standalone) and records every decision with its evidence.
 
 ## Quick start
@@ -32,8 +32,8 @@ pip install git+https://github.com/chansigit/stancounts \
             git+https://github.com/chansigit/stangene
 pip install ".[probe,agent]"   # from a checkout of this repo
 
-ecasteps-standardize SRC.h5ad -o out/sample1
-ecasteps-identify-columns out/sample1/standardized.h5ad -o out/sample1_columns
+eca-pp-standardize SRC.h5ad -o out/sample1
+eca-pp-identify-columns out/sample1/standardized.h5ad -o out/sample1_columns
 echo $?                        # 0 = success; see the exit-code table below
 ```
 
@@ -75,7 +75,7 @@ All flags are optional; with none given, everything is inferred and defaults
 apply.
 
 <details>
-<summary>ecasteps-standardize flags</summary>
+<summary>eca-pp-standardize flags</summary>
 
 | flag | default | effect |
 |---|---|---|
@@ -89,7 +89,7 @@ apply.
 </details>
 
 <details>
-<summary>ecasteps-identify-columns flags</summary>
+<summary>eca-pp-identify-columns flags</summary>
 
 | flag | default | effect |
 |---|---|---|
@@ -97,10 +97,10 @@ apply.
 | `--n-cells N` | adaptive | probe subsample size; default `clamp(50 × max_batches, 5000, 30000)` |
 | `--no-probe` | off | profile + candidate ranking only, no trials (degraded mode, exit 3) |
 | `--seed N` | 0 | sampling / integration seed; same input + seed → same trial metrics |
-| `--model ID` | the `claude` CLI's default | agent model (e.g. `claude-sonnet-5`); also settable via `ECASTEPS_AGENT_MODEL`. The model actually used is recorded per round in `result.json` and summarized in `metrics.llm.models`. |
+| `--model ID` | the `claude` CLI's default | agent model (e.g. `claude-sonnet-5`); also settable via `ECA_PP_AGENT_MODEL`. The model actually used is recorded per round in `result.json` and summarized in `metrics.llm.models`. |
 
 Without Agent SDK credentials the step degrades the same way as
-`--no-probe`. `ECASTEPS_CLAUDE_CLI` can point at a specific `claude`
+`--no-probe`. `ECA_PP_CLAUDE_CLI` can point at a specific `claude`
 executable. Downstream tools accept the identified batch as
 `--batch-col <obs column or batch.tsv path>`.
 

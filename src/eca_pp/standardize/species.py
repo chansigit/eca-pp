@@ -107,7 +107,7 @@ def _llm_infer(symbols_sample: list[str], evidence: dict):
     try:
         client = anthropic.Anthropic()
         resp = client.messages.parse(
-            model=os.environ.get("ECASTEPS_LLM_MODEL", DEFAULT_LLM_MODEL),
+            model=os.environ.get("ECA_PP_LLM_MODEL", DEFAULT_LLM_MODEL),
             max_tokens=1024, system=system,
             messages=[{"role": "user", "content": user}],
             output_format=SpeciesGuess)
@@ -119,7 +119,7 @@ def _llm_infer(symbols_sample: list[str], evidence: dict):
         if conf < 0.5:  # the model itself is unsure — let T3 block instead
             return None
         u = getattr(resp, "usage", None)
-        usage = {"model": os.environ.get("ECASTEPS_LLM_MODEL", DEFAULT_LLM_MODEL),
+        usage = {"model": os.environ.get("ECA_PP_LLM_MODEL", DEFAULT_LLM_MODEL),
                  "input_tokens": getattr(u, "input_tokens", None),
                  "output_tokens": getattr(u, "output_tokens", None),
                  "billing_url": "https://console.anthropic.com/settings/usage"}

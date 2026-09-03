@@ -1,7 +1,7 @@
 #!/bin/bash
 # Portability proof: inside a stock python:3.12-slim container (no dl2025 venv, no
 # Lmod modules, no cluster fixups), build a venv from LOCAL SOURCE ONLY — stancounts
-# + ecasteps via `pip install <dir>` — and run the same acceptance suite run.sh runs
+# + eca-pp via `pip install <dir>` — and run the same acceptance suite run.sh runs
 # natively. Third-party deps (numpy/scipy/h5py/anndata) come from PyPI wheels.
 #
 #   bash scripts/test-in-container.sh [image.sif]

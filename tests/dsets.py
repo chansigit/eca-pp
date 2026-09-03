@@ -16,7 +16,7 @@ import scipy.sparse as sp
 
 from stangene.references import load_reference
 
-from ecasteps.standardize.cli import main
+from eca_pp.standardize.cli import main
 
 RNG = np.random.default_rng(0)
 N, G = 300, 6000  # default gates: min_cells=100, min_genes=5000 — this passes both

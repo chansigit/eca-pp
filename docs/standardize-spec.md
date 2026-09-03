@@ -147,7 +147,7 @@ unmapped)逐行注释后,应用策略:
 ## 6. CLI 接口(签名即终态,后续只增不改)
 
 ```bash
-python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
+python -m eca_pp.standardize SRC.h5ad -o OUTDIR \
     [--species CODE] [--llm] \
     [--min-cells 100] [--min-genes 5000] \
     [--counts-layer NAME] [--no-gate] [--keep-unmapped]
@@ -219,7 +219,7 @@ python -m ecasteps.standardize SRC.h5ad -o OUTDIR \
   默认无网络、无 LLM。
 - **幂等**:所有写盘原子化(临时文件 + rename),重跑安全。
 - **失败三分**:rejected ≠ error ≠ needs_review,是给调用方的正式接口。
-- **可移植 / 可发行**:ecasteps 是规范 pip 包(pyproject.toml,py≥3.10;依赖 =
+- **可移植 / 可发行**:eca-pp 是规范 pip 包(pyproject.toml,py≥3.10;依赖 =
   标准科学栈 + stancounts/stangene/stanmetacols,重依赖走 extras:`[llm]`
   `[doublets]` `[gpu]`)。代码不绑定任何集群。部署形态三选:
   ① Sherlock 原生:`run.sh` 引导 dl2025 venv(环境 fixup 只活在 run.sh);
@@ -266,7 +266,7 @@ bash scripts/test-in-container.sh            # python:3.12-slim 容器(Apptainer
 ## 10. 代码布局
 
 ```
-src/ecasteps/
+src/eca_pp/
   core/                跨环节契约:result.json+退出码、原子写、列SPEC(colspec)
   standardize/         环节1(确定性):cli + countsloc/species/harmonize/qc/build
   identify_columns/    环节2(agent 型):cli + obsprofile + policies(agent 全在此)
