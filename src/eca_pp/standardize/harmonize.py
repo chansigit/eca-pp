@@ -54,7 +54,12 @@ def harmonize_genes(adata, species: str, *, keep_unmapped: bool = False):
     adata.var["original_feature_name"] = list(adata.var_names)
     for col in MAPPING_COLS:
         if col in mt.columns:
-            adata.var[col] = list(mt[col])
+            vals = pd.Series(list(mt[col]), index=adata.var.index)
+            if vals.dtype == object:
+                # stangene leaves None/NaN in text columns (e.g. mapping_notes);
+                # h5py cannot write a mixed None/str column, so blank them.
+                vals = vals.where(vals.notna(), "").map(str)
+            adata.var[col] = vals
 
     status = np.array(
         [s if isinstance(s, str) and s else "unmapped"

@@ -15,7 +15,7 @@
 
 1. **两层分工**:步骤 = 确定性 CLI(h5ad in → files out + result.json);
    编排层消费 result.json 与退出码。Agent SDK / agent loop **只存在于编排层**。
-2. **本环节内 LLM 仅一处单次调用**(anthropic SDK,structured output):
+2. **本环节内 LLM 仅一处单次调用**(Claude Agent SDK 单轮、无工具,经 `eca_pp.agent`,与 identify-columns 同一模型与凭据):
    物种解析 T2(§5.2),显式开启(`--llm`)、默认关、有确定性回退。
    列角色识别已移出为显式声明的 agent 型环节(identify-columns),
    其规则见该环节自己的规格。

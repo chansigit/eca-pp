@@ -33,6 +33,10 @@ STANGENE_SRC="${STANGENE_SRC:-/home/users/chensj16/s/projects/stangene/src}"
 unset PYTHONPATH || true
 ml load hdf5/1.14.4 2>/dev/null || true
 export PYTHONPATH="$REPO/src:$STANGENE_SRC"
+# Agent SDK initialize handshake: the npm `claude` CLI cold-starts slowly on a
+# compute node (node + NFS-backed ~/.claude + plugins), so allow 3 min instead
+# of the SDK's 60 s default (value in ms; eca_pp.agent also retries transients).
+export CLAUDE_CODE_STREAM_CLOSE_TIMEOUT="${CLAUDE_CODE_STREAM_CLOSE_TIMEOUT:-180000}"
 
 cmd="${1:-}"
 shift || true

@@ -7,8 +7,10 @@
                                 falls through — never retried, never looped
     T3  unresolved              caller blocks with exit 3 and the evidence
 
-The LLM tier is one ``messages.parse`` call (anthropic SDK, NOT an agent loop),
-whose answer is validated against stangene's supported species before adoption.
+The LLM tier is one single-turn, tool-less Agent SDK exchange via
+:mod:`eca_pp.agent` (same model and credentials as identify-columns, NOT an
+agent loop), whose answer is validated against stangene's supported species
+before adoption.
 """
 
 from __future__ import annotations
@@ -24,7 +26,6 @@ CODE_BY_SPECIES = {
     "rhesus": "rhesus", "marmoset": "marmoset", "mouse_lemur": "lemur",
 }
 
-DEFAULT_LLM_MODEL = "claude-opus-5"
 _LLM_SAMPLE = 300  # gene names shown to the LLM
 
 
@@ -80,48 +81,42 @@ def resolve(adata, *, cli_species: str | None = None, llm: bool = False) -> Spec
 
 
 def _llm_infer(symbols_sample: list[str], evidence: dict):
-    """One structured-output LLM call; ``(canonical_species, confidence)`` or
-    ``None`` on ANY failure (not installed, no key, API error, unsupported
-    answer). Deterministic T3 is the fallback — this tier never retries."""
-    try:
-        import anthropic
-        from pydantic import BaseModel
-    except Exception:  # noqa: BLE001 - [llm] extra not installed
-        return None
+    """One single-turn Agent SDK exchange; ``(canonical_species, confidence,
+    usage)`` or ``None`` on ANY failure (SDK missing, no credentials, exchange
+    failed, unparsable or unsupported answer, low confidence). Deterministic
+    T3 is the fallback — this tier never loops."""
+    import json
+    import tempfile
 
-    class SpeciesGuess(BaseModel):
-        species: str
-        confidence: float
-        reason: str
+    from eca_pp import agent
 
     supported = ", ".join(sorted(CODE_BY_SPECIES))
     system = (
         "You identify the species of a single-cell RNA-seq dataset from its "
         f"gene identifiers. Answer with one of: {supported}. If the names are "
         "genuinely uninformative, still pick the most likely species but give "
-        "a low confidence (< 0.5).")
+        "a low confidence (< 0.5). Reply with EXACTLY one fenced json block: "
+        '{"species": "<one of the supported names>", "confidence": <0..1>, '
+        '"reason": "<one sentence>"} and nothing else.')
     user = (
         f"Deterministic inference was inconclusive. Its evidence:\n{evidence}\n\n"
         f"A sample of the dataset's feature names:\n{symbols_sample}\n\n"
         "Which species is this dataset from?")
     try:
-        client = anthropic.Anthropic()
-        resp = client.messages.parse(
-            model=os.environ.get("ECA_PP_LLM_MODEL", DEFAULT_LLM_MODEL),
-            max_tokens=1024, system=system,
-            messages=[{"role": "user", "content": user}],
-            output_format=SpeciesGuess)
-        parsed = getattr(resp, "parsed_output", None)
-        if parsed is None:
-            return None
-        canon = stangene.resolve_species(parsed.species)
-        conf = max(0.0, min(1.0, float(parsed.confidence)))
+        agent.check_available()
+        with tempfile.TemporaryDirectory(prefix="eca-pp-species-") as cwd:
+            options = agent.make_options(system_prompt=system, cwd=cwd,
+                                         allowed_tools=(), max_turns=1)
+            reply, _tools, usage = agent.ask(options, user)
+        parsed = json.loads(agent.extract_json(reply))
+        canon = stangene.resolve_species(str(parsed["species"]))
+        conf = max(0.0, min(1.0, float(parsed["confidence"])))
         if conf < 0.5:  # the model itself is unsure — let T3 block instead
             return None
-        u = getattr(resp, "usage", None)
-        usage = {"model": os.environ.get("ECA_PP_LLM_MODEL", DEFAULT_LLM_MODEL),
-                 "input_tokens": getattr(u, "input_tokens", None),
-                 "output_tokens": getattr(u, "output_tokens", None),
+        usage = {"model": usage.get("model") or agent.model_name(),
+                 "cost_usd": usage.get("cost_usd"),
+                 "input_tokens": usage.get("input_tokens"),
+                 "output_tokens": usage.get("output_tokens"),
                  "billing_url": "https://console.anthropic.com/settings/usage"}
         return canon, conf, usage
     except Exception:  # noqa: BLE001 - any failure -> deterministic T3
