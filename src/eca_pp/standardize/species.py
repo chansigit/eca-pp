@@ -14,6 +14,7 @@ supported species before adoption.
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 
@@ -26,6 +27,7 @@ CODE_BY_SPECIES = {
 }
 
 _LLM_SAMPLE = 300  # gene names shown to the LLM
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -141,6 +143,7 @@ def _llm_infer(symbols_sample: list[str], evidence: dict):
         canon = parsed["species"]
         conf = parsed["confidence"]
         if conf < 0.5:  # the model itself is unsure — let T3 block instead
+            log.warning("species LLM unresolved: confidence %.3f below 0.5", conf)
             return None
         usage = {"model": usage.get("model") or agent.model_name(),
                  "cost_usd": usage.get("cost_usd"),
@@ -149,4 +152,6 @@ def _llm_infer(symbols_sample: list[str], evidence: dict):
                  "backend": usage.get("backend")}
         return canon, conf, usage
     except Exception:  # noqa: BLE001 - any failure -> deterministic T3
+        # Preserve diagnostic context without weakening the unresolved fallback.
+        log.exception("species LLM failed; falling back to unresolved species")
         return None
