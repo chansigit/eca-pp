@@ -803,6 +803,9 @@ def main(argv=None, *, policy="auto") -> int:
 
     t0 = time.perf_counter()
     try:
+        from eca_pp.core.run_outputs import archive_outputs
+
+        archive_outputs(args.outdir, "identify_columns", args.src)
         code = _run(args, res, policy)
     except PolicyUnavailable as exc:
         # Defensive guard: normal mid-loop failures are already converted to

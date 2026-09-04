@@ -299,6 +299,9 @@ def main(argv=None) -> int:
 
     t0 = time.perf_counter()
     try:
+        from eca_pp.core.run_outputs import archive_outputs
+
+        archive_outputs(args.outdir, "standardize", args.src)
         code = _run(args, res)
     except _Stop as stop:
         res["status"] = stop.status
