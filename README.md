@@ -1,15 +1,64 @@
-# eca-pp
+# ECA-PP
 
-**Prepare published single-cell RNA sequencing data for reuse.**
+**Standardized preprocessing of real-world single-cell data for Ensemble Cell Atlas.**
 
-Public datasets often need considerable cleanup before they can be combined or
-reanalyzed. Gene names differ between studies, raw expression counts can be hard
-to find, and columns describing samples and cell types follow no common naming
-convention.
+ECA-PP is a component of the **Ensemble Cell Atlas (ECA)** ecosystem. It turns
+heterogeneous public single-cell RNA sequencing datasets into a consistent,
+documented starting point for **ECA-RSI (Recursive Self-Improvement)**, ECA's
+automated data governance system. Handling routine preprocessing here reduces
+the burden on ECA-RSI, leaving it to focus on further quality assessment,
+annotation, and iterative refinement.
 
-eca-pp helps automate that preparation for the Open Cell Atlas pipeline. Give it
-an `.h5ad` file—the data format used by Scanpy—and it produces standardized data
-and a record of what it found, changed, or could not resolve.
+## Why public data needs more than format conversion
+
+Mining published single-cell data means dealing with the choices made by many
+different authors. Expression matrices may arrive as text tables, sparse matrix
+files, Seurat objects, or H5AD files, with metadata in separate supplements.
+Even after conversion, the same-looking dataset can mean very different things:
+
+- The expression matrix may contain raw counts, normalized values, or scaled
+  values; the original counts may be tucked away in another layer.
+- Gene identifiers may mix Ensembl IDs, old symbols, aliases, and non-gene features.
+- Sample, sequencing batch, donor, and cell-type columns may use unfamiliar names,
+  duplicate one another, or contain missing values.
+- Existing quality-control measurements may follow different definitions or have
+  been calculated before genes were filtered out.
+
+A file that opens successfully is not necessarily ready for scientific reuse.
+Repeating these checks manually—or asking an agent to invent a new preprocessing
+script for every study—makes consistent treatment across datasets difficult.
+
+## Where ECA-PP fits
+
+General-purpose agents can usually handle downloading files, unpacking archives,
+and scripting conversions into `.h5ad`, the AnnData format used by Scanpy.
+**ECA-PP starts at H5AD.** From that point onward, decisions about counts, gene
+identity, QC, and batch structure need shared, domain-specific rules that are
+applied consistently across studies.
+
+| Stage | Responsibility |
+|---|---|
+| Data acquisition and conversion | Upstream tools or agents gather the published files and create an H5AD dataset. |
+| Standardized preprocessing | ECA-PP checks the data, standardizes expression and genes, evaluates metadata, and records unresolved issues. |
+| Iterative data governance | ECA-RSI uses the prepared data and evidence for further assessment and refinement. |
+
+ECA-PP can also be used independently of ECA-RSI in your own analysis pipeline.
+
+## What makes it useful?
+
+- **Consistent scientific rules.** Counts validation, gene mapping, and QC follow
+  a shared implementation. QC and normalized expression use the same final gene
+  set, making their definitions consistent across datasets.
+- **Decisions checked against the data.** Batch candidates are evaluated through
+  small integration trials. Technical and donor factors take priority over
+  biological conditions; model suggestions must pass programmatic validation.
+- **Automation with explicit uncertainty.** Built-in rules keep column
+  identification moving when a model is unavailable. Insufficient evidence can
+  produce an empty selection with an explanation; essential unresolved choices
+  stop preprocessing for review.
+- **Traceable changes.** The source file stays unchanged. Outputs preserve author
+  metadata, back up replaced fields, and record gene-mapping changes, decisions,
+  and trial results so downstream systems can inspect the evidence.
 
 ## What does it do?
 
@@ -29,10 +78,8 @@ eca-pp can locate the counts, produce consistent gene names and QC measurements,
 and evaluate which metadata columns to use downstream. Its report explains the
 selection—including when correction appears unnecessary.
 
-The source file stays unchanged. The output retains author metadata, backs up
-fields that need replacement, and records gene-mapping changes. By default,
-features that cannot be mapped to a canonical gene are removed from the output;
-this can be changed with `--keep-unmapped`.
+By default, features that cannot be mapped to a canonical gene are removed from
+the output; this can be changed with `--keep-unmapped`.
 
 ## Is it right for my data?
 
