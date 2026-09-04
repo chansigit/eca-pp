@@ -91,6 +91,19 @@ ECA-PP currently prepares data and evaluates metadata. It does not assign new
 biological cell-type labels, filter individual low-quality cells or doublets,
 or produce a final integrated atlas.
 
+Follow the main path below; the lower branches show required review, dataset
+rejection, and the trial loop used to evaluate metadata. Click the diagram for
+an interactive version with search, zoom, and guided views.
+
+<p align="center">
+  <a href="https://raw.githack.com/chansigit/eca-pp/main/docs/workflow.html">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/eca-pp-workflow-dark.svg">
+      <img src="assets/eca-pp-workflow-light.svg" alt="ECA-PP workflow: input H5AD, standardization, prepared data, metadata identification with integration trials, recorded decisions, and handoff to ECA-RSI. Unresolved standardization choices need review; unsuitable inputs are rejected." width="1100">
+    </picture>
+  </a>
+</p>
+
 <br>
 
 ## Try it

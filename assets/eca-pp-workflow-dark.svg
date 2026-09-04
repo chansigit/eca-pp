@@ -1,0 +1,407 @@
+<svg xmlns="http://www.w3.org/2000/svg" data-theme="dark" viewBox="0 0 1229 408" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
+<style><![CDATA[
+svg{width: 100%; min-width: min(900px, 100%); display: block; transform-origin: 0 0; transition: transform 0.18s ease;}
+.diagram-container.is-camera-moving svg{transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);}
+.diagram-container.is-camera-transaction svg{transition: none;}
+.diagram-container.is-panning svg{transition: none;}
+.overview-map-surface > svg{width: 100%; height: 100%; min-width: 0; transform: none !important; transition: none !important; display: block; overflow: visible;}
+svg[data-chapter-handoff] [data-node-id][data-chapter-role="stay"]{opacity: 1;}
+svg[data-chapter-handoff] [data-node-id][data-chapter-role="enter"]{opacity: 0.78;}
+svg[data-chapter-handoff] [data-node-id][data-chapter-role="leave"]{opacity: 0.26;}
+.c-grid{stroke: #1e293b; fill: none;}
+.c-mask{fill: #0f172a; stroke: none;}
+.c-backend{fill: rgba(6, 78, 59, 0.4); stroke: #34d399;}
+.c-database{fill: rgba(76, 29, 149, 0.4); stroke: #a78bfa;}
+.c-security{fill: rgba(136, 19, 55, 0.4); stroke: #fb7185;}
+.c-external{fill: rgba(30, 41, 59, 0.5); stroke: #94a3b8;}
+.t-primary{fill: #ffffff;}
+.t-muted{fill: #94a3b8;}
+.t-dim{fill: #475569;}
+.t-backend{fill: #34d399;}
+.t-database{fill: #a78bfa;}
+.t-security{fill: #fb7185;}
+svg .semantic-sigil{fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; opacity: 0.76; pointer-events: none;}
+svg .semantic-sigil > *{vector-effect: non-scaling-stroke;}
+svg .semantic-sigil .sigil-fill{fill: currentColor; stroke: none;}
+svg .s-frontend{color: #22d3ee;}
+svg .s-backend{color: #34d399;}
+svg .s-database{color: #a78bfa;}
+svg .s-cloud{color: #fbbf24;}
+svg .s-security{color: #fb7185;}
+svg .s-messagebus{color: #fb923c;}
+svg .s-external{color: #94a3b8;}
+svg .brand-mark{pointer-events: none;}
+svg .brand-mark-badge{fill: #fff; stroke: none;}
+svg .brand-mark-frame{fill: none; stroke: #cbd5e1; stroke-width: 0.8; vector-effect: non-scaling-stroke;}
+svg .brand-mark-fallback{fill: none; stroke: #475569; stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round;}
+svg [data-detail]{transition: opacity 160ms ease;}
+svg [data-detail-anchor]{transform-box: fill-box; transform-origin: center; transition: transform 160ms ease;}
+.diagram-container[data-detail-level="map"] svg [data-detail="context"],
+    .diagram-container[data-detail-level="map"] svg [data-detail="fine"],
+    .diagram-container[data-detail-level="read"] svg [data-detail="fine"]{opacity: 0; pointer-events: none;}
+.diagram-container[data-detail-level="map"] svg [data-detail-anchor]{transform: translateY(8px);}
+svg[data-focus-active] [data-focus-match][data-detail],
+    svg[data-focus-active] [data-focus-match] [data-detail],
+    svg[data-reach-active] [data-reach-match][data-detail],
+    svg[data-reach-active] [data-reach-match] [data-detail],
+    svg[data-lens-active] [data-lens-match][data-detail],
+    svg[data-lens-active] [data-lens-match] [data-detail],
+    svg[data-legend-preview-active] [data-legend-preview-match][data-detail],
+    svg[data-legend-preview-active] [data-legend-preview-match] [data-detail],
+    svg[data-intent-trace-active] [data-intent-trace-match][data-detail],
+    svg[data-intent-trace-active] [data-intent-trace-match] [data-detail],
+    svg[data-route-active] [data-route-match][data-detail],
+    svg[data-route-active] [data-route-match] [data-detail],
+    svg[data-story-active] [data-story-step][data-detail],
+    svg[data-story-active] [data-story-step] [data-detail],
+    svg[data-relationship-preview-active] [data-relationship-preview][data-detail],
+    svg[data-relationship-preview-active] [data-relationship-preview] [data-detail],
+    svg [data-node-id]:hover [data-detail],
+    svg [data-node-id]:focus-visible [data-detail]{opacity: 1; pointer-events: auto;}
+svg[data-focus-active] [data-focus-match] [data-detail-anchor],
+    svg[data-reach-active] [data-reach-match] [data-detail-anchor],
+    svg[data-lens-active] [data-lens-match] [data-detail-anchor],
+    svg[data-legend-preview-active] [data-legend-preview-match] [data-detail-anchor],
+    svg[data-intent-trace-active] [data-intent-trace-match] [data-detail-anchor],
+    svg[data-route-active] [data-route-match] [data-detail-anchor],
+    svg[data-story-active] [data-story-step] [data-detail-anchor],
+    svg [data-node-id]:hover [data-detail-anchor],
+    svg [data-node-id]:focus-visible [data-detail-anchor]{transform: none;}
+.a-default{stroke: #64748b; fill: none;}
+.a-emphasis{stroke: #34d399; fill: none;}
+.a-security{stroke: #fb7185; fill: none; stroke-dasharray: 5,5;}
+.a-dashed{stroke: #a78bfa; fill: none; stroke-dasharray: 4,4;}
+.m-default{fill: #64748b;}
+.m-emphasis{fill: #34d399;}
+.m-security{fill: #fb7185;}
+.m-dashed{fill: #a78bfa;}
+svg [data-node-id]{cursor: pointer; transition: opacity 0.18s ease, filter 0.18s ease;}
+svg [data-edge-from]{transition: opacity 0.18s ease, filter 0.18s ease;}
+svg [data-node-id]:hover,
+    svg [data-node-id]:focus-visible{filter: drop-shadow(0 0 7px #22d3ee); outline: none;}
+.source-evidence-beacon rect{fill: color-mix(in srgb, #0f172a 92%, #34d399); stroke: color-mix(in srgb, #34d399 82%, #1e293b); stroke-width: 1; vector-effect: non-scaling-stroke;}
+.source-evidence-beacon text{fill: #34d399; font-size: 5.5px; font-weight: 800; letter-spacing: 0.06em; text-anchor: middle; text-transform: uppercase;}
+svg [data-node-id]:hover .source-evidence-beacon,
+    svg [data-node-id]:focus-visible .source-evidence-beacon,
+    svg [data-node-id][data-focus-selected] .source-evidence-beacon{opacity: 1; filter: drop-shadow(0 0 4px color-mix(in srgb, #34d399 72%, transparent));}
+svg [data-legend-kind][role="button"]{cursor: pointer;}
+svg [data-legend-kind]:focus{outline: none;}
+svg [data-legend-hit]{fill: transparent; stroke: transparent; stroke-width: 1.4; pointer-events: all; vector-effect: non-scaling-stroke; transition: stroke 150ms ease, stroke-width 150ms ease, filter 150ms ease;}
+svg [data-legend-count-badge]{pointer-events: none;}
+svg [data-legend-count-badge] rect{fill: #0f172a; stroke: #1e293b; stroke-width: 1; vector-effect: non-scaling-stroke;}
+svg [data-legend-count-badge] text{fill: #94a3b8; font-size: 8px; font-weight: 700; text-anchor: middle;}
+svg [data-legend-kind][role="button"]:hover [data-legend-hit]{stroke: color-mix(in srgb, #a78bfa 58%, transparent);}
+svg [data-legend-kind][role="button"]:focus-visible [data-legend-hit]{stroke: #22d3ee; stroke-width: 1.8; filter: drop-shadow(0 0 3px #22d3ee);}
+svg [data-legend-kind][data-legend-selected] [data-legend-hit]{stroke: #a78bfa; stroke-width: 2.2; stroke-dasharray: 3 2;}
+svg [data-legend-kind][data-legend-selected] [data-legend-count-badge] rect{stroke: #a78bfa; stroke-width: 1.8;}
+svg [data-legend-kind][data-legend-zero]{opacity: 0.44;}
+svg[data-legend-preview-active] [data-node-id],
+    svg[data-legend-preview-active] [data-edge-from]{opacity: 0.11;}
+svg[data-legend-preview-active] [data-legend-preview-match]{opacity: 1;}
+svg[data-legend-preview-active] [data-legend-preview-peer]{opacity: 0.62;}
+svg[data-legend-preview-active] [data-legend-preview-selected]{filter: drop-shadow(0 0 8px #a78bfa);}
+svg[data-lens-active] [data-node-id],
+    svg[data-lens-active] [data-edge-from]{opacity: 0.11;}
+svg[data-lens-active] [data-lens-match]{opacity: 1;}
+svg[data-lens-active] [data-lens-peer]{opacity: 0.62;}
+svg[data-lens-active] [data-lens-selected]{filter: drop-shadow(0 0 10px #a78bfa);}
+svg[data-focus-active] [data-node-id],
+    svg[data-focus-active] [data-edge-from]{opacity: 0.13;}
+svg[data-focus-active] [data-focus-match]{opacity: 1;}
+svg[data-focus-active] [data-focus-selected]{filter: drop-shadow(0 0 10px #22d3ee);}
+svg[data-reach-active] [data-node-id],
+    svg[data-reach-active] [data-edge-from]{opacity: 0.09;}
+svg[data-reach-active] [data-reach-match]{opacity: 1;}
+svg[data-reach-active="upstream"] [data-reach-origin]{filter: drop-shadow(0 0 11px #a78bfa);}
+svg[data-reach-active="downstream"] [data-reach-origin]{filter: drop-shadow(0 0 11px #34d399);}
+svg[data-reach-active="upstream"] [data-edge-from][data-reach-match]{filter: drop-shadow(0 0 4px color-mix(in srgb, #a78bfa 72%, transparent));}
+svg[data-reach-active="downstream"] [data-edge-from][data-reach-match]{filter: drop-shadow(0 0 4px color-mix(in srgb, #34d399 72%, transparent));}
+svg[data-relationship-direct-active] [data-node-id],
+    svg[data-relationship-direct-active] [data-edge-from]{opacity: 0.16;}
+svg[data-relationship-direct-active] [data-relationship-preview],
+    svg[data-relationship-direct-active] [data-relationship-preview-node]{opacity: 1;}
+svg[data-focus-active]:not([data-relationship-pin-active]) .relationship-hit-rail,
+    svg[data-story-active] .relationship-hit-rail,
+    svg[data-route-picking] .relationship-hit-rail,
+    svg[data-route-active] .relationship-hit-rail,
+    svg[data-lens-active] .relationship-hit-rail,
+    svg[data-chapter-preview] .relationship-hit-rail{pointer-events: none;}
+svg[data-relationship-preview-active] [data-focus-match]{opacity: 0.18;}
+svg[data-relationship-preview-active] [data-relationship-preview],
+    svg[data-relationship-preview-active] [data-relationship-preview-node]{opacity: 1;}
+svg[data-relationship-preview-active] [data-relationship-preview]{filter: drop-shadow(0 0 5px #34d399);}
+svg[data-relationship-preview-active] [data-relationship-preview] path,
+    svg[data-relationship-preview-active] path[data-relationship-preview],
+    svg[data-relationship-preview-active] [data-relationship-preview] line,
+    svg[data-relationship-preview-active] line[data-relationship-preview],
+    svg[data-relationship-preview-active] [data-relationship-preview] polyline,
+    svg[data-relationship-preview-active] polyline[data-relationship-preview]{stroke-width: 2.75;}
+svg[data-relationship-preview-active] [data-relationship-preview-source]{filter: drop-shadow(0 0 7px #22d3ee);}
+svg[data-relationship-preview-active] [data-relationship-preview-target]{filter: drop-shadow(0 0 7px #a78bfa);}
+svg[data-intent-trace-active] [data-node-id],
+    svg[data-intent-trace-active] [data-edge-from]{opacity: 0.2;}
+svg[data-intent-trace-active] [data-intent-trace-match]{opacity: 1;}
+svg[data-intent-trace-active] [data-intent-trace-selected]{filter: drop-shadow(0 0 10px #22d3ee);}
+svg[data-route-picking="target"] [data-node-id]{opacity: 0.24;}
+svg[data-route-picking="target"] [data-route-candidate],
+    svg[data-route-picking="target"] [data-route-start]{opacity: 1;}
+svg[data-route-picking] [data-node-id]{cursor: crosshair;}
+svg[data-route-picking] [data-route-start]{filter: drop-shadow(0 0 10px #22d3ee);}
+svg[data-route-active] [data-node-id],
+    svg[data-route-active] [data-edge-from]{opacity: 0.11;}
+svg[data-route-active] [data-route-match]{opacity: 1;}
+svg[data-route-active] [data-route-start]{filter: drop-shadow(0 0 11px #22d3ee);}
+svg[data-route-active] [data-route-end]{filter: drop-shadow(0 0 11px #fb7185);}
+svg[data-route-active] [data-route-step]:not([data-route-start]):not([data-route-end]){filter: drop-shadow(0 0 7px #34d399);}
+svg[data-route-journey] [data-route-match][data-route-journey-state="past"]{opacity: 0.62;}
+svg[data-route-journey] [data-route-match][data-route-journey-state="future"]{opacity: 0.34;}
+svg[data-route-journey] [data-route-match][data-route-journey-state="current"]{opacity: 1;}
+svg[data-route-journey] [data-node-id][data-route-journey-current]{filter: drop-shadow(0 0 10px #34d399);}
+svg[data-route-journey] [data-edge-from][data-route-journey-current]{opacity: 1; filter: drop-shadow(0 0 6px #34d399);}
+svg[data-story-beat] [data-story-step]{opacity: 0.22; filter: saturate(0.42); transition: opacity 180ms ease, filter 180ms ease;}
+svg[data-story-beat] [data-story-step][data-story-beat-state="past"]{opacity: 0.72; filter: saturate(0.82);}
+svg[data-story-beat] [data-story-step][data-story-beat-state="next"]{opacity: 0.5; filter: saturate(0.66);}
+svg[data-story-beat] [data-story-step][data-story-beat-state="active"]{opacity: 1; filter: drop-shadow(0 0 7px #22d3ee); animation: archify-story-beat-node 360ms cubic-bezier(0.22, 1, 0.36, 1) both;}
+svg[data-story-beat] [data-edge-from][data-story-beat-step]{opacity: 0.16; transition: opacity 160ms ease;}
+svg[data-story-beat] [data-edge-from][data-story-beat-step][data-story-beat-state="past"]{opacity: 0.58;}
+svg[data-story-beat] [data-edge-from][data-story-beat-step][data-story-beat-state="next"]{opacity: 0.34;}
+svg[data-story-beat] [data-edge-from][data-story-beat-step][data-story-beat-state="active"]{opacity: 1;}
+svg[data-story-beat] .story-trail-flow{opacity: 0; transition: opacity 160ms ease;}
+svg[data-story-beat] .story-trail-flow[data-story-beat-state="past"]{opacity: 0.34;}
+svg[data-story-beat] .story-trail-flow[data-story-beat-state="next"]{opacity: 0.2;}
+svg[data-story-beat] .story-trail-flow[data-story-beat-state="active"]{opacity: 0.92;}
+svg[data-story-beat] .story-trail-flow[data-story-pulse="true"]{stroke-dasharray: 2 13; stroke-dashoffset: 30; opacity: 0.92; animation: archify-story-flow 0.78s linear 1 both;}
+svg[data-chapter-preview] [data-node-id],
+    svg[data-chapter-preview] [data-edge-from]{opacity: 0.1 !important; filter: none !important; transition: none !important;}
+svg[data-chapter-preview] .story-trail-overlay{opacity: 0.08 !important;}
+svg[data-chapter-preview] [data-node-id][data-chapter-preview-role="stay"]{opacity: 0.76 !important; filter: saturate(0.7) !important;}
+svg[data-chapter-preview] [data-node-id][data-chapter-preview-role="enter"]{opacity: 1 !important; filter: saturate(1.2) !important;}
+svg[data-chapter-preview] [data-node-id][data-chapter-preview-role="leave"]{opacity: 0.28 !important; filter: grayscale(0.72) !important;}
+.c-security-group{fill: transparent; stroke: #fb7185; stroke-dasharray: 4,4;}
+.c-lane{fill: rgba(15, 23, 42, 0.22); stroke: #334155; stroke-dasharray: 6,6;}
+]]></style>
+<rect width="100%" height="100%" fill="#020617"/>
+        <title id="archify-diagram-title">ECA-PP: From Public Data to Consistent Inputs</title>
+        <desc id="archify-diagram-description">A workflow diagram generated by Archify.</desc>
+        <!-- Definitions -->
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-default" />
+          </marker>
+          <marker id="arrowhead-emphasis" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-emphasis" />
+          </marker>
+          <marker id="arrowhead-security" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-security" />
+          </marker>
+          <marker id="arrowhead-dashed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-dashed" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" class="c-grid" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <!-- Background Grid -->
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- Swimlanes -->
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="1161" height="106" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Prepare and hand off</text>
+
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="178" width="1161" height="106" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="200" class="t-dim" font-size="10" font-weight="600">02 / Evidence and exceptions</text>
+
+        <!-- Phase headers -->
+        <line x1="77" y1="35" x2="169" y2="35" class="a-default" stroke-width="1.1"/>
+        <rect x="77" y="27" width="92" height="16" rx="4" class="c-mask"/>
+        <text x="123" y="39" class="t-muted" font-size="8" font-weight="600" text-anchor="middle">UPSTREAM</text>
+        <line x1="265" y1="35" x2="961.8" y2="35" class="a-emphasis" stroke-width="1.1"/>
+        <rect x="265" y="27" width="696.8" height="16" rx="4" class="c-mask"/>
+        <text x="613.4" y="39" class="t-backend" font-size="8" font-weight="600" text-anchor="middle">ECA-PP</text>
+        <line x1="1071.3999999999999" y1="35" x2="1163.3999999999999" y2="35" class="a-default" stroke-width="1.1"/>
+        <rect x="1071.3999999999999" y="27" width="92" height="16" rx="4" class="c-mask"/>
+        <text x="1117.3999999999999" y="39" class="t-muted" font-size="8" font-weight="600" text-anchor="middle">ECA-RSI</text>
+
+        <!-- Workflow groups -->
+
+
+        <!-- Edge paths -->
+        <path data-edge-from="identify" data-edge-to="probe" data-edge-label="test candidate" data-edge-key="0" data-composition-points="702.4,146;702.4,168;800.4,168;800.4,246;784.4,246" d="M 702.4 146 L 702.4 168 L 800.4 168 L 800.4 246 L 784.4 246" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="identify" data-edge-to="verdict" data-edge-label="conclude" data-edge-key="1" data-composition-points="784.4,120;840.8,120" d="M 784.4 120 L 840.8 120" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="input" data-edge-to="standardize" data-edge-label="read" data-edge-key="2" data-composition-points="198,120;236,120" d="M 198 120 L 236 120" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="prepared" data-edge-to="identify" data-edge-label="inspect" data-edge-key="3" data-composition-points="582.8,120;634.4,120" d="M 582.8 120 L 634.4 120" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="probe" data-edge-to="identify" data-edge-label="evaluate evidence" data-edge-key="4" data-composition-points="784.4,246;1213,246;1213,78;709.4,78;709.4,94" d="M 784.4 246 L 1213 246 L 1213 78 L 709.4 78 L 709.4 94" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="standardize" data-edge-to="prepared" data-edge-label="passed" data-edge-key="5" data-composition-points="386,120;432.8,120" d="M 386 120 L 432.8 120" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="standardize" data-edge-to="rejected" data-edge-label="unsuitable" data-edge-key="6" data-composition-points="304,146;304,168;32,168;32,246;48,246" d="M 304 146 L 304 168 L 32 168 L 32 246 L 48 246" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="standardize" data-edge-to="review" data-edge-label="ambiguous" data-edge-key="7" data-composition-points="318,146;318,168;402,168;402,246;386,246" d="M 318 146 L 318 168 L 402 168 L 402 246 L 386 246" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="verdict" data-edge-to="rsi" data-edge-label="handoff" data-edge-key="8" data-composition-points="990.8,120;1042.3999999999999,120" d="M 990.8 120 L 1042.3999999999999 120" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+
+        <!-- Nodes -->
+        <g id="node-input" data-node-id="input" data-node-label="Input H5AD" tabindex="0" role="button" aria-label="Focus Input H5AD, Files converted by agents, Prepare and hand off › UPSTREAM" aria-pressed="false" data-node-kind="database" data-node-sublabel="Files converted by agents" data-node-context="Prepare and hand off › UPSTREAM">
+          <title>Input H5AD · Files converted by agents · Prepare and hand off › UPSTREAM</title>
+          <rect x="48" y="94" width="150" height="52" rx="6" class="c-mask"/>
+          <rect x="48" y="94" width="150" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(54 100) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="123" y="115" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Input H5AD</text>
+          <text data-detail="context" x="123" y="132" class="t-muted" font-size="8" text-anchor="middle">Files converted by agents</text>
+        </g>
+
+        <g id="node-standardize" data-node-id="standardize" data-node-label="Standardize" tabindex="0" role="button" aria-label="Focus Standardize, Counts · species · genes · QC, Prepare and hand off › ECA-PP" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Counts · species · genes · QC" data-node-context="Prepare and hand off › ECA-PP">
+          <title>Standardize · Counts · species · genes · QC · Prepare and hand off › ECA-PP</title>
+          <rect x="236" y="94" width="150" height="52" rx="6" class="c-mask"/>
+          <rect x="236" y="94" width="150" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(242 100) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="311" y="115" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Standardize</text>
+          <text data-detail="context" x="311" y="132" class="t-muted" font-size="8" text-anchor="middle">Counts · species · genes · QC</text>
+        </g>
+
+        <g id="node-prepared" data-node-id="prepared" data-node-label="Prepared data" tabindex="0" role="button" aria-label="Focus Prepared data, standardized.h5ad + report, Prepare and hand off › ECA-PP" aria-pressed="false" data-node-kind="database" data-node-sublabel="standardized.h5ad + report" data-node-context="Prepare and hand off › ECA-PP">
+          <title>Prepared data · standardized.h5ad + report · Prepare and hand off › ECA-PP</title>
+          <rect x="432.8" y="94" width="150" height="52" rx="6" class="c-mask"/>
+          <rect x="432.8" y="94" width="150" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(438.8 100) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="507.8" y="115" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Prepared data</text>
+          <text data-detail="context" x="507.8" y="132" class="t-muted" font-size="8" text-anchor="middle">standardized.h5ad + report</text>
+        </g>
+
+        <g id="node-identify" data-node-id="identify" data-node-label="Identify metadata" tabindex="0" role="button" aria-label="Focus Identify metadata, Profile · rank · validate, Prepare and hand off › ECA-PP" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Profile · rank · validate" data-node-context="Prepare and hand off › ECA-PP">
+          <title>Identify metadata · Profile · rank · validate · Prepare and hand off › ECA-PP</title>
+          <rect x="634.4" y="94" width="150" height="52" rx="6" class="c-mask"/>
+          <rect x="634.4" y="94" width="150" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(640.4 100) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="709.4" y="115" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Identify metadata</text>
+          <text data-detail="context" x="709.4" y="132" class="t-muted" font-size="8" text-anchor="middle">Profile · rank · validate</text>
+        </g>
+
+        <g id="node-verdict" data-node-id="verdict" data-node-label="Recorded decision" tabindex="0" role="button" aria-label="Focus Recorded decision, Batch · cell type · evidence, Prepare and hand off › ECA-PP" aria-pressed="false" data-node-kind="database" data-node-sublabel="Batch · cell type · evidence" data-node-context="Prepare and hand off › ECA-PP">
+          <title>Recorded decision · Batch · cell type · evidence · Prepare and hand off › ECA-PP</title>
+          <rect x="840.8" y="94" width="150" height="52" rx="6" class="c-mask"/>
+          <rect x="840.8" y="94" width="150" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(846.8 100) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="915.8" y="115" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Recorded decision</text>
+          <text data-detail="context" x="915.8" y="132" class="t-muted" font-size="8" text-anchor="middle">Batch · cell type · evidence</text>
+        </g>
+
+        <g id="node-rsi" data-node-id="rsi" data-node-label="ECA-RSI" tabindex="0" role="button" aria-label="Focus ECA-RSI, Iterative data governance, Prepare and hand off › ECA-RSI" aria-pressed="false" data-node-kind="external" data-node-sublabel="Iterative data governance" data-node-context="Prepare and hand off › ECA-RSI">
+          <title>ECA-RSI · Iterative data governance · Prepare and hand off › ECA-RSI</title>
+          <rect x="1042.3999999999999" y="94" width="150" height="52" rx="6" class="c-mask"/>
+          <rect x="1042.3999999999999" y="94" width="150" height="52" rx="6" class="c-external" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(1048.3999999999999 100) scale(0.6875)">
+            <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
+            <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1117.3999999999999" y="115" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">ECA-RSI</text>
+          <text data-detail="context" x="1117.3999999999999" y="132" class="t-muted" font-size="8" text-anchor="middle">Iterative data governance</text>
+        </g>
+
+        <g id="node-rejected" data-node-id="rejected" data-node-label="Reject dataset" tabindex="0" role="button" aria-label="Focus Reject dataset, Invalid input / failed gates, Evidence and exceptions › UPSTREAM" aria-pressed="false" data-node-kind="security" data-node-sublabel="Invalid input / failed gates" data-node-tag="exit 2" data-node-context="Evidence and exceptions › UPSTREAM">
+          <title>Reject dataset · Invalid input / failed gates · Evidence and exceptions › UPSTREAM · exit 2</title>
+          <rect x="48" y="212" width="150" height="68" rx="6" class="c-mask"/>
+          <rect x="48" y="212" width="150" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(54 218) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="123" y="233" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Reject dataset</text>
+          <text data-detail="context" x="123" y="250" class="t-muted" font-size="8" text-anchor="middle">Invalid input / failed gates</text>
+        <text data-detail="fine" x="123" y="268" class="t-security" font-size="7" text-anchor="middle">exit 2</text>
+        </g>
+
+        <g id="node-review" data-node-id="review" data-node-label="Needs a choice" tabindex="0" role="button" aria-label="Focus Needs a choice, Unresolved counts / species, Evidence and exceptions › ECA-PP" aria-pressed="false" data-node-kind="security" data-node-sublabel="Unresolved counts / species" data-node-tag="exit 3 · review" data-node-context="Evidence and exceptions › ECA-PP">
+          <title>Needs a choice · Unresolved counts / species · Evidence and exceptions › ECA-PP · exit 3 · review</title>
+          <rect x="236" y="212" width="150" height="68" rx="6" class="c-mask"/>
+          <rect x="236" y="212" width="150" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(242 218) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="311" y="233" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Needs a choice</text>
+          <text data-detail="context" x="311" y="250" class="t-muted" font-size="8" text-anchor="middle">Unresolved counts / species</text>
+        <text data-detail="fine" x="311" y="268" class="t-security" font-size="7" text-anchor="middle">exit 3 · review</text>
+        </g>
+
+        <g id="node-probe" data-node-id="probe" data-node-label="Integration trial" tabindex="0" role="button" aria-label="Focus Integration trial, Harmony · mixing · cell types, Evidence and exceptions › ECA-PP" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Harmony · mixing · cell types" data-node-tag="bounded trial budget" data-node-context="Evidence and exceptions › ECA-PP">
+          <title>Integration trial · Harmony · mixing · cell types · Evidence and exceptions › ECA-PP · bounded trial budget</title>
+          <rect x="634.4" y="212" width="150" height="68" rx="6" class="c-mask"/>
+          <rect x="634.4" y="212" width="150" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(640.4 218) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="709.4" y="233" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Integration trial</text>
+          <text data-detail="context" x="709.4" y="250" class="t-muted" font-size="8" text-anchor="middle">Harmony · mixing · cell types</text>
+        <text data-detail="fine" x="709.4" y="268" class="t-backend" font-size="7" text-anchor="middle">bounded trial budget</text>
+        </g>
+
+        <!-- Edge labels -->
+        <g data-detail="context" data-edge-from="identify" data-edge-to="probe" data-edge-label="test candidate" data-edge-key="0">
+          <rect x="712.8" y="148" width="77.2" height="14" rx="3" class="c-mask"/>
+          <text x="751.4" y="158" class="t-database" font-size="8" text-anchor="middle">test candidate</text>
+        </g>
+        <g data-detail="context" data-edge-from="identify" data-edge-to="verdict" data-edge-label="conclude" data-edge-key="1">
+          <rect x="788.3999999999999" y="100" width="48.4" height="14" rx="3" class="c-mask"/>
+          <text x="812.5999999999999" y="110" class="t-muted" font-size="8" text-anchor="middle">conclude</text>
+        </g>
+        <g data-detail="context" data-edge-from="input" data-edge-to="standardize" data-edge-label="read" data-edge-key="2">
+          <rect x="202" y="100" width="30" height="14" rx="3" class="c-mask"/>
+          <text x="217" y="110" class="t-muted" font-size="8" text-anchor="middle">read</text>
+        </g>
+        <g data-detail="context" data-edge-from="prepared" data-edge-to="identify" data-edge-label="inspect" data-edge-key="3">
+          <rect x="586.8" y="100" width="43.6" height="14" rx="3" class="c-mask"/>
+          <text x="608.5999999999999" y="110" class="t-muted" font-size="8" text-anchor="middle">inspect</text>
+        </g>
+        <g data-detail="context" data-edge-from="probe" data-edge-to="identify" data-edge-label="evaluate evidence" data-edge-key="4">
+          <rect x="915.4000000000001" y="58" width="91.6" height="14" rx="3" class="c-mask"/>
+          <text x="961.2" y="68" class="t-database" font-size="8" text-anchor="middle">evaluate evidence</text>
+        </g>
+        <g data-detail="context" data-edge-from="standardize" data-edge-to="prepared" data-edge-label="passed" data-edge-key="5">
+          <rect x="390" y="100" width="38.8" height="14" rx="3" class="c-mask"/>
+          <text x="409.4" y="110" class="t-muted" font-size="8" text-anchor="middle">passed</text>
+        </g>
+        <g data-detail="context" data-edge-from="standardize" data-edge-to="rejected" data-edge-label="unsuitable" data-edge-key="6">
+          <rect x="139" y="148" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="168" y="158" class="t-security" font-size="8" text-anchor="middle">unsuitable</text>
+        </g>
+        <g data-detail="context" data-edge-from="standardize" data-edge-to="review" data-edge-label="ambiguous" data-edge-key="7">
+          <rect x="333.4" y="148" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
+          <text x="360" y="158" class="t-security" font-size="8" text-anchor="middle">ambiguous</text>
+        </g>
+        <g data-detail="context" data-edge-from="verdict" data-edge-to="rsi" data-edge-label="handoff" data-edge-key="8">
+          <rect x="994.8" y="100" width="43.6" height="14" rx="3" class="c-mask"/>
+          <text x="1016.5999999999999" y="110" class="t-muted" font-size="8" text-anchor="middle">handoff</text>
+        </g>
+
+        <!-- Legend -->
+        <g data-legend="" data-legend-bridge="">
+          <text x="20" y="308" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Processing" data-legend-x="20" data-legend-baseline="328" data-legend-width="87">
+            <rect x="20" y="320" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+            <text x="42" y="328" class="t-muted" font-size="7.5" font-weight="500">Processing</text>
+          </g>
+          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Checks / review" data-legend-x="114" data-legend-baseline="328" data-legend-width="109">
+            <rect x="114" y="320" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+            <text x="136" y="328" class="t-muted" font-size="7.5" font-weight="500">Checks / review</text>
+          </g>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Data / evidence" data-legend-x="230" data-legend-baseline="328" data-legend-width="109">
+            <rect x="230" y="320" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+            <text x="252" y="328" class="t-muted" font-size="7.5" font-weight="500">Data / evidence</text>
+          </g>
+          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External system" data-legend-x="346" data-legend-baseline="328" data-legend-width="109">
+            <rect x="346" y="320" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
+            <text x="368" y="328" class="t-muted" font-size="7.5" font-weight="500">External system</text>
+          </g>
+        </g>
+      </svg>

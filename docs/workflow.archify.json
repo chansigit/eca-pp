@@ -1,0 +1,266 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "ECA-PP: From Public Data to Consistent Inputs",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "backend": {"label": "Processing"},
+        "security": {"label": "Checks / review"},
+        "database": {"label": "Data / evidence"},
+        "external": {"label": "External system"}
+      }
+    },
+    "views": [
+      {
+        "id": "overview",
+        "label": "The main path",
+        "focus": [
+          "input",
+          "standardize",
+          "prepared",
+          "identify",
+          "verdict",
+          "rsi"
+        ],
+        "note": "Upstream agents prepare H5AD; ECA-PP standardizes data and metadata evidence for ECA-RSI."
+      },
+      {
+        "id": "decisions",
+        "label": "Evidence before decisions",
+        "focus": [
+          "identify",
+          "probe",
+          "verdict"
+        ],
+        "note": "Technical and donor factors first. Candidates are checked by trials; insufficient evidence can return null."
+      },
+      {
+        "id": "boundaries",
+        "label": "When preprocessing stops",
+        "focus": [
+          "standardize",
+          "review",
+          "rejected"
+        ],
+        "note": "Required choices need review. Invalid or unsuitable data is rejected. Technical failures are reported separately."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Prepare and hand off"
+    },
+    {
+      "id": "checks",
+      "label": "Evidence and exceptions"
+    }
+  ],
+  "phases": [
+    {
+      "id": "upstream",
+      "label": "UPSTREAM",
+      "fromCol": 0,
+      "toCol": 0
+    },
+    {
+      "id": "ecapp",
+      "label": "ECA-PP",
+      "fromCol": 1,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "downstream",
+      "label": "ECA-RSI",
+      "fromCol": 5,
+      "toCol": 5
+    }
+  ],
+  "mainPath": [
+    "input",
+    "standardize",
+    "prepared",
+    "identify",
+    "verdict",
+    "rsi"
+  ],
+  "nodes": [
+    {
+      "id": "input",
+      "lane": "main",
+      "col": 0,
+      "type": "database",
+      "label": "Input H5AD",
+      "sublabel": "Files converted by agents",
+      "width": 150
+    },
+    {
+      "id": "standardize",
+      "lane": "main",
+      "col": 1,
+      "type": "backend",
+      "label": "Standardize",
+      "sublabel": "Counts · species · genes · QC",
+      "width": 150
+    },
+    {
+      "id": "prepared",
+      "lane": "main",
+      "col": 2,
+      "type": "database",
+      "label": "Prepared data",
+      "sublabel": "standardized.h5ad + report",
+      "width": 150
+    },
+    {
+      "id": "identify",
+      "lane": "main",
+      "col": 3,
+      "type": "backend",
+      "label": "Identify metadata",
+      "sublabel": "Profile · rank · validate",
+      "width": 150
+    },
+    {
+      "id": "verdict",
+      "lane": "main",
+      "col": 4,
+      "type": "database",
+      "label": "Recorded decision",
+      "sublabel": "Batch · cell type · evidence",
+      "width": 150
+    },
+    {
+      "id": "rsi",
+      "lane": "main",
+      "col": 5,
+      "type": "external",
+      "label": "ECA-RSI",
+      "sublabel": "Iterative data governance",
+      "width": 150
+    },
+    {
+      "id": "review",
+      "lane": "checks",
+      "col": 1,
+      "type": "security",
+      "label": "Needs a choice",
+      "sublabel": "Unresolved counts / species",
+      "tag": "exit 3 · review",
+      "width": 150
+    },
+    {
+      "id": "rejected",
+      "lane": "checks",
+      "col": 0,
+      "type": "security",
+      "label": "Reject dataset",
+      "sublabel": "Invalid input / failed gates",
+      "tag": "exit 2",
+      "width": 150
+    },
+    {
+      "id": "probe",
+      "lane": "checks",
+      "col": 3,
+      "type": "backend",
+      "label": "Integration trial",
+      "sublabel": "Harmony · mixing · cell types",
+      "tag": "bounded trial budget",
+      "width": 150
+    }
+  ],
+  "edges": [
+    {
+      "from": "input",
+      "to": "standardize",
+      "label": "read",
+      "role": "main"
+    },
+    {
+      "from": "standardize",
+      "to": "prepared",
+      "label": "passed",
+      "role": "main"
+    },
+    {
+      "from": "prepared",
+      "to": "identify",
+      "label": "inspect",
+      "role": "main"
+    },
+    {
+      "from": "identify",
+      "to": "verdict",
+      "label": "conclude",
+      "role": "main"
+    },
+    {
+      "from": "verdict",
+      "to": "rsi",
+      "label": "handoff",
+      "role": "main"
+    },
+    {
+      "from": "standardize",
+      "to": "review",
+      "label": "ambiguous",
+      "role": "branch",
+      "variant": "security"
+    },
+    {
+      "from": "standardize",
+      "to": "rejected",
+      "label": "unsuitable",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "from": "identify",
+      "to": "probe",
+      "label": "test candidate",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "from": "probe",
+      "to": "identify",
+      "label": "evaluate evidence",
+      "role": "return",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "One scientific standard",
+      "items": [
+        "Counts validation and recovery where supported",
+        "Gene mapping, QC and normalization share a final gene set",
+        "Minimum: 100 cells and 5,000 detected genes per dataset, not per cell"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "A decision with evidence",
+      "items": [
+        "Batch: recommend correction, unnecessary, or null",
+        "Cell type: existing author annotation, or null",
+        "Model unavailable: built-in policy continues; all submissions are checked"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Keep outcomes distinct",
+      "items": [
+        "Successful output may carry non-blocking review notes",
+        "exit 1: technical failure; never disguised as a successful null",
+        "Source unchanged; formal files written atomically, old outputs archived"
+      ]
+    }
+  ]
+}
