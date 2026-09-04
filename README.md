@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/chansigit/eca-pp/main/assets/eca-pp-logo.svg" alt="ECA-PP logo: scattered cells organized into a consistent atlas" width="160" height="160">
+  <img src="assets/eca-pp-logo.svg" alt="ECA-PP logo: scattered cells organized into a consistent atlas" width="160" height="160">
 </p>
 
 <h1 align="center">ECA-PP: Standardized Single-Cell Preprocessing</h1>
@@ -109,8 +109,8 @@ an interactive version with search, zoom, and guided views.
 <p align="center">
   <a href="https://raw.githack.com/chansigit/eca-pp/main/docs/workflow.html">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/chansigit/eca-pp/main/assets/eca-pp-workflow-dark.svg">
-      <img src="https://raw.githubusercontent.com/chansigit/eca-pp/main/assets/eca-pp-workflow-light.svg" alt="ECA-PP workflow: input H5AD, standardization, prepared data, metadata identification with integration trials, recorded decisions, and handoff to ECA-RSI. Unresolved standardization choices need review; unsuitable inputs are rejected." width="1100">
+      <source media="(prefers-color-scheme: dark)" srcset="assets/eca-pp-workflow-dark.svg">
+      <img src="assets/eca-pp-workflow-light.svg" alt="ECA-PP workflow: input H5AD, standardization, prepared data, metadata identification with integration trials, recorded decisions, and handoff to ECA-RSI. Unresolved standardization choices need review; unsuitable inputs are rejected." width="1100">
     </picture>
   </a>
 </p>
