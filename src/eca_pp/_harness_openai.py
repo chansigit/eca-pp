@@ -97,6 +97,9 @@ def _params_schema(spec: ToolSpec) -> dict:
 def _usage_dict(
     totals: dict[str, int],
     model: str | None,
+    reasoning_effort: str | None,
+    server_state: bool,
+    nudges: int,
     runtime_init: float,
     agent_run: float,
     total: float,
@@ -104,6 +107,10 @@ def _usage_dict(
     return {
         "backend": "openai",
         "model": model,
+        "reasoning_effort": reasoning_effort,
+        "server_state": server_state,
+        "parallel_tool_calls": True,
+        "nudges": nudges,
         "cost_usd": None,
         "input_tokens": totals["input_tokens"],
         "output_tokens": totals["output_tokens"],
@@ -368,5 +375,14 @@ async def run_agent(
         submitted["value"],
         transcript,
         tools_used,
-        _usage_dict(usage_totals, model, runtime_init, agent_run, total),
+        _usage_dict(
+            usage_totals,
+            model,
+            effective_effort,
+            server_state,
+            nudges,
+            runtime_init,
+            agent_run,
+            total,
+        ),
     )

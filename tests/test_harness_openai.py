@@ -128,6 +128,10 @@ def test_openai_runner_validates_then_stops_on_valid_submit(monkeypatch, tmp_pat
         {"tool": "submit_answer", "target": '{"answer": 7}'},
     ]
     assert value.usage["backend"] == "openai"
+    assert value.usage["reasoning_effort"] == "minimal"
+    assert value.usage["server_state"] is True
+    assert value.usage["parallel_tool_calls"] is True
+    assert value.usage["nudges"] == 0
     assert value.usage["input_tokens"] == 101
     assert value.usage["reasoning_tokens"] == 13
     assert value.usage["cache_read_tokens"] == 11
@@ -226,6 +230,7 @@ def test_openai_runner_nudges_same_response_chain(monkeypatch, tmp_path):
     assert value.usage["input_tokens"] == 28
     assert value.usage["output_tokens"] == 9
     assert value.usage["reasoning_tokens"] == 5
+    assert value.usage["nudges"] == 1
     assert calls[0][1]["auto_previous_response_id"] is True
     assert calls[1][1]["previous_response_id"] == "resp-1"
     assert "previous turn ended" in calls[1][0][0]["content"]
