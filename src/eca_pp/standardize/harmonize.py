@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 import stangene
+
+from eca_pp.core.columns import preserve_column
 
 MAPPING_COLS = [
     "gene_id_harmonized", "gene_symbol_harmonized", "mapping_status",
@@ -51,6 +52,7 @@ def harmonize_genes(adata, species: str, *, keep_unmapped: bool = False):
             f"harmonization rows ({len(mt)}) != adata.n_vars ({adata.n_vars})")
 
     # Provenance first (row-aligned), so it travels through the subset below.
+    preserve_column(adata.var, "original_feature_name")
     adata.var["original_feature_name"] = list(adata.var_names)
     for col in MAPPING_COLS:
         if col in mt.columns:
@@ -59,6 +61,7 @@ def harmonize_genes(adata, species: str, *, keep_unmapped: bool = False):
                 # stangene leaves None/NaN in text columns (e.g. mapping_notes);
                 # h5py cannot write a mixed None/str column, so blank them.
                 vals = vals.where(vals.notna(), "").map(str)
+            preserve_column(adata.var, col)
             adata.var[col] = vals
 
     status = np.array(

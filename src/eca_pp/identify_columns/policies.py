@@ -134,7 +134,9 @@ class AgentPolicy:
                 submit_tool="submit_column_decision",
                 schema=DECISION_SCHEMA,
                 validate=validate,
-                allowed_builtin=("read", "glob", "grep"),
+                # The complete decision state is embedded above. Keep the
+                # model-facing surface to the validated submit tool only.
+                allowed_builtin=(),
                 max_turns=6,
                 model=self._model,
                 label="identify columns",

@@ -256,7 +256,7 @@ def test_policy_uses_validated_submit_tool(monkeypatch, tmp_path):
     assert decision["action"] == "probe"
     assert decision["usage"]["backend"] == "deepseek"
     assert captured["submit_tool"] == "submit_column_decision"
-    assert captured["allowed_builtin"] == ("read", "glob", "grep")
+    assert captured["allowed_builtin"] == ()
 
 
 def test_policy_submit_validation_rejects_out_of_tier(monkeypatch, tmp_path):

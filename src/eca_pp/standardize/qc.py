@@ -4,14 +4,17 @@
 checks (``is_integer_matrix``, ``has_negative``) mirror stancounts' sampling approach
 so the two never disagree on what "integer" means. ``apply_qc`` is F5: the four
 conventional QC obs columns, computed on the final gene space's true counts —
-same-named columns brought by the data are preserved under ``__original`` and
-overwritten (contract I4: this step's values are authoritative).
+same-named columns brought by the data are preserved in a collision-safe
+``__original`` backup family and overwritten (contract I4: this step's values
+are authoritative).
 """
 
 from __future__ import annotations
 
 import numpy as np
 import scipy.sparse as sp
+
+from eca_pp.core.columns import preserve_column
 
 QC_COLS = ("pct_counts_mt", "pct_counts_hb", "total_counts", "n_genes_by_counts")
 
@@ -79,8 +82,8 @@ def apply_qc(adata, species: str) -> dict:
 
     mt/hb numerators come from stangene's exact per-species gene sets looked up
     on the harmonized ``var_names`` — no guessing. Pre-existing same-named obs
-    columns are renamed to ``<name>__original`` before the authoritative values
-    are written. Returns the result.json ``qc`` metrics block.
+    columns are preserved in ``<name>__original[_N]`` before the authoritative
+    values are written. Returns the result.json ``qc`` metrics block.
     """
     import stangene
 
@@ -112,7 +115,7 @@ def apply_qc(adata, species: str) -> dict:
     overwritten = []
     for col, vals in zip(QC_COLS, (pct_mt, pct_hb, counts_per_cell, genes_per_cell)):
         if col in adata.obs.columns:
-            adata.obs[f"{col}__original"] = adata.obs[col]
+            preserve_column(adata.obs, col)
             overwritten.append(col)
         adata.obs[col] = vals
 
