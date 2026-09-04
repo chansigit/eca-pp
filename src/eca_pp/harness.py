@@ -2,8 +2,9 @@
 
 Callers expose one validated submit tool and never depend on an agent's
 free-text final response.  ``HARNESS=deepseek`` uses DeepSeek Harness (dsh)
-and is the default; ``HARNESS=claude`` keeps the Claude Agent SDK backend as
-an explicit fallback.
+and is the default; ``HARNESS=openai`` drives Doubao through the OpenAI Agents
+SDK; ``HARNESS=claude`` keeps the Claude Agent SDK backend as an explicit
+fallback.
 """
 
 from __future__ import annotations
@@ -143,6 +144,7 @@ MODEL_ENV = "ECA_PP_AGENT_MODEL"
 _DEFAULT_MODEL = {
     "claude": "claude-sonnet-5",
     "deepseek": "doubao-seed-2-1-turbo-260628",
+    "openai": "doubao-seed-2-1-turbo-260628",
 }
 
 
@@ -163,9 +165,12 @@ def check_available() -> None:
             from ._harness_claude import check_available as check
         elif backend == "deepseek":
             from ._harness_deepseek import check_available as check
+        elif backend == "openai":
+            from ._harness_openai import check_available as check
         else:
             raise AgentUnavailable(
-                f"unknown HARNESS backend {backend!r} (expected 'claude' or 'deepseek')"
+                f"unknown HARNESS backend {backend!r} "
+                "(expected 'deepseek', 'openai', or 'claude')"
             )
     except ImportError as exc:
         raise AgentUnavailable(
@@ -195,9 +200,12 @@ async def run_agent(
             from ._harness_claude import run_agent as run
         elif backend == "deepseek":
             from ._harness_deepseek import run_agent as run
+        elif backend == "openai":
+            from ._harness_openai import run_agent as run
         else:
             raise AgentUnavailable(
-                f"unknown HARNESS backend {backend!r} (expected 'claude' or 'deepseek')"
+                f"unknown HARNESS backend {backend!r} "
+                "(expected 'deepseek', 'openai', or 'claude')"
             )
     except ImportError as exc:
         raise AgentUnavailable(

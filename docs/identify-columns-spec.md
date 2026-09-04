@@ -154,7 +154,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 - `--model ID`(或环境变量 `ECA_PP_AGENT_MODEL`):指定 agent 模型;
   缺省值随 `HARNESS` 后端选择。每轮实际使用的模型记录在
   `decisions[].usage.model`,汇总于 `metrics.llm.models`。
-- `AGENT_WALL_MIN`:单次 agent 请求墙钟上限,默认 2 分钟。超时后
+- `AGENT_WALL_MIN`:单次 agent run 墙钟上限,默认 2 分钟。超时后
   不重试同一请求,改用确定性策略继续,以保证无人值守流程有界。
 - **无 API 凭据 / harness 不可用或中途失败**:自动切换确定性 policy
   继续试验,并记录 `agent_unavailable` / `agent_failed` warning。
@@ -245,12 +245,16 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
   复算验证)。
 - **调用开销有界且可见**:agent 调用次数受 max-probes 与流程结构约束,
   不存在无上界的循环;每轮成功决策的 token 用量与费用记入
-  `decisions[].usage`。`metrics.llm` 中 `calls` 包含失败/超时尝试,
+  `decisions[].usage`(OpenAI Responses 另记 reasoning token)。
+  `metrics.llm` 中 `calls` 包含失败/超时尝试,
   并分列 `successful_calls` / `failed_calls` / `timeout_calls` /
   `failed_seconds` / `failures`(附账户级账单查询 URL)。
 - 打包:extras `[probe]`(scanpy/harmonypy/scikit-learn/leidenalg)、
-  `[agent]`(DSH + MCP)、`[claude]`(可选 Claude 后端);
+  `[agent]`(DSH + MCP)、`[openai]`(可选 OpenAI Agents SDK + Doubao
+  对照后端)、`[claude]`(可选 Claude 后端);
   核心包不引入重依赖。
+- OpenAI 对照后端直接注册 Python submit tool,不经过 MCP;
+  默认不暴露本地文件工具,依赖每轮 prompt 中的完整 state。
 - 验收沿用双环境流程(原生 + 容器);agent 相关测试以 mock 驱动,不发起
   真实 API 调用。
 

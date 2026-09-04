@@ -17,6 +17,8 @@ def test_backend_specific_model_defaults(monkeypatch):
     assert agent.model_name() == "doubao-seed-2-1-turbo-260628"
     monkeypatch.setenv("HARNESS", "claude")
     assert agent.model_name() == "claude-sonnet-5"
+    monkeypatch.setenv("HARNESS", "openai")
+    assert agent.model_name() == "doubao-seed-2-1-turbo-260628"
     monkeypatch.setenv("ECA_PP_AGENT_MODEL", "chosen-model")
     assert agent.model_name() == "chosen-model"
 

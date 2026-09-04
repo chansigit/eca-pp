@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--model", default=None,
                    help="agent model ID; default: $ECA_PP_AGENT_MODEL, else "
-                        "backend-specific (Doubao for deepseek, Claude for claude)")
+                        "backend-specific (Doubao for deepseek/openai, Claude for claude)")
     return p
 
 
@@ -424,7 +424,7 @@ def _billing_url() -> str:
     """Where the caller can review the account-level total spend."""
     from eca_pp import agent
 
-    if agent.backend_name() == "deepseek":
+    if agent.backend_name() in ("deepseek", "openai"):
         return "https://console.volcengine.com/ark"
     if os.environ.get("ANTHROPIC_API_KEY"):
         return "https://console.anthropic.com/settings/usage"
@@ -434,6 +434,7 @@ def _billing_url() -> str:
 def _llm_metrics(res: dict) -> dict:
     llm = res["metrics"].setdefault("llm", {
         "calls": 0, "models": [], "input_tokens": 0, "output_tokens": 0,
+        "reasoning_tokens": 0,
         "cache_creation_tokens": 0, "cache_read_tokens": 0,
         "cost_usd": 0.0, "cost_complete": True, "billing_url": _billing_url(),
         "successful_calls": 0, "failed_calls": 0, "timeout_calls": 0,
@@ -455,7 +456,7 @@ def _tally_llm(res: dict, usage: dict | None) -> None:
     model = usage.get("model")
     if model and model not in llm["models"]:
         llm["models"].append(model)
-    for k in ("input_tokens", "output_tokens",
+    for k in ("input_tokens", "output_tokens", "reasoning_tokens",
               "cache_creation_tokens", "cache_read_tokens"):
         if usage.get(k):
             llm[k] += usage[k]

@@ -163,6 +163,20 @@ export DSH_BIN=$SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js
 # DSH_BIN 不设时会自动尝试上面这个路径
 ```
 
+用同一个 Doubao 模型对照 OpenAI Agents SDK:
+
+```bash
+pip install ".[openai]"
+export HARNESS=openai
+export ARK_API_KEY=...
+# 可选: export DOUBAO_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+```
+
+这条路径直接注册 Python submit tool,不启动 DSH CLI 或 MCP server。
+它目前不暴露本地 Read/Glob/Grep;identify-columns 的完整 state 已包含在
+prompt 中。有效 submit 会立即结束 runner,无效 submit 会把校验错误返回
+模型重试。OpenAI tracing 默认关闭,避免用 Ark key 误向 OpenAI 上传。
+
 要切回 Claude Agent SDK:
 
 ```bash
@@ -172,13 +186,14 @@ export ECA_PP_CLAUDE_CLI=/path/to/claude  # 可选
 pip install ".[claude]"
 ```
 
-两种后端共用 submit-tool 协议:模型必须调用提交工具,Python handler 校验
+三种后端共用 submit-tool 协议:模型必须调用提交工具,Python handler 校验
 结构与候选合法性;无效提交会在同一 session 内返回错误并允许修正。
 
 **选择模型**:`--model MODEL_ID`(或环境变量 `ECA_PP_AGENT_MODEL`)。
-不指定时随后端使用 `doubao-seed-2-1-turbo-260628` 或
-`claude-sonnet-5`。每轮实际模型记录在 `decisions[].usage.model`。
-单次模型请求默认有 2 分钟墙钟上限; `AGENT_WALL_MIN` 可覆盖。
+不指定时两个 Doubao 后端都使用 `doubao-seed-2-1-turbo-260628`,
+Claude 后端使用 `claude-sonnet-5`。每轮实际模型记录在
+`decisions[].usage.model`。
+单次 agent run 默认有 2 分钟墙钟上限; `AGENT_WALL_MIN` 可覆盖。
 超时不重复消耗同样的等待预算,identify-columns 会记录 warning 并
 切换到确定性策略继完成。
 
@@ -209,5 +224,6 @@ fallback 情形仍会回到 agent 复核。下游消费:
 **费用可见**:每轮成功决策的 token 用量与费用记录在
 `decisions[].usage`,汇总在 `metrics.llm`。`calls` 也包含失败和超时尝试;
 `failed_calls` / `timeout_calls` / `failed_seconds` / `failures` 保留失败审计。
-DSH/Ark 与 Claude 的账户级消费分别在各自控制台查询;
+DSH/OpenAI Agents SDK 均在 Ark 控制台查询账户级消费;
+Claude 在其自身控制台查询;
 `result.json` 的 `billing_url` 会随当前后端给出入口。

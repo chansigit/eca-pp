@@ -277,7 +277,8 @@ run.sh                 Sherlock 环境引导(唯一集群相关文件)
 
 组织规则:一个环节=一个子包,`cli.py` 是唯一入口;`core/` 是环节间唯一横向
 依赖;所有模型调用经 `agent.py` / `harness.py`;extras 与子包对齐
-(`[probe]`→probe+identify_columns,`[agent]`→DSH,`[claude]`→Claude 后端)。未来环节
+(`[probe]`→probe+identify_columns,`[agent]`→DSH,`[openai]`→OpenAI
+Agents SDK + Doubao 对照后端,`[claude]`→Claude 后端)。未来环节
 (doublets/integrate/dissect)以平级子包加入。
 
 ## 11. 不做的事(non-goals)

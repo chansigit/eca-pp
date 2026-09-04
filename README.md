@@ -40,11 +40,13 @@ echo $?                        # 0 = success; see the exit-code table below
 
 Python ≥ 3.10. Extras: `[probe]` (scanpy/harmonypy stack), `[agent]`
 (DeepSeek Harness plus its MCP bridge; `[llm]` is an alias), `[claude]`
-(optional Claude Agent SDK fallback), and `[test]` (pytest). Agent calls use
-`HARNESS=deepseek` by default, driving Doubao through Volcengine Ark; set
-`HARNESS=claude` to use Claude instead. Models default to
-`doubao-seed-2-1-turbo-260628` / `claude-sonnet-5` according to the backend
-and can be overridden with `--model` / `ECA_PP_AGENT_MODEL`. On Stanford
+(optional Claude Agent SDK fallback), `[openai]` (OpenAI Agents SDK comparison
+backend), and `[test]` (pytest). Agent calls use `HARNESS=deepseek` by default,
+driving Doubao through Volcengine Ark. Set `HARNESS=openai` to drive the same
+Doubao model through the OpenAI Agents SDK, or `HARNESS=claude` to use Claude.
+Models default to `doubao-seed-2-1-turbo-260628` for both Doubao backends and
+`claude-sonnet-5` for Claude, and can be overridden with `--model` /
+`ECA_PP_AGENT_MODEL`. On Stanford
 Sherlock, `bash run.sh <tool> ...` wraps the same commands with the cluster
 environment set up (compute nodes only).
 
@@ -105,7 +107,8 @@ apply.
 
 Without selected-backend credentials, or if the agent fails during a run, the step
 continues with its deterministic policy and records that fallback in
-`warnings`. DSH uses `ARK_API_KEY`; `DSH_BIN` may point at a source-built dsh
+`warnings`. Both Doubao backends use `ARK_API_KEY`; `HARNESS=openai` additionally
+needs `pip install ".[openai]"`. DSH's `DSH_BIN` may point at a source-built dsh
 CLI (`apps/cli/lib/bin.js`) and otherwise defaults to
 `$SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js`. For the fallback,
 `ECA_PP_CLAUDE_CLI` can point at a specific `claude` executable.
