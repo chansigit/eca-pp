@@ -126,12 +126,14 @@ def _peek_n_obs(f: h5py.File) -> int | None:
 def _pre_gate_matrix(adata, counts_layer: str | None):
     """(matrix, trusted, exact) for the provisional genes gate.
 
-    A designated counts layer is exact. Otherwise X is used — its nonzero structure
-    equals the counts' under log1p/normalize (both preserve zeros) — unless X is
-    missing or carries negatives (scaled data: structure not trustworthy).
+    A designated counts layer is exact. Otherwise defer to counts discovery
+    whenever another layer or raw exists: X may have been independently
+    filtered or transformed and cannot reject those alternate sources.
     """
     if counts_layer and counts_layer in adata.layers:
         return adata.layers[counts_layer], True, True
+    if counts_layer or len(adata.layers) or adata.raw is not None:
+        return None, False, False
     X = adata.X
     if X is None or has_negative(X):
         return None, False, False
