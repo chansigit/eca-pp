@@ -109,6 +109,11 @@ def classify_column(entry: dict) -> str:
     "cluster_annotation" is an annotation, while "seurat_clusters" and
     "leiden" are clusters."""
     n = _norm(entry["column"])
+    # Integer-valued QC measurements remain measurements, even if their
+    # storage dtype also permits discrete group IDs.
+    if (n.startswith(("pctcounts", "percent", "nfeature", "ncount", "ngenes"))
+            or n in {"totalcounts", "doubletscore", "scrubletscore", "pctmt", "pcthb"}):
+        return "qc_numeric"
     # A named author annotation remains useful metadata even when a dataset
     # contains only one cell type.  It simply cannot serve as a cLISI label.
     if (n in ANNOTATION_EXACT or ANNOTATION_AFFIX.search(entry["column"])
@@ -201,11 +206,12 @@ def build_candidates(profile: dict) -> dict:
                                 f"({gs['tiny_cell_frac']:.1%} of cells)")
             batch.append(cand)
     for d in profile["derived"]:
-        # A composite built on an annotation column would fold biology into
-        # the batch — structurally disqualified (doctrine §4.3).
+        # Combining columns cannot make an ineligible QC/annotation/ID column
+        # into a batch factor (doctrine §4.3).
         if d["kind"] == "composite":
             parts = d["label"].split(":", 1)[1].split("+")
-            if any(class_of.get(p) in CELL_TYPE_CLASS_ORDER for p in parts):
+            if any(class_of.get(p) not in ("technical", "donor", "condition", "other")
+                   for p in parts):
                 continue
         tier = "primary" if d["kind"] == "barcode" else "fallback"
         if d["kind"] == "composite":

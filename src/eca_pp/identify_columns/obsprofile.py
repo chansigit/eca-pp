@@ -36,6 +36,11 @@ def _dtype_of(s: pd.Series) -> str:
     if pd.api.types.is_bool_dtype(s):
         return "bool"
     if pd.api.types.is_float_dtype(s):
+        # Missing values often force integer group IDs into a float storage
+        # dtype. Inspect every observed value, not only the displayed examples.
+        values = s.dropna().to_numpy(dtype=float)
+        if values.size and np.isfinite(values).all() and (values == np.floor(values)).all():
+            return "int"
         return "float"
     if pd.api.types.is_integer_dtype(s):
         return "int"
