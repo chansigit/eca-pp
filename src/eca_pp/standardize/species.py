@@ -151,7 +151,7 @@ def _llm_infer(symbols_sample: list[str], evidence: dict):
                  "output_tokens": usage.get("output_tokens"),
                  "backend": usage.get("backend")}
         return canon, conf, usage
-    except Exception:  # noqa: BLE001 - any failure -> deterministic T3
+    except Exception:  # Any failure falls through to deterministic T3.
         # Preserve diagnostic context without weakening the unresolved fallback.
         log.exception("species LLM failed; falling back to unresolved species")
         return None
