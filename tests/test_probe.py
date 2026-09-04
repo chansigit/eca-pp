@@ -32,7 +32,7 @@ def test_true_batch_column_shows_effect_and_gain(tmp_path):
     assert m["harmony_converged"] is True
     assert m["ilisi_norm_post"] - m["ilisi_norm_pre"] >= 0.1
     assert m["clisi_norm_post"] >= m["clisi_norm_pre"] - 0.05
-    assert (tmp_path / "probe" / "umap.png").exists()
+    assert "umap" not in res
 
 
 def test_shuffled_labels_show_no_effect(tmp_path):
@@ -88,6 +88,7 @@ def test_tsv_spec_and_pseudo_labels(tmp_path):
     assert code == 0
     assert res["metrics"]["n_batches"] == 2
     assert res["metrics"]["clisi_labels"] == "pseudo"  # no --cell-type-col
+    assert res["metrics"]["pseudo_label_graph"] == "knn_gauss_sklearn"
     assert res["metrics"]["n_cell_types"] >= 2
 
 

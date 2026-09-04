@@ -178,6 +178,9 @@ pip install ".[claude]"
 **选择模型**:`--model MODEL_ID`(或环境变量 `ECA_PP_AGENT_MODEL`)。
 不指定时随后端使用 `doubao-seed-2-1-turbo-260628` 或
 `claude-sonnet-5`。每轮实际模型记录在 `decisions[].usage.model`。
+单次模型请求默认有 2 分钟墙钟上限; `AGENT_WALL_MIN` 可覆盖。
+超时不重复消耗同样的等待预算,identify-columns 会记录 warning 并
+切换到确定性策略继完成。
 
 **不配置会怎样**:不报错——自动使用确定性 policy 跑完;无法安全判断时
 输出 null 和结构化 warning(exit 0)。
@@ -198,8 +201,9 @@ columns.batch     = channel   correction=unnecessary
 columns.cell_type = cell_ontology_class
 ```
 
-查证据:`result.json` 的 `decisions`(每轮决策 + agent 回复全文)、
-`trials`(指标)、`trial_1_umap.png`(图)。下游消费:
+查证据:`result.json` 的 `decisions`(每轮决策 + agent 回复全文)和
+`trials`(指标)。指标明显通过时由本地快速通道直接结束;临界、缺失或
+fallback 情形仍会回到 agent 复核。下游消费:
 `--batch-col channel`;`correction=unnecessary` 时 integration 应跳过校正。
 
 **费用可见**:每轮的 token 用量与费用记录在 `decisions[].usage`,汇总在

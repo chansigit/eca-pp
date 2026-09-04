@@ -32,8 +32,11 @@ TRANSIENT_PATTERN = re.compile(
 )
 MAX_TRANSIENT_ATTEMPTS = 5
 TRANSIENT_BACKOFF_SECONDS = 20
-MAX_TIMEOUT_ATTEMPTS = 2
-DEFAULT_WALL_MINUTES = 30.0
+# A timed-out model request is unlikely to benefit from immediately consuming
+# another full wall-clock budget. Callers already degrade to a deterministic
+# policy, which keeps unattended dataset processing moving.
+MAX_TIMEOUT_ATTEMPTS = 1
+DEFAULT_WALL_MINUTES = 2.0
 
 
 class AgentError(RuntimeError):

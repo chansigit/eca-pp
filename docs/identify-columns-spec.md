@@ -85,28 +85,27 @@ eca-pp-integration-probe SRC.h5ad -o OUTDIR --batch-col SPEC \
   呈现伪病态"的采样偏差;候选集确定后计算一次抽样规模。
   相应地,**病态预检(§6.1)仅依据全量画像的组规模**,子样本仅用于计算
   整合指标。
-- 流程:抽样 → HVG → PCA → Harmony → 指标 → UMAP 图。
+- 流程:抽样 → HVG → PCA → Harmony → 指标。
 - **指标**(经 harmonypy `compute_lisi`,无新增依赖):
   - **iLISI**(批次混合度):整合前 / 后,原始值与归一值
     `(iLISI−1)/(n_batches−1)`。整合前 iLISI 已高 → 判定 ②(无需校正);
     整合后的提升量是校正收益的核心信号。
   - **cLISI**(细胞类型纯度):整合前 / 后,归一
     `(n_types−cLISI)/(n_types−1)`,衡量细胞类型结构的保持程度(同类
-    聚集、异类分离)。无细胞类型候选列时,在**整合前的 kNN 图上运行
-    Leiden**(固定 seed 与 resolution)生成伪标签——图社区检测更符合
-    转录组数据的簇结构;`clisi_labels: "annotated" | "pseudo"` 如实标注。
+    聚集、异类分离)。无细胞类型候选列时,在**整合前的 Gaussian 加权
+    exact-sklearn kNN 图上运行 Leiden**(固定 seed 与 resolution)
+    生成伪标签——该构图路径避免每个 probe 子进程重复的 Numba 编译;
+    `clisi_labels: "annotated" | "pseudo"` 与
+    `pseudo_label_graph: "knn_gauss_sklearn"` 如实标注。
     作者注释使用 0.05 的下降容忍度;伪标签是较弱证据,使用 0.15,但明显
     破坏结构时仍否决候选。
   - `harmony_converged`:**不收敛或运行失败是有效观测结果**(status=ok,
     如实记录)——它是病态批次的最强信号。
   - 预检数据随附:n_batches、每组细胞数分布、微组占比、批次×细胞类型
     混杂度、批次对前若干主成分的回归方差(辅助判定 ②)。
-- **UMAP 图**:每轮以固定 seed 输出双面板 PNG(按批次着色 / 按细胞类型
-  候选着色),供 agent 视觉复核与人工复盘。约定:**以指标为准,图像仅作
-  辅助证据或否决依据**;以图像否决时须在审计记录中写明理由。
 - 退出码:0 = 试验完成(与整合效果无关);2 = 输入不合法;1 = 意外错误。
 - 依赖经 extras `[probe]` 安装:scanpy、harmonypy、scikit-learn、
-  umap-learn、leidenalg(伪标签 Leiden 使用)。
+  leidenalg(伪标签 Leiden 使用)。
 
 探测方法固定为 Harmony;正式 integration 环节自行选择方法(Harmony /
 scVI / MrVI),批次列的身份判定与层级选择与整合方法无关。已知偏差:对
@@ -136,7 +135,8 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 ② 候选生成:启发式枚举 ∪ agent 依画像补充(受判定准则 §4 约束)
 ③ 确定性预检:结构性不合格与病态候选排除(§4.3、§6.1)
 ④ 试验循环(≤ max-probes):agent 按自底向上顺序选择候选 → probe →
-   评估指标与 UMAP → 采纳 / 判定"无需校正" / 试验下一候选
+   评估指标 → 安全余量充足时由 metric fast path 采纳 /
+   判定"无需校正";否则回到 agent 试验下一候选或复核
 ⑤ 细胞类型列:只把作者 annotation 作为正式输出;常量 annotation 仍是
    有效元数据,但不用于 cLISI。cluster 仅作为画像证据,不存在作者注释时
    输出 null,probe 自行生成 pseudo-label。
@@ -151,6 +151,8 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 - `--model ID`(或环境变量 `ECA_PP_AGENT_MODEL`):指定 agent 模型;
   缺省值随 `HARNESS` 后端选择。每轮实际使用的模型记录在
   `decisions[].usage.model`,汇总于 `metrics.llm.models`。
+- `AGENT_WALL_MIN`:单次 agent 请求墙钟上限,默认 2 分钟。超时后
+  不重试同一请求,改用确定性策略继续,以保证无人值守流程有界。
 - **无 API 凭据 / harness 不可用或中途失败**:自动切换确定性 policy
   继续试验,并记录 `agent_unavailable` / `agent_failed` warning。
 - 退出码沿用全项目契约:0 / 3 / 2 / 1。
@@ -159,8 +161,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 
 | 文件 | 内容 |
 |---|---|
-| `OUTDIR/result.json` | 画像、候选、每轮试验(指标、理由、UMAP 路径)、判定(§2) |
-| `OUTDIR/trial_<n>_umap.png` | 每轮试验的双面板 UMAP |
+| `OUTDIR/result.json` | 画像、候选、每轮试验(指标、理由)、判定(§2) |
 | `OUTDIR/batch.tsv` | 仅当选中**派生**批次列时产生(`cell_id<TAB>value`);选中真实 obs 列时 `columns.batch.value` 直接为列名,无此文件 |
 
 下游工具(doublets、integration、probe 自身)的 `--batch-col` 统一接受
@@ -189,12 +190,12 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
   },
   "warnings": [ { "code": "cell_type_not_found",
                    "message": "...", "details": {} } ],
-  // 决策审计:每轮 action/候选/理由 + agent 实际读取的文件(含 UMAP 图)
+  // 决策审计:每轮 action/候选/理由 + agent 实际工具调用
   // + raw_reply:agent 该轮回复全文(含结构化决策块之外的分析叙述)
   "decisions": [ { "action": "", "candidate": "", "cell_type": null,
-                   "source": "agent | deterministic | deterministic_fallback",
+                   "source": "agent | metric_fast_path | deterministic | deterministic_fallback",
                    "reason": "",
-                   "tools_used": [ { "tool": "Read", "target": "trial_1_umap.png" } ],
+                   "tools_used": [],
                    "raw_reply": "",
                    "usage": { "model": "", "cost_usd": 0.0, "input_tokens": 0,
                               "output_tokens": 0, "cache_creation_tokens": 0,
@@ -204,9 +205,12 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
                              "ilisi_norm_pre": 0.0, "ilisi_norm_post": 0.0,
                              "clisi_norm_pre": 0.0, "clisi_norm_post": 0.0,
                              "clisi_labels": "annotated | pseudo",
+                             "pseudo_label_graph": "knn_gauss_sklearn | omitted",
                              "harmony_converged": true,
-                             "n_batches": 0, "pc_regression_r2": 0.0 },
-                "umap": "trial_1_umap.png",
+                             "n_batches": 0, "pc_regression_r2": 0.0,
+                             "timings": { "load": 0.0, "hvg_pca": 0.0,
+                                          "labels": 0.0, "harmony": 0.0,
+                                          "lisi": 0.0, "total": 0.0 } },
                 "verdict": "adopted | rejected | correction_unnecessary",
                 "reason": "" } ],
   "columns": {
@@ -236,8 +240,8 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 - **调用开销有界且可见**:agent 调用次数受 max-probes 与流程结构约束,
   不存在无上界的循环;每轮的 token 用量与费用记入 `decisions[].usage`,
   汇总于 `metrics.llm`(附账户级账单查询 URL)。
-- 打包:extras `[probe]`(scanpy/harmonypy/scikit-learn/umap-learn/
-  leidenalg)、`[agent]`(DSH + MCP)、`[claude]`(可选 Claude 后端);
+- 打包:extras `[probe]`(scanpy/harmonypy/scikit-learn/leidenalg)、
+  `[agent]`(DSH + MCP)、`[claude]`(可选 Claude 后端);
   核心包不引入重依赖。
 - 验收沿用双环境流程(原生 + 容器);agent 相关测试以 mock 驱动,不发起
   真实 API 调用。
@@ -279,8 +283,8 @@ cell identities across experiments.
 
 Evidence provided: a three-layer profile (per-column stats with sampled
 values and per-value cell counts; group-size health for grouping columns;
-a nesting/equivalence graph among grouping columns), plus the metrics and
-UMAP image of every probe trial run so far.
+a nesting/equivalence graph among grouping columns), plus the metrics of every
+probe trial run so far.
 
 Doctrine:
 1. Classify grouping columns first: technical (lane/channel/library/run/
@@ -301,9 +305,8 @@ Doctrine:
    a probe shows non-convergence / poor iLISI), move one level up.
 5. Orthogonal groupings: choose ONE column - the one that probes better;
    record the other's existence.
-6. Decide from probe metrics first (iLISI gain, cLISI preservation,
-   convergence); use the UMAP image only as supporting evidence or a veto,
-   and state the reason when vetoing. If pre-integration iLISI is already
+6. Decide from probe metrics (iLISI gain, cLISI preservation and convergence).
+   If pre-integration iLISI is already
    high, conclude "correction unnecessary". If nothing qualifies, stop and
    report undecidable rather than guessing.
 7. Cell type column = the AUTHOR'S cell-type annotation (biological names

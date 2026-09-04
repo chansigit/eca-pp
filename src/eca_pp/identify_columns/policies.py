@@ -67,8 +67,8 @@ class AgentPolicy:
         """One decision = one self-contained agent session (the full state is
         resent every round, so no cross-round session memory is needed — and
         every decision stays independently reproducible). Returns the reply
-        text, the tool calls the agent made (e.g. Reading UMAP panels), and
-        the session's token/cost usage."""
+        text, the tool calls the agent made, and the session's token/cost
+        usage."""
         from eca_pp import agent
 
         def validate(decision: dict) -> dict:
@@ -136,15 +136,17 @@ class AgentPolicy:
         message = (
             "Current state (JSON):\n```json\n"
             + json.dumps(state, ensure_ascii=False, default=str)
-            + "\n```\nTrial UMAP panels are PNG files in the working directory "
-              "(paths in trials[].umap); Read them if helpful.\n"
+            + "\n```\n"
               "Set \"cell_type\" in EVERY reply (probe included): it is the "
               "author annotation to report. candidates.cell_type is ranked; "
               "best_cell_type is the current default. A constant annotation "
               "is valid output but the program will omit it from cLISI.\n"
               "Only propose a batch candidate whose tier equals "
               "active_batch_tier; primary technical/donor candidates must be "
-              "exhausted before fallback biological/unknown candidates.")
+              "exhausted before fallback biological/unknown candidates. "
+              "A clear primary probe may be finalized locally by the metric "
+              "fast path, so do not promise later probes in your reason; "
+              "equivalent groupings need not all be probed.")
         decision, transcript, tools_used, usage = self._ask(state, message)
         decision["tools_used"] = tools_used
         decision["raw_reply"] = transcript or json.dumps(decision, ensure_ascii=False)
@@ -215,7 +217,7 @@ cell identities across experiments.
 Evidence provided each round: a three-layer profile (per-column stats with
 sampled values and per-value cell counts; group-size health; a nesting/
 equivalence graph among grouping columns), candidate lists with pre-check
-results, and the metrics and UMAP panel of every probe trial so far.
+results, and the metrics of every probe trial so far.
 
 Doctrine:
 1. Classify grouping columns first: technical (lane/channel/library/run/
@@ -236,13 +238,15 @@ Doctrine:
    one level up.
 5. Orthogonal groupings: choose ONE column - the one that probes better;
    record the other's existence in your reason.
-6. Decide from probe metrics first (iLISI gain, cLISI preservation,
-   convergence; thresholds are provided). Use the UMAP image only as
-   supporting evidence or a veto, and state the reason when vetoing.
+6. Decide from probe metrics (iLISI gain, cLISI preservation and convergence;
+   thresholds are provided).
    If pre-integration iLISI is already high, conclude
    "conclude_unnecessary". If no viable grouping exists at all, conclude
    "conclude_no_batch". If nothing qualifies after the probe budget,
    "give_up" rather than guessing.
+   The program may finalize a clear primary trial locally with a conservative
+   metric fast path. Do not promise that equivalent candidates will be probed
+   later; equivalent groupings need not all be probed.
 7. Cell type column = the AUTHOR'S cell-type annotation (biological names
    such as "T cell", "hepatocyte", ontology terms), NOT an algorithmic
    clustering (leiden / louvain / seurat_clusters / numeric cluster IDs).

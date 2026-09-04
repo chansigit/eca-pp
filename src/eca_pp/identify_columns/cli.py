@@ -41,6 +41,9 @@ PRE_MIXED_PCR = 0.05                 # ...together with PC-regression R2 below
 ILISI_GAIN_MIN = 0.05                # normalized iLISI gain required to adopt
 CLISI_DROP_TOL = 0.05                # annotated cLISI drop tolerance
 PSEUDO_CLISI_DROP_TOL = 0.15         # pseudo-labels are weaker evidence
+CLEAR_GAIN_FACTOR = 1.5               # fast path requires metric headroom
+CLEAR_CLISI_TOL_FACTOR = 0.5          # preserve half the cLISI budget
+PRE_MIXED_ILISI_HEADROOM = 0.05       # fast path likewise for pre-mixed data
 CELLS_PER_BATCH = 50                 # adaptive sampling: expected cells/batch
 N_CELLS_FLOOR, N_CELLS_CAP = 5000, 30000
 MAX_PROBES = 6
@@ -235,6 +238,52 @@ def correction_unnecessary(m: dict) -> bool:
                 and m.get("pc_regression_r2", 1.0) <= PRE_MIXED_PCR)
 
 
+def clear_metric_decision(trial: dict, candidate: dict) -> dict | None:
+    """Conclude locally only when a primary trial has ample metric headroom.
+
+    The first agent round still supplies the semantic column choice. Fallback
+    candidates, missing batch labels, rejected probes, and borderline metrics
+    continue to a second agent round.
+    """
+    if candidate.get("tier") != "primary" or candidate.get("missing_frac", 0):
+        return None
+    m = trial["metrics"]
+    verdict = trial.get("verdict")
+    if verdict == "adopted":
+        gain = m["ilisi_norm_post"] - m["ilisi_norm_pre"]
+        drop = m["clisi_norm_pre"] - m["clisi_norm_post"]
+        tolerance = (PSEUDO_CLISI_DROP_TOL
+                     if m.get("clisi_labels") == "pseudo" else CLISI_DROP_TOL)
+        if gain < ILISI_GAIN_MIN * CLEAR_GAIN_FACTOR \
+                or drop > tolerance * CLEAR_CLISI_TOL_FACTOR:
+            return None
+        return {
+            "action": "adopt", "candidate": trial["batch_col"],
+            "cell_type": trial.get("cell_type_col"),
+            "reason": (
+                f"{trial.get('reason', '').rstrip('.')} — metric fast path: "
+                "primary candidate, Harmony converged, "
+                f"normalized iLISI gain={gain:.4f} and cLISI drop={drop:.4f} "
+                "clear the guarded thresholds"
+            ),
+        }
+    if verdict == "correction_unnecessary":
+        if m["ilisi_norm_pre"] < PRE_MIXED_ILISI + PRE_MIXED_ILISI_HEADROOM \
+                or m.get("pc_regression_r2", 1.0) > PRE_MIXED_PCR / 2:
+            return None
+        return {
+            "action": "conclude_unnecessary", "candidate": trial["batch_col"],
+            "cell_type": trial.get("cell_type_col"),
+            "reason": (
+                f"{trial.get('reason', '').rstrip('.')} — metric fast path: "
+                "primary candidate is already well mixed "
+                f"(normalized pre-iLISI={m['ilisi_norm_pre']:.4f}, "
+                f"PC regression R2={m.get('pc_regression_r2', 0):.4f})"
+            ),
+        }
+    return None
+
+
 # ------------------------------------------------------------------- flow
 
 def _adaptive_n_cells(candidates: dict, override: int | None) -> int:
@@ -266,11 +315,6 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
     code = probe.main(argv)
     with open(os.path.join(trial_dir, "result.json")) as fh:
         pr = json.load(fh)
-    umap_rel = ""
-    src_umap = os.path.join(trial_dir, probe.UMAP_FILENAME)
-    if os.path.exists(src_umap):
-        umap_rel = f"trial_{trial_no}_umap.png"
-        shutil.copyfile(src_umap, os.path.join(outdir, umap_rel))
     m = pr["metrics"]
     if code != 0:
         verdict = "rejected"
@@ -285,9 +329,10 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
             "metrics": {k: m.get(k) for k in
                         ("ilisi_pre", "ilisi_post", "ilisi_norm_pre",
                          "ilisi_norm_post", "clisi_norm_pre", "clisi_norm_post",
-                         "clisi_labels", "harmony_converged", "n_batches",
-                         "n_batches_sampled", "pc_regression_r2")},
-            "umap": umap_rel, "verdict": verdict, "reason": ""}
+                         "clisi_labels", "pseudo_label_graph",
+                         "harmony_converged", "n_batches",
+                         "n_batches_sampled", "pc_regression_r2", "timings")},
+            "verdict": verdict, "reason": ""}
 
 
 def _best_cell_type(candidates: dict) -> str | None:
@@ -406,6 +451,7 @@ def _run(args, res: dict, policy) -> int:
     decisions = res["decisions"] = []  # full audit trail, incl. agent tool use
     by_label = {c["label"]: c for c in candidates["batch"]}
 
+    pending_decision = None
     while True:
         active_tier = _active_batch_tier(candidates, trials)
         state = {"profile": profile, "candidates": candidates, "trials": trials,
@@ -416,16 +462,26 @@ def _run(args, res: dict, policy) -> int:
                      if not c["excluded"] and c["tier"] == active_tier
                      and c["label"] not in {t["batch_col"] for t in trials}],
                  "probes_left": args.max_probes - len(trials)}
-        source = "agent" if isinstance(policy, AgentPolicy) else "deterministic"
-        try:
-            decision = policy.decide(state)
-        except PolicyUnavailable as exc:
-            _warn(res, "agent_failed",
-                  "agent failed during the decision loop; continued deterministically",
-                  error=str(exc))
-            policy = HeuristicPolicy()
-            source = "deterministic_fallback"
-            decision = policy.decide(state)
+        if pending_decision is not None:
+            decision = pending_decision
+            pending_decision = None
+            source = "metric_fast_path"
+            res["metrics"]["metric_fast_path"] = True
+        else:
+            source = "agent" if isinstance(policy, AgentPolicy) else "deterministic"
+            decision_no = len(decisions) + 1
+            t0 = time.perf_counter()
+            try:
+                decision = policy.decide(state)
+            except PolicyUnavailable as exc:
+                _warn(res, "agent_failed",
+                      "agent failed during the decision loop; continued deterministically",
+                      error=str(exc))
+                policy = HeuristicPolicy()
+                source = "deterministic_fallback"
+                decision = policy.decide(state)
+            timings[f"decision_{decision_no}"] = round(
+                time.perf_counter() - t0, 3)
         action = decision.get("action")
         decisions.append({"action": action,
                           "candidate": decision.get("candidate"),
@@ -464,6 +520,8 @@ def _run(args, res: dict, policy) -> int:
             trial["reason"] = decision.get("reason", "")
             trials.append(trial)
             timings[f"trial_{len(trials)}"] = round(time.perf_counter() - t0, 3)
+            if isinstance(policy, AgentPolicy):
+                pending_decision = clear_metric_decision(trial, cand)
             continue
 
         chosen = decision.get("candidate")

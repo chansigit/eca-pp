@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from eca_pp import agent, harness
@@ -44,6 +47,49 @@ def test_deepseek_patch_is_read_only_and_disables_builtins(monkeypatch):
     }
 
 
+def test_deepseek_runtime_is_reused_for_matching_config(monkeypatch, tmp_path):
+    import eca_pp._harness_deepseek as backend
+
+    instances = []
+
+    class FakeRuntime:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.started = 0
+            self.closed = 0
+            instances.append(self)
+
+        def start(self):
+            self.started += 1
+
+        def close(self):
+            self.closed += 1
+
+    monkeypatch.setitem(
+        sys.modules, "deepseek_harness",
+        SimpleNamespace(DeepSeekHarness=FakeRuntime),
+    )
+    backend._close_dsh_runtime()
+    kwargs = {
+        "dsh_bin": "/tmp/dsh", "cwd": "/tmp/work", "root": str(tmp_path),
+        "provider": "doubao", "model": "model", "effort": None,
+        "system_prompt": "system", "patch_text": "patch",
+    }
+    try:
+        first, first_home, reused, _ = backend._ensure_dsh_runtime(**kwargs)
+        second, second_home, reused_again, _ = backend._ensure_dsh_runtime(**kwargs)
+        assert first is second and first_home == second_home
+        assert reused is False and reused_again is True
+        assert first.started == 1 and first.closed == 0
+
+        changed, _, changed_reused, _ = backend._ensure_dsh_runtime(
+            **{**kwargs, "model": "other-model"})
+        assert changed is not first and changed_reused is False
+        assert first.closed == 1
+    finally:
+        backend._close_dsh_runtime()
+
+
 def test_transient_backend_failure_is_retried(monkeypatch):
     import anyio
 
@@ -73,6 +119,21 @@ def test_unavailable_backend_is_not_retried():
 
     with pytest.raises(harness.AgentUnavailable, match="credential missing"):
         anyio.run(harness.retry_transient, unavailable, "test")
+    assert attempts == 1
+
+
+def test_timeout_is_not_retried():
+    import anyio
+
+    attempts = 0
+
+    async def timed_out():
+        nonlocal attempts
+        attempts += 1
+        raise harness.AgentTimeout("model request stalled")
+
+    with pytest.raises(harness.AgentTimeout, match="stalled"):
+        anyio.run(harness.retry_transient, timed_out, "test")
     assert attempts == 1
 
 

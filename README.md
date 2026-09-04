@@ -53,7 +53,7 @@ environment set up (compute nodes only).
 | tool | outputs |
 |---|---|
 | standardize | `standardized.h5ad` — integer counts layer · log-normalized `X` · canonical gene symbols with full mapping provenance in `var` · authoritative QC columns in `obs` (`pct_counts_mt`, `pct_counts_hb`, `total_counts`, `n_genes_by_counts`) · run provenance in `uns` |
-| identify-columns | the verdict in `result.json → columns` (batch column + whether correction is even needed, cell-type column, each with confidence and evidence) · `batch.tsv` when the batch is a derived column (barcode/composite) · one UMAP panel per trial · a full audit trail (`decisions` with the agent's per-round reasoning, tool use, and token/cost usage — totals in `metrics.llm` with a billing URL, `trials` with iLISI/cLISI metrics) |
+| identify-columns | the verdict in `result.json → columns` (batch column + whether correction is even needed, cell-type column, each with confidence and evidence) · `batch.tsv` when the batch is a derived column (barcode/composite) · a full audit trail (`decisions` with the agent's per-round reasoning, tool use, and token/cost usage — totals in `metrics.llm` with a billing URL, `trials` with iLISI/cLISI metrics) |
 | every tool | `result.json` — every decision and its evidence, per-stage wall times, **written on failure too**. All writes are atomic: a crash never leaves a torn output. |
 
 ## Exit codes — the caller's contract
@@ -130,7 +130,9 @@ donor candidates are exhausted before condition or unknown fallbacks;
 annotation, cluster, QC and identifier columns never are batches; only author
 annotations are reported as cell type) → an agent picks candidates bottom-up and
 verifies each with a small-scale Harmony trial (iLISI mixing gain, cLISI
-structure preservation, convergence, UMAP panel) → concludes one of four
+structure preservation, convergence); clear primary-candidate results finish
+through a guarded metric fast path, while borderline and fallback results return
+to the agent → concludes one of four
 verdicts: batch + correction recommended, batch + correction unnecessary, or
 batch null with structured evidence. Missing cell type is likewise a valid
 null result. Every round is recorded.

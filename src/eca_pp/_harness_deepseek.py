@@ -11,6 +11,7 @@ read-only; tool-less calls also disable its shell/editor tools.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import glob
 import inspect
 import logging
@@ -19,6 +20,8 @@ import shutil
 import socket
 import tempfile
 import threading
+import time
+import uuid
 
 import yaml
 
@@ -61,13 +64,17 @@ def _dsh_bin() -> str | None:
 def _keep_session_log(dsh_home: str, cwd: str, label: str) -> None:
     """Keep DSH's transcript when diagnosis is needed after its temp home goes away."""
     safe_label = label.replace(" ", "_").replace("/", "_")
-    for source in glob.glob(os.path.join(dsh_home, "sessions", "*", "*", "session.jsonl")):
-        destination = os.path.join(cwd, f"dsh_session_{safe_label}.jsonl")
-        try:
-            shutil.copy(source, destination)
-            print(f"== [{label}] dsh session transcript kept at {destination}", flush=True)
-        except OSError as exc:
-            print(f"== [{label}] could not keep dsh transcript: {exc}", flush=True)
+    sources = glob.glob(os.path.join(
+        dsh_home, "sessions", "*", "*", "session.jsonl"))
+    if not sources:
+        return
+    source = max(sources, key=os.path.getmtime)
+    destination = os.path.join(cwd, f"dsh_session_{safe_label}.jsonl")
+    try:
+        shutil.copy(source, destination)
+        print(f"== [{label}] dsh session transcript kept at {destination}", flush=True)
+    except OSError as exc:
+        print(f"== [{label}] could not keep dsh transcript: {exc}", flush=True)
 
 
 def check_available() -> None:
@@ -106,6 +113,10 @@ _MCP_URL: str | None = None
 _REGISTERED_TOOLS: set[str] = set()
 _ACTIVE_LISTED: threading.Event | None = None
 _ACTIVE_HTTP_TRACE: dict[str, list[int]] | None = None
+_DSH_RUNTIME = None
+_DSH_RUNTIME_KEY: tuple | None = None
+_DSH_RUNTIME_HOME: str | None = None
+_DSH_RUNTIME_MCP_READY = False
 
 
 def _ensure_mcp_server():
@@ -170,6 +181,71 @@ def _ensure_mcp_server():
         _MCP_SERVER = mcp_server
         _MCP_URL = f"http://127.0.0.1:{port}{mcp_server.settings.streamable_http_path}"
         return _MCP_SERVER, _MCP_URL
+
+
+def _close_dsh_runtime() -> None:
+    """Close and forget the one reusable DSH subprocess, if any."""
+    global _DSH_RUNTIME, _DSH_RUNTIME_KEY, _DSH_RUNTIME_HOME
+    global _DSH_RUNTIME_MCP_READY
+    runtime, home = _DSH_RUNTIME, _DSH_RUNTIME_HOME
+    _DSH_RUNTIME = None
+    _DSH_RUNTIME_KEY = None
+    _DSH_RUNTIME_HOME = None
+    _DSH_RUNTIME_MCP_READY = False
+    if runtime is not None:
+        try:
+            runtime.close()
+        except Exception as exc:  # noqa: BLE001  # pragma: no cover - teardown
+            logging.getLogger(__name__).debug("DSH teardown failed: %s", exc)
+    if home is not None:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+atexit.register(_close_dsh_runtime)
+
+
+def _ensure_dsh_runtime(
+    *, dsh_bin: str, cwd: str, root: str, provider: str, model: str | None,
+    effort: str | None, system_prompt: str | None, patch_text: str,
+):
+    """Return a started runtime, reusing it for an identical route/config."""
+    global _DSH_RUNTIME, _DSH_RUNTIME_KEY, _DSH_RUNTIME_HOME
+    global _DSH_RUNTIME_MCP_READY
+    from deepseek_harness import DeepSeekHarness
+
+    key = (dsh_bin, cwd, provider, model, effort, system_prompt, patch_text)
+    if _DSH_RUNTIME is not None and _DSH_RUNTIME_KEY == key:
+        return _DSH_RUNTIME, _DSH_RUNTIME_HOME, True, _DSH_RUNTIME_MCP_READY
+
+    _close_dsh_runtime()
+    dsh_home = tempfile.mkdtemp(prefix="dsh-home-", dir=root)
+    patch_path = os.path.join(dsh_home, "eca-pp.patch.yml")
+    try:
+        with open(patch_path, "w") as patch_file:
+            patch_file.write(patch_text)
+        runtime = DeepSeekHarness(
+            provider=provider,
+            model=model,
+            reasoning_effort=effort,
+            cwd=cwd,
+            dsh_home=dsh_home,
+            profile="sdk-minimal",
+            patches=(patch_path,),
+            dsh_bin=dsh_bin,
+            env={"DSH_SYSTEM_PROMPT": system_prompt} if system_prompt else {},
+            initialize_timeout_seconds=90.0,
+        )
+        runtime.start()
+    except BaseException:
+        shutil.rmtree(dsh_home, ignore_errors=True)
+        raise
+    _DSH_RUNTIME = runtime
+    _DSH_RUNTIME_KEY = key
+    _DSH_RUNTIME_HOME = dsh_home
+    _DSH_RUNTIME_MCP_READY = bool(
+        _ACTIVE_LISTED is not None and _ACTIVE_LISTED.is_set()
+    )
+    return runtime, dsh_home, False, _DSH_RUNTIME_MCP_READY
 
 
 def _tool_fn(
@@ -249,24 +325,15 @@ MCP_LIST_GRACE_SECONDS = 90.0
 
 def _run_sync(
     *,
-    dsh_bin: str,
-    cwd: str,
-    dsh_home: str,
-    provider: str,
-    model: str | None,
-    effort: str | None,
-    system_prompt: str | None,
+    harness,
     prompt: str,
     session_id: str,
-    patch_path: str,
     label: str,
     max_turns: int,
     wall_seconds: float | None,
     listed: threading.Event,
     http_trace: dict,
 ):
-    from deepseek_harness import DeepSeekHarness
-
     trace = os.environ.get("DSH_TRACE_EVENTS", "") not in ("", "0")
     turns = 0
     timed_out = threading.Event()
@@ -287,82 +354,70 @@ def _run_sync(
                     f"[{label}] HARNESS=deepseek exceeded max_turns={max_turns}"
                 )
 
-    with DeepSeekHarness(
-        provider=provider,
-        model=model,
-        reasoning_effort=effort,
-        cwd=cwd,
-        dsh_home=dsh_home,
-        profile="sdk-minimal",
-        patches=(patch_path,),
-        dsh_bin=dsh_bin,
-        env={"DSH_SYSTEM_PROMPT": system_prompt} if system_prompt else {},
-        initialize_timeout_seconds=90.0,
-    ) as harness:
-        timers = []
-        if wall_seconds is not None:
-            def kill():
-                timed_out.set()
-                print(
-                    f"== [{label}] wall-clock budget of {wall_seconds / 60:g} min hit; "
-                    "closing dsh runtime", flush=True,
-                )
-                harness.close()
-
-            timers.append(threading.Timer(wall_seconds, kill))
-
-        def check_listed():
-            if not listed.is_set():
-                no_tools.set()
-                print(
-                    f"== [{label}] dsh did not request tools/list within "
-                    f"{MCP_LIST_GRACE_SECONDS:g}s; closing runtime",
-                    flush=True,
-                )
-                harness.close()
-
-        timers.append(threading.Timer(MCP_LIST_GRACE_SECONDS, check_listed))
-        for timer in timers:
-            timer.daemon = True
-            timer.start()
-
-        def stderr_tail(count=25):
-            lines = list(getattr(harness.client, "_stderr_lines", []))[-count:]
-            return "\n".join(lines)
-
-        try:
-            result = harness.run(
-                prompt, session_id=session_id, on_notification=on_notification
+    timers = []
+    if wall_seconds is not None:
+        def kill():
+            timed_out.set()
+            print(
+                f"== [{label}] wall-clock budget of {wall_seconds / 60:g} min hit; "
+                "closing dsh runtime", flush=True,
             )
-        except Exception as exc:
-            if timed_out.is_set():
-                raise AgentTimeout(
-                    f"[{label}] agent run exceeded {wall_seconds / 60:g} min "
-                    "(AGENT_WALL_MIN)"
-                ) from None
-            if no_tools.is_set():
-                print(
-                    f"== [{label}] MCP HTTP trace: {dict(http_trace)}\n"
-                    f"== [{label}] dsh stderr tail:\n{stderr_tail()}",
-                    flush=True,
-                )
-                raise RuntimeError(
-                    f"[{label}] mcp tools never listed by dsh; mcp-client failed to attach"
-                ) from None
-            if isinstance(exc, _TurnsExceeded):
-                raise AgentIncompleteError(f"{exc} without a successful submit call") from None
-            raise
-        finally:
-            for timer in timers:
-                timer.cancel()
-        print(
-            f"== [{label}] dsh run: {turns} model turn(s); MCP HTTP trace "
-            f"(requests, responses started): {dict(http_trace)}",
-            flush=True,
-        )
+            harness.close()
+
+        timers.append(threading.Timer(wall_seconds, kill))
+
+    def check_listed():
         if not listed.is_set():
-            print(f"== [{label}] dsh stderr tail:\n{stderr_tail()}", flush=True)
-        return result, turns
+            no_tools.set()
+            print(
+                f"== [{label}] dsh did not request tools/list within "
+                f"{MCP_LIST_GRACE_SECONDS:g}s; closing runtime",
+                flush=True,
+            )
+            harness.close()
+
+    timers.append(threading.Timer(MCP_LIST_GRACE_SECONDS, check_listed))
+    for timer in timers:
+        timer.daemon = True
+        timer.start()
+
+    def stderr_tail(count=25):
+        lines = list(getattr(harness.client, "_stderr_lines", []))[-count:]
+        return "\n".join(lines)
+
+    try:
+        result = harness.run(
+            prompt, session_id=session_id, on_notification=on_notification
+        )
+    except Exception as exc:
+        if timed_out.is_set():
+            raise AgentTimeout(
+                f"[{label}] agent run exceeded {wall_seconds / 60:g} min "
+                "(AGENT_WALL_MIN)"
+            ) from None
+        if no_tools.is_set():
+            print(
+                f"== [{label}] MCP HTTP trace: {dict(http_trace)}\n"
+                f"== [{label}] dsh stderr tail:\n{stderr_tail()}",
+                flush=True,
+            )
+            raise RuntimeError(
+                f"[{label}] mcp tools never listed by dsh; mcp-client failed to attach"
+            ) from None
+        if isinstance(exc, _TurnsExceeded):
+            raise AgentIncompleteError(f"{exc} without a successful submit call") from None
+        raise
+    finally:
+        for timer in timers:
+            timer.cancel()
+    print(
+        f"== [{label}] dsh run: {turns} model turn(s); MCP HTTP trace "
+        f"(requests, responses started): {dict(http_trace)}",
+        flush=True,
+    )
+    if not listed.is_set():
+        print(f"== [{label}] dsh stderr tail:\n{stderr_tail()}", flush=True)
+    return result, turns
 
 
 async def run_agent(
@@ -380,7 +435,7 @@ async def run_agent(
     max_buffer_size: int | None,
     wall_seconds: float | None = None,
 ) -> AgentRunResult:
-    global _ACTIVE_LISTED, _ACTIVE_HTTP_TRACE
+    global _ACTIVE_LISTED, _ACTIVE_HTTP_TRACE, _DSH_RUNTIME_MCP_READY
     check_available()
     dsh_bin = _dsh_bin()
     assert dsh_bin is not None
@@ -389,6 +444,11 @@ async def run_agent(
     tools_used: list[dict] = []
     listed = threading.Event()
     http_trace: dict[str, list[int]] = {}
+    runtime = None
+    dsh_home = None
+    runtime_reused = False
+    runtime_init_seconds = 0.0
+    agent_run_seconds = 0.0
     if not _CALL_LOCK.acquire(blocking=False):
         raise RuntimeError("concurrent DSH calls in one eca-pp process are not supported")
     try:
@@ -408,45 +468,54 @@ async def run_agent(
         _ACTIVE_HTTP_TRACE = http_trace
 
         root = os.environ.get("DSH_HOME_ROOT") or os.environ.get("SCRATCH") or tempfile.gettempdir()
-        with tempfile.TemporaryDirectory(prefix="dsh-home-", dir=root) as dsh_home:
-            patch_text = _render_patch(mcp_url, allowed_builtin, provider, model)
-            with tempfile.NamedTemporaryFile(
-                "w", suffix=".patch.yml", dir=dsh_home, delete=False
-            ) as patch_file:
-                patch_file.write(patch_text)
-                patch_path = patch_file.name
-            print(
-                f"== [{label}] HARNESS=deepseek provider={provider} model={model} "
-                f"dsh_home={dsh_home} mcp={mcp_url}", flush=True,
+        patch_text = _render_patch(mcp_url, allowed_builtin, provider, model)
+        runtime_started = time.perf_counter()
+        runtime, dsh_home, runtime_reused, mcp_ready = await asyncio.to_thread(
+            _ensure_dsh_runtime,
+            dsh_bin=dsh_bin, cwd=cwd, root=root, provider=provider, model=model,
+            effort=effort, system_prompt=system_prompt, patch_text=patch_text,
+        )
+        runtime_init_seconds = time.perf_counter() - runtime_started
+        if mcp_ready:
+            listed.set()
+        print(
+            f"== [{label}] HARNESS=deepseek provider={provider} model={model} "
+            f"dsh_home={dsh_home} mcp={mcp_url} "
+            f"runtime={'reused' if runtime_reused else 'started'}",
+            flush=True,
+        )
+        _ = max_buffer_size
+        keep = os.environ.get("DSH_KEEP_SESSIONS", "") not in ("", "0")
+        session_id = f"{label.replace(' ', '_')}-{os.getpid()}-{uuid.uuid4().hex}"
+        agent_started = time.perf_counter()
+        try:
+            result, turns = await asyncio.to_thread(
+                _run_sync,
+                harness=runtime,
+                prompt=prompt,
+                session_id=session_id,
+                label=label,
+                max_turns=max_turns,
+                wall_seconds=wall_seconds,
+                listed=listed,
+                http_trace=http_trace,
             )
-            _ = max_buffer_size
-            keep = os.environ.get("DSH_KEEP_SESSIONS", "") not in ("", "0")
-            try:
-                result, turns = await asyncio.to_thread(
-                    _run_sync,
-                    dsh_bin=dsh_bin,
-                    cwd=cwd,
-                    dsh_home=dsh_home,
-                    provider=provider,
-                    model=model,
-                    effort=effort,
-                    system_prompt=system_prompt,
-                    prompt=prompt,
-                    session_id=f"{label}-{os.getpid()}",
-                    patch_path=patch_path,
-                    label=label,
-                    max_turns=max_turns,
-                    wall_seconds=wall_seconds,
-                    listed=listed,
-                    http_trace=http_trace,
-                )
-                keep = keep or "value" not in submitted
-            except BaseException:
-                keep = True
-                raise
-            finally:
-                if keep:
-                    _keep_session_log(dsh_home, cwd, label)
+            agent_run_seconds = time.perf_counter() - agent_started
+            _DSH_RUNTIME_MCP_READY = _DSH_RUNTIME_MCP_READY or listed.is_set()
+            keep = keep or "value" not in submitted
+        except BaseException:
+            agent_run_seconds = time.perf_counter() - agent_started
+            keep = True
+            raise
+        finally:
+            if keep and dsh_home is not None:
+                _keep_session_log(dsh_home, cwd, label)
+    except BaseException:
+        # A failed turn may poison either the process or its MCP client. Give
+        # the existing retry policy a genuinely fresh runtime.
+        if runtime is not None:
+            await asyncio.to_thread(_close_dsh_runtime)
+        raise
     finally:
         _ACTIVE_LISTED = None
         _ACTIVE_HTTP_TRACE = None
@@ -470,6 +539,12 @@ async def run_agent(
         "input_tokens": None, "output_tokens": None,
         "cache_creation_tokens": None, "cache_read_tokens": None,
         "num_turns": turns,
+        "timings": {
+            "runtime_init": round(runtime_init_seconds, 3),
+            "agent_run": round(agent_run_seconds, 3),
+            "total": round(runtime_init_seconds + agent_run_seconds, 3),
+        },
+        "runtime_reused": runtime_reused,
     }
     return AgentRunResult(
         submitted["value"], result.final_response, tools_used, usage

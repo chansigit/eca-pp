@@ -37,7 +37,7 @@
           "probe",
           "scanpy"
         ],
-        "note": "identify-columns 每轮把状态发给 Claude Agent SDK，决定下一个候选或结论。"
+        "note": "identify-columns 把状态发给默认的 DSH 豆包后端或可选 Claude 后端，决定候选；明确指标由本地 fast path 收敛。"
       },
       {
         "id": "shared-core",
@@ -81,8 +81,8 @@
     {
       "id": "agentsdk",
       "type": "external",
-      "label": "Claude Agent SDK",
-      "sublabel": "spawn claude CLI · 仅 Read 工具",
+      "label": "DSH / Claude harness",
+      "sublabel": "豆包默认 · Claude 可选 · MCP 提交",
       "pos": [
         540,
         70
@@ -271,7 +271,7 @@
     {
       "id": "scanpy",
       "type": "external",
-      "label": "scanpy · harmonypy · umap",
+      "label": "scanpy · harmonypy · leidenalg",
       "sublabel": "[probe] extra，按需延迟导入",
       "pos": [
         845,
@@ -328,7 +328,7 @@
       "id": "probe-outdir",
       "from": "probe",
       "to": "outdir",
-      "label": "trial_N/ · UMAP 图",
+      "label": "trial_N/ · result.json",
       "variant": "emphasis"
     },
     {
@@ -368,7 +368,7 @@
       "id": "probe-scanpy",
       "from": "probe",
       "to": "scanpy",
-      "label": "HVG·PCA·Harmony·LISI·UMAP",
+      "label": "HVG·PCA·Harmony·LISI",
       "variant": "dashed",
       "labelDy": 24
     }

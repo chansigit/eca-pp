@@ -1,11 +1,10 @@
 """integration-probe — the deterministic small-scale integration trial
 (identify-columns spec §5).
 
-A seeded group-preserving subsample → HVG → PCA → Harmony → iLISI/cLISI +
-UMAP panel.
+A seeded group-preserving subsample → HVG → PCA → Harmony → iLISI/cLISI.
 A non-converging or crashing Harmony run is a LEGITIMATE observation (status
 ok, ``harmony_converged: false``) — it is exactly the pathology this tool
-exists to detect. Heavy dependencies (scanpy/harmonypy/umap) are imported
+exists to detect. Heavy dependencies (scanpy/harmonypy) are imported
 lazily and ship in the ``[probe]`` extra.
 """
 
@@ -30,17 +29,17 @@ DEFAULT_N_HVG = 2000
 N_PCS = 30
 LISI_PERPLEXITY = 30
 LEIDEN_RESOLUTION = 1.0
+PSEUDO_LABEL_GRAPH = "knn_gauss_sklearn"
 MIN_CELLS = 300
 MIN_SAMPLED_PER_BATCH = 5
-UMAP_FILENAME = "umap.png"
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="eca-pp-integration-probe",
         description="Small-scale integration trial: subsample, run Harmony on "
-                    "the given batch column, report iLISI/cLISI and a UMAP "
-                    "panel. Diagnoses a batch-column choice; not a production "
+                    "the given batch column and report iLISI/cLISI. "
+                    "Diagnoses a batch-column choice; not a production "
                     "integration.")
     p.add_argument("src", help="standardized .h5ad")
     p.add_argument("-o", "--outdir", required=True)
@@ -177,7 +176,10 @@ def _pseudo_labels(adata, seed: int) -> pd.Series:
     """Leiden communities on the PRE-integration kNN graph (spec §5)."""
     import scanpy as sc
 
-    sc.pp.neighbors(adata, use_rep="X_pca", random_state=seed)
+    # At the probe cap (5k cells), exact sklearn neighbors plus Gaussian graph
+    # weights avoid the per-process Numba compilation used by UMAP weights.
+    sc.pp.neighbors(adata, use_rep="X_pca", random_state=seed,
+                    transformer="sklearn", method="gauss")
     try:
         sc.tl.leiden(adata, resolution=LEIDEN_RESOLUTION, random_state=seed,
                      key_added="_pseudo_ct", flavor="leidenalg")
@@ -185,42 +187,6 @@ def _pseudo_labels(adata, seed: int) -> pd.Series:
         raise _Stop(EXIT_ERROR, [f"leiden unavailable: {exc} — install the "
                                  f"[probe] extra (leidenalg)"])
     return adata.obs["_pseudo_ct"].astype("string")
-
-
-def _umap_panel(adata, batch: pd.Series, ct: pd.Series, ct_kind: str,
-                outdir: str, seed: int) -> str:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    import scanpy as sc
-
-    sc.pp.neighbors(adata, use_rep="X_harmony", random_state=seed,
-                    key_added="post")
-    sc.tl.umap(adata, random_state=seed, neighbors_key="post")
-    xy = adata.obsm["X_umap"]
-
-    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
-    for ax, labels, title in ((axes[0], batch, "batch"),
-                              (axes[1], ct, f"cell type ({ct_kind})")):
-        cats = pd.Categorical(labels.to_numpy())
-        cmap = plt.get_cmap("tab20")
-        ax.scatter(xy[:, 0], xy[:, 1], s=3, linewidths=0,
-                   c=[cmap(c % 20) for c in cats.codes])
-        ax.set_title(f"integrated UMAP · colored by {title} "
-                     f"({len(cats.categories)} groups)")
-        ax.set_xticks([])
-        ax.set_yticks([])
-        if len(cats.categories) <= 20:
-            for i, name in enumerate(cats.categories):
-                ax.scatter([], [], s=12, color=cmap(i % 20), label=str(name)[:24])
-            ax.legend(fontsize=6, markerscale=1.5, frameon=False)
-    fig.tight_layout()
-    path = os.path.join(outdir, UMAP_FILENAME)
-    from eca_pp.core.atomic_io import atomic_write
-    with atomic_write(path) as tmp:
-        fig.savefig(tmp, dpi=110, format="png")
-    plt.close(fig)
-    return path
 
 
 def _run(args, res: dict) -> int:
@@ -305,16 +271,15 @@ def _run(args, res: dict) -> int:
               "ilisi_norm_pre": _norm_ilisi(ilisi_pre, n_b),
               "clisi_norm_pre": _norm_clisi(clisi_pre, n_t),
               "clisi_labels": ct_kind, "n_cell_types": n_t})
+    if ct_kind == "pseudo":
+        m["pseudo_label_graph"] = PSEUDO_LABEL_GRAPH
     if post is not None:
         ilisi_post = _lisi_median(post, batch)
         clisi_post = _lisi_median(post, ct)
         m.update({"ilisi_post": round(ilisi_post, 3),
                   "ilisi_norm_post": _norm_ilisi(ilisi_post, n_b),
                   "clisi_norm_post": _norm_clisi(clisi_post, n_t)})
-        A.obsm["X_harmony"] = post
-        timings["lisi"] = round(time.perf_counter() - t0, 3); t0 = time.perf_counter()
-        res["umap"] = _umap_panel(A, batch, ct, ct_kind, args.outdir, args.seed)
-        timings["umap"] = round(time.perf_counter() - t0, 3)
+        timings["lisi"] = round(time.perf_counter() - t0, 3)
     else:
         m.update({"ilisi_post": None, "ilisi_norm_post": None,
                   "clisi_norm_post": None})

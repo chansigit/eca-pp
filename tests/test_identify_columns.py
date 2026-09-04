@@ -59,7 +59,8 @@ def test_scripted_adopt_flow(tmp_path):
     (trial,) = res["trials"]
     assert trial["verdict"] == "adopted"
     assert trial["metrics"]["harmony_converged"] is True
-    assert (out / "trial_1_umap.png").exists()
+    assert "umap" not in trial
+    assert not list(out.glob("*.png"))
     # the policy saw candidates with the annotation column excluded from batch
     batch_labels = {c["label"] for c in res["candidates"]["batch"]}
     assert "cell_type" not in batch_labels
@@ -93,6 +94,54 @@ def test_heuristic_policy_concludes_unnecessary_without_effect(tmp_path):
     code, res, _ = run(tmp_path, src, HeuristicPolicy(), "--n-cells", 600)
     assert code == 0
     assert res["columns"]["batch"]["correction"] == "unnecessary"
+
+
+def test_agent_metric_fast_path_skips_second_model_round(monkeypatch, tmp_path):
+    from eca_pp import agent
+    from eca_pp.identify_columns.policies import AgentPolicy
+
+    monkeypatch.setattr(agent, "check_available", lambda: None)
+    policy = AgentPolicy(str(tmp_path))
+    calls = 0
+
+    def choose_once(state):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise AssertionError("clear probe should not trigger a second agent round")
+        return {"action": "probe", "candidate": "batch",
+                "cell_type": "cell_type", "reason": "technical batch"}
+
+    monkeypatch.setattr(policy, "decide", choose_once)
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    code, res, _ = run(tmp_path, src, policy, "--n-cells", 600)
+    assert code == 0 and calls == 1
+    assert res["columns"]["batch"]["correction"] == "recommended"
+    assert res["metrics"]["metric_fast_path"] is True
+    assert [d["source"] for d in res["decisions"]] == [
+        "agent", "metric_fast_path"]
+    assert "decision_1" in res["metrics"]["timings"]
+    assert "decision_2" not in res["metrics"]["timings"]
+
+
+def test_metric_fast_path_keeps_ambiguous_cases_for_agent_review():
+    from eca_pp.identify_columns.cli import clear_metric_decision
+
+    trial = {
+        "batch_col": "batch", "cell_type_col": "cell_type",
+        "verdict": "adopted",
+        "metrics": {
+            "ilisi_norm_pre": 0.1, "ilisi_norm_post": 0.16,
+            "clisi_norm_pre": 0.9, "clisi_norm_post": 0.9,
+            "clisi_labels": "annotated", "harmony_converged": True,
+        },
+    }
+    primary = {"tier": "primary", "missing_frac": 0.0}
+    assert clear_metric_decision(trial, primary) is None  # gain is borderline
+    trial["metrics"]["ilisi_norm_post"] = 0.3
+    assert clear_metric_decision(trial, {"tier": "fallback"}) is None
+    assert clear_metric_decision(
+        trial, {"tier": "primary", "missing_frac": 0.1}) is None
 
 
 def test_derived_barcode_batch_materialized_as_tsv(tmp_path):
