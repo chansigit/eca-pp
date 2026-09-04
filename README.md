@@ -5,15 +5,22 @@
 </p>
 
 <p align="center">
-  <a href="#why-standardize-before-analysis">Why ECA-PP?</a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Version-0.4.0-258B81?style=flat" alt="Project version 0.4.0"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat&amp;logo=python&amp;logoColor=white" alt="Python 3.10 or newer"></a>
+  <a href="#where-it-fits"><img src="https://img.shields.io/badge/Input-H5AD-64748B?style=flat" alt="Starts from H5AD data"></a>
+  <a href="https://github.com/chansigit/eca-rsi"><img src="https://img.shields.io/badge/Ecosystem-Ensemble_Cell_Atlas-258B81?style=flat" alt="Part of the Ensemble Cell Atlas ecosystem"></a>
+</p>
+
+<p align="center">
+  <a href="#why-standardize-before-analysis">🔬 Why ECA-PP?</a>
   &nbsp;&nbsp;&nbsp;
   <a href="#what-you-get">What you get</a>
   &nbsp;&nbsp;&nbsp;
-  <a href="#try-it">Try it</a>
+  <a href="#try-it">🚀 Try it</a>
   &nbsp;&nbsp;&nbsp;
   <a href="#faq">FAQ</a>
   &nbsp;&nbsp;&nbsp;
-  <a href="#further-reading">Further reading</a>
+  <a href="#further-reading">📖 Further reading</a>
 </p>
 
 <br>
