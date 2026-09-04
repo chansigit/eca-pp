@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/chansigit/eca-pp/main/assets/eca-pp-logo.svg" alt="ECA-PP logo: scattered cells organized into a consistent atlas" width="160" height="160">
+</p>
+
 <h1 align="center">ECA-PP: Standardized Single-Cell Preprocessing</h1>
 
 <p align="center">
@@ -105,8 +109,8 @@ an interactive version with search, zoom, and guided views.
 <p align="center">
   <a href="https://raw.githack.com/chansigit/eca-pp/main/docs/workflow.html">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="assets/eca-pp-workflow-dark.svg">
-      <img src="assets/eca-pp-workflow-light.svg" alt="ECA-PP workflow: input H5AD, standardization, prepared data, metadata identification with integration trials, recorded decisions, and handoff to ECA-RSI. Unresolved standardization choices need review; unsuitable inputs are rejected." width="1100">
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/chansigit/eca-pp/main/assets/eca-pp-workflow-dark.svg">
+      <img src="https://raw.githubusercontent.com/chansigit/eca-pp/main/assets/eca-pp-workflow-light.svg" alt="ECA-PP workflow: input H5AD, standardization, prepared data, metadata identification with integration trials, recorded decisions, and handoff to ECA-RSI. Unresolved standardization choices need review; unsuitable inputs are rejected." width="1100">
     </picture>
   </a>
 </p>
@@ -120,12 +124,14 @@ an interactive version with search, zoom, and guided views.
 Use Python 3.10 or newer, preferably in a dedicated environment. ECA-PP runs on CPUs.
 
 ```bash
-git clone https://github.com/chansigit/eca-pp.git
-cd eca-pp
 pip install git+https://github.com/chansigit/stancounts \
             git+https://github.com/chansigit/stangene
-pip install ".[probe,openai]"
+pip install "eca-pp[probe,openai]==0.4.0"
 ```
+
+Install the two GitHub dependencies first: `stancounts` and `stangene` are not
+yet available on PyPI. To work on ECA-PP itself, clone this repository and use
+`pip install ".[probe,openai]"` instead of the last command.
 
 ### 2. Standardize your dataset
 
@@ -150,7 +156,7 @@ By default, features that cannot be mapped to a canonical gene are removed from
 the output. Use `--keep-unmapped` to retain them. The dataset-level gene threshold
 is checked again after gene mapping and filtering.
 
-See the [tutorial's options](docs/tutorial.md#4-常用参数) for adjusting size checks
+See the [tutorial's options](https://github.com/chansigit/eca-pp/blob/main/docs/tutorial.md#4-常用参数) for adjusting size checks
 or specifying the species and counts layer.
 
 </details>
@@ -207,7 +213,7 @@ confused with an execution error; check the outcome and reasons in `result.json`
 Standardization runs locally by default; optional AI assistance is available for
 unresolved species inference. Column identification uses a model when configured
 and falls back to built-in rules when it is unavailable. See the
-[model configuration guide](docs/tutorial.md#8-识别批次列--细胞类型列identify-columns)
+[model configuration guide](https://github.com/chansigit/eca-pp/blob/main/docs/tutorial.md#8-识别批次列--细胞类型列identify-columns)
 for backend and model choices.
 
 ### Can I recover counts from normalized data?
@@ -220,14 +226,14 @@ unsupported or ambiguous cases are reported rather than silently treated as raw 
 
 ## Further reading
 
-**For users:** the [hands-on tutorial](docs/tutorial.md) walks through a real
+**For users:** the [hands-on tutorial](https://github.com/chansigit/eca-pp/blob/main/docs/tutorial.md) walks through a real
 mouse dataset, result interpretation, common options, model setup, and reruns.
 The tutorial is currently in Chinese. Each command also provides `--help`.
 
-**For developers:** the [standardization specification](docs/standardize-spec.md)
-and [column-identification specification](docs/identify-columns-spec.md) describe
+**For developers:** the [standardization specification](https://github.com/chansigit/eca-pp/blob/main/docs/standardize-spec.md)
+and [column-identification specification](https://github.com/chansigit/eca-pp/blob/main/docs/identify-columns-spec.md) describe
 methods, interfaces, and tests. Download the
-[interactive architecture diagram](docs/architecture.html) to open it in a browser.
+[interactive architecture diagram](https://github.com/chansigit/eca-pp/blob/main/docs/architecture.html) to open it in a browser.
 
 **Continue in the ECA ecosystem:** [ECA-RSI](https://github.com/chansigit/eca-rsi)
 coordinates downstream analysis, including sample-level QC and annotation with

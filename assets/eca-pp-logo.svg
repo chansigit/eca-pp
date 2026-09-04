@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">ECA-PP</title>
+  <desc id="desc">Scattered cells flow into an ordered three-by-three atlas, representing consistent preprocessing of diverse single-cell datasets.</desc>
+  <defs>
+    <linearGradient id="surface" x1="24" y1="12" x2="228" y2="256" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#143A46"/>
+      <stop offset="1" stop-color="#071E2A"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="24" y1="0" x2="220" y2="256" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9FEADD" stop-opacity=".45"/>
+      <stop offset=".5" stop-color="#5DCDBB" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#88E9DF" stop-opacity=".22"/>
+    </linearGradient>
+    <linearGradient id="cells" x1="124" y1="80" x2="210" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C5F9E6"/>
+      <stop offset=".48" stop-color="#6AE0BD"/>
+      <stop offset="1" stop-color="#2BBFAE"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="60" y1="128" x2="138" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DDCD1" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#7DDCD1" stop-opacity=".55"/>
+    </linearGradient>
+    <radialGradient id="light" cx=".76" cy=".34" r=".72">
+      <stop stop-color="#52CDB6" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#52CDB6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- A self-contained dark tile keeps the mark legible on either page theme. -->
+  <rect x="4" y="4" width="248" height="248" rx="56" fill="url(#surface)"/>
+  <rect x="4" y="4" width="248" height="248" rx="56" fill="url(#light)"/>
+  <rect x="5" y="5" width="246" height="246" rx="55" fill="none" stroke="url(#rim)" stroke-width="2"/>
+
+  <!-- Varied input positions converge on three consistent output rows. -->
+  <g fill="none" stroke="url(#flow)" stroke-width="2" stroke-linecap="round">
+    <path d="M54 88C91 88 95 96 138 96"/>
+    <path d="M82 66C105 66 109 96 138 96"/>
+    <path d="M78 124C102 124 113 128 138 128"/>
+    <path d="M50 154C91 154 103 160 138 160"/>
+    <path d="M82 190C107 190 107 160 138 160"/>
+  </g>
+
+  <!-- Organic source cells; the solid nuclei remain visible at small sizes. -->
+  <g fill="#70C9C6" fill-opacity=".09" stroke="#82DCD2" stroke-opacity=".65" stroke-width="1.5">
+    <circle cx="54" cy="88" r="11"/>
+    <circle cx="82" cy="66" r="8"/>
+    <circle cx="78" cy="124" r="13"/>
+    <circle cx="50" cy="154" r="8"/>
+    <circle cx="82" cy="190" r="10"/>
+  </g>
+  <g fill="#A8EBDD">
+    <circle cx="54" cy="88" r="3.5"/>
+    <circle cx="82" cy="66" r="2.5"/>
+    <circle cx="78" cy="124" r="4"/>
+    <circle cx="50" cy="154" r="2.5"/>
+    <circle cx="82" cy="190" r="3"/>
+  </g>
+
+  <!-- The atlas grid: equal spacing expresses a shared preprocessing standard. -->
+  <rect x="117" y="74" width="106" height="108" rx="23" fill="#7AE6CC" fill-opacity=".04" stroke="#91E7D5" stroke-opacity=".16"/>
+  <g fill="url(#cells)">
+    <circle cx="138" cy="96" r="9"/>
+    <circle cx="170" cy="96" r="9"/>
+    <circle cx="202" cy="96" r="9"/>
+    <circle cx="138" cy="128" r="9"/>
+    <circle cx="170" cy="128" r="9"/>
+    <circle cx="202" cy="128" r="9"/>
+    <circle cx="138" cy="160" r="9"/>
+    <circle cx="170" cy="160" r="9"/>
+    <circle cx="202" cy="160" r="9"/>
+  </g>
+  <g fill="#103F43" fill-opacity=".55">
+    <circle cx="138" cy="96" r="2.5"/>
+    <circle cx="170" cy="96" r="2.5"/>
+    <circle cx="202" cy="96" r="2.5"/>
+    <circle cx="138" cy="128" r="2.5"/>
+    <circle cx="170" cy="128" r="2.5"/>
+    <circle cx="202" cy="128" r="2.5"/>
+    <circle cx="138" cy="160" r="2.5"/>
+    <circle cx="170" cy="160" r="2.5"/>
+    <circle cx="202" cy="160" r="2.5"/>
+  </g>
+</svg>
