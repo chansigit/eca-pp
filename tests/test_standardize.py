@@ -12,9 +12,11 @@ from __future__ import annotations
 import anndata as ad
 import numpy as np
 import scipy.sparse as sp
+from dsets import RNG, G, N, lognorm, make_counts, run_cli, write_h5ad
 
-from dsets import G, N, RNG, lognorm, make_counts, run_cli, write_h5ad
 from eca_pp.core.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
+from eca_pp.standardize import countsloc
+from eca_pp.standardize.qc import count_n_genes_detected, is_integer_matrix
 
 # ---------------------------------------------------------------- happy paths
 
@@ -73,6 +75,30 @@ def test_no_gate_lets_tiny_sample_through(tmp_path):
     code, res = run_cli(tmp_path, src, "--no-gate")
     assert code == EXIT_OK and res["status"] == "ok"
     assert res["metrics"]["n_cells"] == 50
+
+
+def test_explicit_sparse_zeros_are_not_detected_genes_or_counts():
+    stored_zeros = sp.csr_matrix(
+        (np.array([4.0, 0.0, 0.0]), np.array([0, 1, 2]), np.array([0, 3])),
+        shape=(1, 4),
+    )
+    assert count_n_genes_detected(stored_zeros) == 1
+
+    all_zero = sp.csr_matrix(
+        (np.array([0.0, 0.0]), np.array([0, 1]), np.array([0, 2])),
+        shape=(1, 3),
+    )
+    assert is_integer_matrix(all_zero) is False
+
+
+def test_counts_discovery_ignores_all_zero_sparse_layer():
+    A = ad.AnnData(X=sp.csr_matrix([[1.0, 2.0, 0.0]]))
+    A.layers["counts"] = sp.csr_matrix(
+        (np.array([0.0, 0.0]), np.array([0, 1]), np.array([0, 2])),
+        shape=(1, 3),
+    )
+    resolution = countsloc.resolve(A)
+    assert resolution.source == "X"
 
 
 # ---------------------------------------------------------- review & blocking

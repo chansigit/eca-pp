@@ -45,11 +45,11 @@ def _dtype_of(s: pd.Series) -> str:
 def _group_sizes_block(sizes: pd.Series, n_obs: int) -> dict:
     tiny = sizes[sizes < TINY_GROUP_CELLS]
     return {
-        "n_groups": int(len(sizes)),
+        "n_groups": len(sizes),
         "min": int(sizes.min()),
         "median": float(sizes.median()),
         "max": int(sizes.max()),
-        "n_tiny": int(len(tiny)),
+        "n_tiny": len(tiny),
         "tiny_group_frac": round(len(tiny) / len(sizes), 4),
         "tiny_cell_frac": round(float(tiny.sum()) / n_obs, 4),
     }
@@ -98,8 +98,13 @@ def profile_obs(adata) -> dict:
 
 
 def _refines(fine: pd.Series, coarse: pd.Series) -> bool:
-    """Every fine-group maps into exactly one coarse-group."""
-    return bool((pd.DataFrame({"f": fine, "c": coarse})
+    """Every fine-group, including missing, maps to one coarse-group."""
+    # pandas groupby/nunique normally drops NA keys and values.  Factor codes
+    # retain NA as the ordinary integer code -1, so different missingness
+    # patterns cannot create a false nesting or equivalence relation.
+    fine_codes = pd.factorize(fine, sort=False)[0]
+    coarse_codes = pd.factorize(coarse, sort=False)[0]
+    return bool((pd.DataFrame({"f": fine_codes, "c": coarse_codes})
                  .groupby("f", observed=True)["c"].nunique() <= 1).all())
 
 
@@ -108,20 +113,26 @@ def _relations(grouping: dict) -> list[dict]:
     for a, b in itertools.combinations(sorted(grouping), 2):
         sa, sb = grouping[a], grouping[b]
         a_ref_b, b_ref_a = _refines(sa, sb), _refines(sb, sa)
-        if a_ref_b and b_ref_a:
+        same_missing = np.array_equal(sa.isna().to_numpy(), sb.isna().to_numpy())
+        if a_ref_b and b_ref_a and same_missing:
             out.append({"finer": a, "coarser": b, "kind": "equivalent"})
-        elif a_ref_b and sa.nunique() > sb.nunique():
+        elif a_ref_b and sa.nunique(dropna=False) > sb.nunique(dropna=False):
             out.append({"finer": a, "coarser": b, "kind": "nested"})
-        elif b_ref_a and sb.nunique() > sa.nunique():
+        elif b_ref_a and sb.nunique(dropna=False) > sa.nunique(dropna=False):
             out.append({"finer": b, "coarser": a, "kind": "nested"})
     return out
 
 
 def _equivalent_with(values: pd.Series, grouping: dict) -> list[str]:
     """Existing columns that encode exactly the same cell partition."""
-    left = pd.factorize(values.astype("string").fillna("<NA>"), sort=False)[0]
+    normalized = values.astype("string")
+    left = pd.factorize(normalized.fillna("<NA>"), sort=False)[0]
     matches = []
     for name, other in grouping.items():
+        if not np.array_equal(
+            normalized.isna().to_numpy(), other.isna().to_numpy()
+        ):
+            continue
         if other.nunique(dropna=False) != values.nunique(dropna=False):
             continue
         right = pd.factorize(

@@ -122,7 +122,7 @@ Without selected-backend credentials, or if the agent fails during a run, the st
 continues with its deterministic policy and records that fallback in
 `warnings`. Both Doubao backends use `ARK_API_KEY`; `HARNESS=openai` additionally
 needs `pip install ".[openai]"`. Its Responses backend defaults to minimal reasoning,
-server-side response chaining, parallel function calls, and up to two continuation
+server-side response chaining, serialized function calls, and up to two continuation
 nudges when the model ends without submitting. Override these with
 `OPENAI_AGENTS_REASONING_EFFORT`, `OPENAI_AGENTS_SERVER_STATE=0`, and
 `OPENAI_AGENTS_MAX_NUDGES`. DSH's `DSH_BIN` may point at a source-built dsh

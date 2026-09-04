@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import anndata as ad
 import numpy as np
+import pytest
 import scipy.sparse as sp
+from dsets import G, N, lognorm, make_counts, ref_genes, run_cli, write_h5ad
 
 import eca_pp.standardize.species as species_ladder
-from dsets import G, N, lognorm, make_counts, ref_genes, run_cli, write_h5ad
 from eca_pp.core.result import EXIT_BLOCKED, EXIT_OK, EXIT_REJECTED
 
 _T1_NONE = {"species": None, "confidence": 0.0, "evidence": {"rule": "insufficient"}}
@@ -90,6 +91,27 @@ def test_llm_failure_falls_through_to_block(tmp_path, monkeypatch):
     monkeypatch.setattr(species_ladder, "_llm_infer", lambda symbols, evidence: None)
     code, res = run_cli(tmp_path, src, "--llm")
     assert code == EXIT_BLOCKED
+
+
+def test_llm_species_rejects_out_of_range_confidence(monkeypatch):
+    from eca_pp import agent
+
+    monkeypatch.setattr(agent, "check_available", lambda: None)
+
+    def fake_ask_json(**kwargs):
+        validate = kwargs["validate"]
+        for invalid in (80, -1, float("nan"), True):
+            with pytest.raises((TypeError, ValueError), match="confidence"):
+                validate({"species": "human", "confidence": invalid,
+                          "reason": "test"})
+        accepted = validate({"species": "human", "confidence": 0.8,
+                             "reason": "human gene symbols"})
+        return accepted, None, [], {}
+
+    monkeypatch.setattr(agent, "ask_json", fake_ask_json)
+    resolved = species_ladder._llm_infer(["GAPDH", "ACTB"], {})
+    assert resolved is not None
+    assert resolved[:2] == ("human", 0.8)
 
 
 # --------------------------------------------------------- F4 · harmonize/drop

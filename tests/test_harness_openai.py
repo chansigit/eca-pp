@@ -130,7 +130,7 @@ def test_openai_runner_validates_then_stops_on_valid_submit(monkeypatch, tmp_pat
     assert value.usage["backend"] == "openai"
     assert value.usage["reasoning_effort"] == "minimal"
     assert value.usage["server_state"] is True
-    assert value.usage["parallel_tool_calls"] is True
+    assert value.usage["parallel_tool_calls"] is False
     assert value.usage["nudges"] == 0
     assert value.usage["input_tokens"] == 101
     assert value.usage["reasoning_tokens"] == 13
@@ -139,7 +139,7 @@ def test_openai_runner_validates_then_stops_on_valid_submit(monkeypatch, tmp_pat
     assert seen["client"]["max_retries"] == 0
     assert seen["run_config"].tracing_disabled is True
     assert seen["runner_kwargs"]["auto_previous_response_id"] is True
-    assert seen["agent"].model_settings.parallel_tool_calls is True
+    assert seen["agent"].model_settings.parallel_tool_calls is False
     assert seen["agent"].model_settings.reasoning.effort == "minimal"
     assert seen["agent"].model_settings.store is True
     assert seen["closed"] is True

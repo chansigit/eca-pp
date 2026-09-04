@@ -19,7 +19,12 @@ QC_COLS = ("pct_counts_mt", "pct_counts_hb", "total_counts", "n_genes_by_counts"
 def count_n_genes_detected(counts) -> int:
     """Number of genes with counts>0 in >=1 cell (name-independent; cheap gate)."""
     if sp.issparse(counts):
-        return int((np.asarray(counts.tocsr().getnnz(axis=0)).ravel() > 0).sum())
+        # scipy's getnnz counts stored entries, including explicitly stored
+        # zeros.  Remove those representation-only entries before applying a
+        # biological "counts > 0" gate.
+        C = counts.tocsr(copy=True)
+        C.eliminate_zeros()
+        return int((np.asarray(C.getnnz(axis=0)).ravel() > 0).sum())
     C = np.asarray(counts)
     return int(((C != 0).sum(axis=0) > 0).sum())
 
@@ -33,6 +38,7 @@ def _sampled_nonzeros(M, n_sample: int = 200, seed: int = 0) -> np.ndarray:
         csr = M.tocsr()
         parts = [csr.data[csr.indptr[i]:csr.indptr[i + 1]] for i in idx]
         data = np.concatenate(parts) if parts else np.array([], dtype=float)
+        data = data[data != 0]
     else:
         sub = np.asarray(M[idx])
         data = sub[sub != 0].ravel()
@@ -80,7 +86,11 @@ def apply_qc(adata, species: str) -> dict:
 
     counts = adata.layers["counts"]
     is_sparse = sp.issparse(counts)
-    C = counts.tocsr() if is_sparse else np.asarray(counts)
+    C = counts.tocsr(copy=True) if is_sparse else np.asarray(counts)
+    if is_sparse:
+        # Keep sparse and dense QC semantics identical when an input CSR/CSC
+        # happens to contain explicitly stored zeros.
+        C.eliminate_zeros()
     n_cells = int(C.shape[0])
     names = list(adata.var_names)
 

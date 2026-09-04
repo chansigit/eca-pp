@@ -56,6 +56,14 @@ def test_relations_nested_and_equivalent():
                for f, c, k in rel)
 
 
+def test_relations_do_not_ignore_different_missingness_patterns():
+    grouping = {
+        "left": pd.Series(["a", "a", pd.NA], dtype="string"),
+        "right": pd.Series(["x", "x", "y"], dtype="string"),
+    }
+    assert obsprofile._relations(grouping) == []
+
+
 def test_barcode_and_composite_candidates():
     p = obsprofile.profile_obs(make_adata())
     labels = {d["label"]: d for d in p["derived"]}

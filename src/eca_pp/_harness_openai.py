@@ -109,7 +109,7 @@ def _usage_dict(
         "model": model,
         "reasoning_effort": reasoning_effort,
         "server_state": server_state,
-        "parallel_tool_calls": True,
+        "parallel_tool_calls": False,
         "nudges": nudges,
         "cost_usd": None,
         "input_tokens": totals["input_tokens"],
@@ -225,7 +225,9 @@ async def run_agent(
     )
     settings = ModelSettings(
         timeout=wall_seconds,
-        parallel_tool_calls=True,
+        # ECAPP exposes one terminal submit tool. Parallel calls provide no
+        # useful concurrency and could race two independently valid decisions.
+        parallel_tool_calls=False,
         reasoning={"effort": effective_effort} if effective_effort else None,
         # Ark implements Responses server-side continuation.  Let the SDK send
         # only the incremental turn instead of replaying prior tool results.

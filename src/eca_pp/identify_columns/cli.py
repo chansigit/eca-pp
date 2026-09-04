@@ -16,20 +16,25 @@ import json
 import logging
 import os
 import re
-import shutil
 import sys
 import time
 
+from eca_pp.core.atomic_io import copyfile_atomic
+from eca_pp.core.colspec import write_values_tsv
+from eca_pp.core.result import (
+    EXIT_ERROR,
+    EXIT_OK,
+    EXIT_REJECTED,
+    new_result,
+    write_result,
+)
 from eca_pp.identify_columns import obsprofile
 from eca_pp.identify_columns.policies import (
     AgentPolicy,
-    HeuristicPolicy,  # noqa: F401 - part of the public policy surface
+    HeuristicPolicy,
     PolicyUnavailable,
 )
 from eca_pp.probe import cli as probe
-from eca_pp.core.colspec import write_values_tsv
-from eca_pp.core.result import EXIT_ERROR, EXIT_OK, \
-    new_result, write_result
 
 log = logging.getLogger("eca_pp.identify_columns")
 
@@ -352,7 +357,18 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
     with open(os.path.join(trial_dir, "result.json")) as fh:
         pr = json.load(fh)
     m = pr["metrics"]
-    if code != 0:
+    if code == EXIT_ERROR or pr.get("status") == "error":
+        reasons = "; ".join(map(str, pr.get("reasons") or []))
+        detail = reasons or "no diagnostic reason was recorded"
+        raise RuntimeError(
+            f"integration probe failed for {cand['label']!r}: {detail}"
+        )
+    if code not in (EXIT_OK, EXIT_REJECTED):
+        raise RuntimeError(
+            f"integration probe returned unexpected exit code {code} "
+            f"for {cand['label']!r}"
+        )
+    if code == EXIT_REJECTED:
         verdict = "rejected"
     elif correction_unnecessary(m):
         verdict = "correction_unnecessary"
@@ -643,7 +659,7 @@ def _run(args, res: dict, policy) -> int:
             value, kind = chosen, "existing"
             if cand["kind"] != "existing":
                 value = os.path.join(args.outdir, "batch.tsv")
-                shutil.copyfile(trial["spec"], value)
+                copyfile_atomic(trial["spec"], value)
                 kind = "derived"
             res["columns"] = {
                 "batch": {"value": value, "kind": kind,
@@ -726,7 +742,11 @@ def _ct_block(label: str | None, candidates: dict,
     others = [c["label"] for c in candidates["cell_type"] if c["label"] != label]
     if others:
         evidence += f"; other candidates: {', '.join(others)}"
-    if trials and any(t.get("cell_type_col") == label for t in trials):
+    if trials and any(
+        t.get("cell_type_col") == label
+        and t.get("metrics", {}).get("clisi_labels") == "annotated"
+        for t in trials
+    ):
         evidence += "; used as cLISI labels in the trials"
     return {"value": label, "kind": "existing",
             "confidence": CELL_TYPE_CONFIDENCE.get(cls, 0.5),
@@ -792,7 +812,7 @@ def main(argv=None, *, policy="auto") -> int:
               error=str(exc))
         res.setdefault("columns", {"batch": None, "cell_type": None})
         code = EXIT_OK
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.exception("unexpected error")
         res["status"] = "error"
         res["reasons"].append(f"{type(exc).__name__}: {exc}")
@@ -802,7 +822,7 @@ def main(argv=None, *, policy="auto") -> int:
     res["exit_code"] = code
     try:
         write_result(args.outdir, res)
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("failed to write result.json")
         if code == EXIT_OK:
             code = EXIT_ERROR

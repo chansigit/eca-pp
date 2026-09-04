@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import scipy.sparse as sp
-
 import stancounts
 from stancounts.counts import DEFAULT_EXCLUDE_LAYERS, DEFAULT_PREFER_LAYERS
 
@@ -94,8 +93,9 @@ def _matrix_stats(M, *, n_sample: int = 200, seed: int = 0) -> dict:
     pass would be costly on dense data)."""
     if sp.issparse(M):
         size = int(M.shape[0]) * int(M.shape[1])
-        nnz = int(M.nnz)
-        mx = float(M.data.max()) if nnz else 0.0
+        nonzero = np.asarray(M.data) != 0
+        nnz = int(nonzero.sum())
+        mx = float(np.asarray(M.data)[nonzero].max()) if nnz else 0.0
         sparsity = 1.0 - (nnz / size if size else 0.0)
     else:
         A = np.asarray(M)
@@ -118,9 +118,27 @@ def _unrecognized_integer_layers(census: list) -> list[str]:
             if e["is_integer"] and e["name"] not in PREFER and e["name"] not in EXCLUDE]
 
 
+def _eliminate_explicit_zeros(adata) -> None:
+    """Canonicalize sparse storage before counts discovery.
+
+    Explicitly stored zeros carry no expression information, but sparse
+    ``nnz``-based checks (including supported stancounts releases) may count
+    them as observations.  Removing them mutates only the in-memory sparse
+    representation; all matrix values and the source h5ad remain unchanged.
+    """
+    matrices = [adata.X, *(adata.layers[name] for name in adata.layers
+                           if name is not None)]
+    if adata.raw is not None:
+        matrices.append(adata.raw.X)
+    for matrix in matrices:
+        if sp.issparse(matrix):
+            matrix.eliminate_zeros()
+
+
 def resolve(adata, *, counts_layer: str | None = None) -> Resolution:
     """Locate the counts matrix for ``adata`` per the three-layer defence."""
     res = Resolution()
+    _eliminate_explicit_zeros(adata)
     X = adata.X
 
     for name in adata.layers:

@@ -6,12 +6,15 @@ verdict) is what's under test.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
+import pytest
+from intdata import make_integration_h5ad
 
+from eca_pp.core.atomic_io import copyfile_atomic
 from eca_pp.identify_columns.cli import build_candidates, classify_column, main
 from eca_pp.identify_columns.policies import HeuristicPolicy
-from intdata import make_integration_h5ad
 
 
 class ScriptedPolicy:
@@ -42,6 +45,31 @@ def test_no_probe_profiles_and_succeeds_with_null_batch(tmp_path):
     assert any(c["label"] == "batch" for c in res["candidates"]["batch"])
     assert res["columns"]["batch"] is None
     assert any(w["code"] == "probe_disabled" for w in res["warnings"])
+
+
+def test_probe_internal_error_is_not_a_scientific_rejection(monkeypatch, tmp_path):
+    from eca_pp.probe import cli as probe_cli
+
+    def fail_probe(argv):
+        outdir = Path(argv[argv.index("-o") + 1])
+        outdir.mkdir(parents=True)
+        (outdir / "result.json").write_text(json.dumps({
+            "status": "error",
+            "reasons": ["leiden unavailable"],
+            "metrics": {},
+        }))
+        return 1
+
+    monkeypatch.setattr(probe_cli, "main", fail_probe)
+    src = make_integration_h5ad(tmp_path / "s.h5ad")
+    policy = ScriptedPolicy([{
+        "action": "probe", "candidate": "batch", "cell_type": "cell_type",
+        "reason": "probe the technical batch",
+    }])
+    code, res, _ = run(tmp_path, src, policy, "--n-cells", 600)
+    assert code == 1 and res["status"] == "error"
+    assert any("leiden unavailable" in reason for reason in res["reasons"])
+    assert res["trials"] == []
 
 
 def test_scripted_adopt_flow(tmp_path):
@@ -161,6 +189,28 @@ def test_derived_barcode_batch_materialized_as_tsv(tmp_path):
     header, first = (out / "batch.tsv").read_text().splitlines()[:2]
     assert header == "cell_id\tvalue"
     assert first.split("\t")[1] in ("b0", "b1")
+
+
+def test_atomic_copy_preserves_existing_batch_on_interrupted_copy(
+    monkeypatch, tmp_path
+):
+    from eca_pp.core import atomic_io
+
+    src = tmp_path / "candidate.tsv"
+    dst = tmp_path / "batch.tsv"
+    src.write_text("new complete content")
+    dst.write_text("previous complete content")
+
+    def interrupted_copy(_src, temporary_dst):
+        Path(temporary_dst).write_text("partial")
+        raise OSError("simulated interrupted copy")
+
+    monkeypatch.setattr(atomic_io.shutil, "copyfile", interrupted_copy)
+    with pytest.raises(OSError, match="interrupted"):
+        copyfile_atomic(src, dst)
+
+    assert dst.read_text() == "previous complete content"
+    assert not list(tmp_path.glob("*.tmp"))
 
 
 def test_no_grouping_columns_concludes_no_batch(tmp_path):
@@ -360,6 +410,22 @@ def test_policy_cell_type_choice_drives_trials(tmp_path):
     assert "cLISI" in res["columns"]["cell_type"]["evidence"]
 
 
+def test_cell_type_evidence_does_not_claim_pseudo_clisi_used_annotation():
+    from eca_pp.identify_columns.cli import _ct_block
+
+    candidates = {"cell_type": [{
+        "label": "cell_type", "class": "annotation",
+        "numeric_labels": False, "usable_for_clisi": True,
+    }]}
+    trials = [{
+        "cell_type_col": "cell_type",
+        "metrics": {"clisi_labels": "pseudo"},
+    }]
+    block = _ct_block("cell_type", candidates, trials)
+    assert block is not None
+    assert "used as cLISI labels" not in block["evidence"]
+
+
 def test_policy_unknown_cell_type_is_ignored(tmp_path):
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
     policy = ScriptedPolicy([
@@ -461,7 +527,6 @@ def test_parse_decision_tolerates_unescaped_quotes_in_reason():
     d = parse_decision(bad)
     assert d == {"action": "adopt", "candidate": "batch", "cell_type": "ann_major",
                  "reason": 'major_celltype leaves 28% as "Unassigned" so ann_major wins'}
-    import json, pytest
     with pytest.raises(json.JSONDecodeError):
         parse_decision('{"action": "fly", "reason": "x "y" z"}')
 
@@ -472,6 +537,5 @@ def test_payload_of_accepts_bare_json_without_fence():
     assert parse_decision(_payload_of(fenced))["action"] == "probe"
     bare = '{"action": "conclude_no_batch", "candidate": null, "cell_type": null, "reason": "single sample"}'
     assert parse_decision(_payload_of(bare))["action"] == "conclude_no_batch"
-    import pytest
     with pytest.raises(ValueError):
         _payload_of("no json here")

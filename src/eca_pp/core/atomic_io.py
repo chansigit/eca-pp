@@ -10,6 +10,7 @@ figure writers join with F7/F8.
 """
 
 import os
+import shutil
 from contextlib import contextmanager
 
 
@@ -34,6 +35,11 @@ def atomic_write(path):
 
 def write_bytes_atomic(path, data: bytes) -> None:
     """Write ``data`` to ``path`` atomically."""
-    with atomic_write(path) as tmp:
-        with open(tmp, "wb") as fh:
-            fh.write(data)
+    with atomic_write(path) as tmp, open(tmp, "wb") as fh:
+        fh.write(data)
+
+
+def copyfile_atomic(src, dst) -> None:
+    """Copy one file onto ``dst`` without exposing a partial destination."""
+    with atomic_write(dst) as tmp:
+        shutil.copyfile(src, tmp)

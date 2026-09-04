@@ -14,7 +14,7 @@ supported species before adoption.
 
 from __future__ import annotations
 
-import os
+import math
 from dataclasses import dataclass, field
 
 import stangene
@@ -107,7 +107,13 @@ def _llm_infer(symbols_sample: list[str], evidence: dict):
             if missing:
                 raise ValueError(f"missing field(s): {missing}")
             payload["species"] = stangene.resolve_species(str(payload["species"]))
-            payload["confidence"] = max(0.0, min(1.0, float(payload["confidence"])))
+            raw_confidence = payload["confidence"]
+            if isinstance(raw_confidence, bool):
+                raise TypeError("confidence must be a number between 0 and 1")
+            confidence = float(raw_confidence)
+            if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+                raise ValueError("confidence must be a finite number between 0 and 1")
+            payload["confidence"] = confidence
             if not isinstance(payload["reason"], str) or not payload["reason"].strip():
                 raise ValueError("reason must be a non-empty sentence")
             return payload
