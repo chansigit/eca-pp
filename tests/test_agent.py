@@ -35,6 +35,7 @@ def test_deepseek_patch_is_read_only_and_disables_builtins(monkeypatch):
     ))
     inserted = rows[0]["insert"]
     assert inserted[0]["config"]["transport"] == "streamable-http"
+    assert inserted[0]["config"]["failOnStartupError"] is True
     assert inserted[1]["config"]["providers"]["doubao"]["api"] == \
         "openai-completions"
     assert rows[1] == {"id": "sandbox-policy", "config": {"mode": "read-only"}}

@@ -1,17 +1,21 @@
 """``HARNESS=deepseek`` backend for :mod:`eca_pp.harness`.
 
 DSH can only connect to external MCP servers, while eca-pp's submit handlers
-are Python closures.  A short-lived localhost FastMCP server bridges those
-handlers into one DSH session.  The DSH sandbox is read-only; tool-less calls
-also disable its shell/editor tools.
+are Python closures. One process-local FastMCP server bridges those handlers
+for all sequential DSH sessions. Keeping it alive matters: repeatedly tearing
+down its long-lived SSE connection can poison the next FastMCP lifespan and
+make DSH's initial tools/list request wait for 60 seconds. The DSH sandbox is
+read-only; tool-less calls also disable its shell/editor tools.
 """
 
 from __future__ import annotations
 
 import asyncio
+import glob
 import inspect
 import logging
 import os
+import shutil
 import socket
 import tempfile
 import threading
@@ -54,6 +58,18 @@ def _dsh_bin() -> str | None:
     return os.environ.get("DSH_BIN") or _default_dsh_bin()
 
 
+def _keep_session_log(dsh_home: str, cwd: str, label: str) -> None:
+    """Keep DSH's transcript when diagnosis is needed after its temp home goes away."""
+    safe_label = label.replace(" ", "_").replace("/", "_")
+    for source in glob.glob(os.path.join(dsh_home, "sessions", "*", "*", "session.jsonl")):
+        destination = os.path.join(cwd, f"dsh_session_{safe_label}.jsonl")
+        try:
+            shutil.copy(source, destination)
+            print(f"== [{label}] dsh session transcript kept at {destination}", flush=True)
+        except OSError as exc:
+            print(f"== [{label}] could not keep dsh transcript: {exc}", flush=True)
+
+
 def check_available() -> None:
     dsh_bin = _dsh_bin()
     if not dsh_bin or not os.path.isfile(dsh_bin):
@@ -81,6 +97,79 @@ def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
+
+
+_SERVER_INIT_LOCK = threading.Lock()
+_CALL_LOCK = threading.Lock()
+_MCP_SERVER = None
+_MCP_URL: str | None = None
+_REGISTERED_TOOLS: set[str] = set()
+_ACTIVE_LISTED: threading.Event | None = None
+_ACTIVE_HTTP_TRACE: dict[str, list[int]] | None = None
+
+
+def _ensure_mcp_server():
+    """Start one daemonized FastMCP server and reuse it until process exit."""
+    global _MCP_SERVER, _MCP_URL
+    if _MCP_SERVER is not None:
+        return _MCP_SERVER, _MCP_URL
+    with _SERVER_INIT_LOCK:
+        if _MCP_SERVER is not None:
+            return _MCP_SERVER, _MCP_URL
+
+        from mcp.server.fastmcp import FastMCP
+        import uvicorn
+
+        port = _free_port()
+        mcp_server = FastMCP(
+            name="eca-pp", host="127.0.0.1", port=port, stateless_http=True
+        )
+        original_list_tools = mcp_server._tool_manager.list_tools
+
+        def list_tools_hook(*args, **kwargs):
+            if _ACTIVE_LISTED is not None:
+                _ACTIVE_LISTED.set()
+            return original_list_tools(*args, **kwargs)
+
+        mcp_server._tool_manager.list_tools = list_tools_hook  # type: ignore[method-assign]
+        inner_app = mcp_server.streamable_http_app()
+
+        async def app(scope, receive, send):
+            trace = _ACTIVE_HTTP_TRACE
+            record = None
+            if scope["type"] == "http" and trace is not None:
+                key = f"{scope['method']} {scope['path']}"
+                record = trace.setdefault(key, [0, 0])
+                record[0] += 1
+
+            async def traced_send(message):
+                if record is not None and message["type"] == "http.response.start":
+                    record[1] += 1
+                await send(message)
+
+            return await inner_app(scope, receive, traced_send)
+
+        server = uvicorn.Server(uvicorn.Config(
+            app, host="127.0.0.1", port=port, log_level="warning", lifespan="on"
+        ))
+
+        def serve():
+            asyncio.run(server.serve())
+
+        thread = threading.Thread(target=serve, name="eca-pp-fastmcp", daemon=True)
+        thread.start()
+        for _ in range(200):
+            if server.started:
+                break
+            if not thread.is_alive():
+                raise RuntimeError("eca-pp FastMCP server stopped during startup")
+            threading.Event().wait(0.05)
+        else:
+            raise RuntimeError("eca-pp FastMCP server did not start within 10 seconds")
+
+        _MCP_SERVER = mcp_server
+        _MCP_URL = f"http://127.0.0.1:{port}{mcp_server.settings.streamable_http_path}"
+        return _MCP_SERVER, _MCP_URL
 
 
 def _tool_fn(
@@ -127,6 +216,7 @@ def _render_patch(
         "name": "@deepseek-ai/dsh-mcp-client",
         "config": {
             "serverName": "eca-pp", "transport": "streamable-http", "url": mcp_url,
+            "failOnStartupError": True,
         },
     }]
     rows: list[dict] = [{"id": "sandbox-policy", "config": {"mode": "read-only"}}]
@@ -154,6 +244,9 @@ class _TurnsExceeded(RuntimeError):
     pass
 
 
+MCP_LIST_GRACE_SECONDS = 90.0
+
+
 def _run_sync(
     *,
     dsh_bin: str,
@@ -169,12 +262,15 @@ def _run_sync(
     label: str,
     max_turns: int,
     wall_seconds: float | None,
+    listed: threading.Event,
+    http_trace: dict,
 ):
     from deepseek_harness import DeepSeekHarness
 
     trace = os.environ.get("DSH_TRACE_EVENTS", "") not in ("", "0")
     turns = 0
     timed_out = threading.Event()
+    no_tools = threading.Event()
 
     def on_notification(notification):
         nonlocal turns
@@ -203,7 +299,7 @@ def _run_sync(
         env={"DSH_SYSTEM_PROMPT": system_prompt} if system_prompt else {},
         initialize_timeout_seconds=90.0,
     ) as harness:
-        watchdog = None
+        timers = []
         if wall_seconds is not None:
             def kill():
                 timed_out.set()
@@ -213,9 +309,27 @@ def _run_sync(
                 )
                 harness.close()
 
-            watchdog = threading.Timer(wall_seconds, kill)
-            watchdog.daemon = True
-            watchdog.start()
+            timers.append(threading.Timer(wall_seconds, kill))
+
+        def check_listed():
+            if not listed.is_set():
+                no_tools.set()
+                print(
+                    f"== [{label}] dsh did not request tools/list within "
+                    f"{MCP_LIST_GRACE_SECONDS:g}s; closing runtime",
+                    flush=True,
+                )
+                harness.close()
+
+        timers.append(threading.Timer(MCP_LIST_GRACE_SECONDS, check_listed))
+        for timer in timers:
+            timer.daemon = True
+            timer.start()
+
+        def stderr_tail(count=25):
+            lines = list(getattr(harness.client, "_stderr_lines", []))[-count:]
+            return "\n".join(lines)
+
         try:
             result = harness.run(
                 prompt, session_id=session_id, on_notification=on_notification
@@ -226,13 +340,28 @@ def _run_sync(
                     f"[{label}] agent run exceeded {wall_seconds / 60:g} min "
                     "(AGENT_WALL_MIN)"
                 ) from None
+            if no_tools.is_set():
+                print(
+                    f"== [{label}] MCP HTTP trace: {dict(http_trace)}\n"
+                    f"== [{label}] dsh stderr tail:\n{stderr_tail()}",
+                    flush=True,
+                )
+                raise RuntimeError(
+                    f"[{label}] mcp tools never listed by dsh; mcp-client failed to attach"
+                ) from None
             if isinstance(exc, _TurnsExceeded):
                 raise AgentIncompleteError(f"{exc} without a successful submit call") from None
             raise
         finally:
-            if watchdog is not None:
-                watchdog.cancel()
-        print(f"== [{label}] dsh run: {turns} model turn(s)", flush=True)
+            for timer in timers:
+                timer.cancel()
+        print(
+            f"== [{label}] dsh run: {turns} model turn(s); MCP HTTP trace "
+            f"(requests, responses started): {dict(http_trace)}",
+            flush=True,
+        )
+        if not listed.is_set():
+            print(f"== [{label}] dsh stderr tail:\n{stderr_tail()}", flush=True)
         return result, turns
 
 
@@ -251,38 +380,32 @@ async def run_agent(
     max_buffer_size: int | None,
     wall_seconds: float | None = None,
 ) -> AgentRunResult:
-    from mcp.server.fastmcp import FastMCP
-    import uvicorn
-
+    global _ACTIVE_LISTED, _ACTIVE_HTTP_TRACE
     check_available()
     dsh_bin = _dsh_bin()
     assert dsh_bin is not None
     provider = os.environ.get("DSH_PROVIDER", "doubao")
     submitted: dict = {}
     tools_used: list[dict] = []
-    port = _free_port()
-    mcp_server = FastMCP(
-        name=f"eca-pp-{label}", host="127.0.0.1", port=port, stateless_http=True
-    )
-    for spec in tools:
-        mcp_server.add_tool(
-            _tool_fn(spec, submitted, tools_used, spec.name == submit_tool, label),
-            name=spec.name,
-            description=spec.description,
-        )
-    mcp_url = f"http://127.0.0.1:{port}{mcp_server.settings.streamable_http_path}"
-
-    server = uvicorn.Server(uvicorn.Config(
-        mcp_server.streamable_http_app(), host="127.0.0.1", port=port,
-        log_level="warning", lifespan="on",
-    ))
-    server_task = asyncio.create_task(server.serve())
+    listed = threading.Event()
+    http_trace: dict[str, list[int]] = {}
+    if not _CALL_LOCK.acquire(blocking=False):
+        raise RuntimeError("concurrent DSH calls in one eca-pp process are not supported")
     try:
-        for _ in range(50):
-            await asyncio.sleep(0.05)
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-                if probe.connect_ex(("127.0.0.1", port)) == 0:
-                    break
+        mcp_server, mcp_url = await asyncio.to_thread(_ensure_mcp_server)
+        assert mcp_url is not None
+        for name in list(_REGISTERED_TOOLS):
+            mcp_server.remove_tool(name)
+        _REGISTERED_TOOLS.clear()
+        for spec in tools:
+            mcp_server.add_tool(
+                _tool_fn(spec, submitted, tools_used, spec.name == submit_tool, label),
+                name=spec.name,
+                description=spec.description,
+            )
+            _REGISTERED_TOOLS.add(spec.name)
+        _ACTIVE_LISTED = listed
+        _ACTIVE_HTTP_TRACE = http_trace
 
         root = os.environ.get("DSH_HOME_ROOT") or os.environ.get("SCRATCH") or tempfile.gettempdir()
         with tempfile.TemporaryDirectory(prefix="dsh-home-", dir=root) as dsh_home:
@@ -297,28 +420,37 @@ async def run_agent(
                 f"dsh_home={dsh_home} mcp={mcp_url}", flush=True,
             )
             _ = max_buffer_size
-            result, turns = await asyncio.to_thread(
-                _run_sync,
-                dsh_bin=dsh_bin,
-                cwd=cwd,
-                dsh_home=dsh_home,
-                provider=provider,
-                model=model,
-                effort=effort,
-                system_prompt=system_prompt,
-                prompt=prompt,
-                session_id=f"{label}-{os.getpid()}",
-                patch_path=patch_path,
-                label=label,
-                max_turns=max_turns,
-                wall_seconds=wall_seconds,
-            )
+            keep = os.environ.get("DSH_KEEP_SESSIONS", "") not in ("", "0")
+            try:
+                result, turns = await asyncio.to_thread(
+                    _run_sync,
+                    dsh_bin=dsh_bin,
+                    cwd=cwd,
+                    dsh_home=dsh_home,
+                    provider=provider,
+                    model=model,
+                    effort=effort,
+                    system_prompt=system_prompt,
+                    prompt=prompt,
+                    session_id=f"{label}-{os.getpid()}",
+                    patch_path=patch_path,
+                    label=label,
+                    max_turns=max_turns,
+                    wall_seconds=wall_seconds,
+                    listed=listed,
+                    http_trace=http_trace,
+                )
+                keep = keep or "value" not in submitted
+            except BaseException:
+                keep = True
+                raise
+            finally:
+                if keep:
+                    _keep_session_log(dsh_home, cwd, label)
     finally:
-        server.should_exit = True
-        try:
-            await asyncio.wait_for(server_task, timeout=10)
-        except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
-            server_task.cancel()
+        _ACTIVE_LISTED = None
+        _ACTIVE_HTTP_TRACE = None
+        _CALL_LOCK.release()
 
     if result.finish_reason == "error":
         errors = [

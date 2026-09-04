@@ -26,7 +26,8 @@ LIMIT_PATTERN = re.compile(
 TRANSIENT_PATTERN = re.compile(
     r"control request timeout|broken pipe|connection reset|econnreset|epipe|"
     r"process exited unexpectedly|failed to start|connection closed|stdout closed|"
-    r"transportclosed|initialize timed out|timed out waiting|529",
+    r"transportclosed|initialize timed out|timed out waiting|529|"
+    r"mcp tools never listed|initial connection or tool synchronization failed",
     re.IGNORECASE,
 )
 MAX_TRANSIENT_ATTEMPTS = 5
