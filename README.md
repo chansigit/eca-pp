@@ -124,14 +124,12 @@ an interactive version with search, zoom, and guided views.
 Use Python 3.10 or newer, preferably in a dedicated environment. ECA-PP runs on CPUs.
 
 ```bash
-pip install git+https://github.com/chansigit/stancounts \
-            git+https://github.com/chansigit/stangene
 pip install "eca-pp[probe,openai]==0.4.0"
 ```
 
-Install the two GitHub dependencies first: `stancounts` and `stangene` are not
-yet available on PyPI. To work on ECA-PP itself, clone this repository and use
-`pip install ".[probe,openai]"` instead of the last command.
+This also installs `stancounts` and `stangene`, the counts-recovery and gene-mapping
+dependencies. To work on ECA-PP itself, clone this repository and use
+`pip install ".[probe,openai]"` instead.
 
 ### 2. Standardize your dataset
 
