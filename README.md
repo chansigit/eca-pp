@@ -13,8 +13,9 @@ resolves everything it can deterministically, records the evidence behind
 every decision, and finishes unattended whenever a safe null result is
 possible. Ambiguity is preserved as structured warnings instead of forcing a
 risky guess.
-Steps run offline by default and report through exit codes, so they compose
-cleanly into scripts and larger workflows.
+Standardization runs offline unless `--llm` is enabled. Column identification
+uses the selected model when credentials are available and otherwise follows
+a deterministic policy. Exit codes let both steps compose into larger workflows.
 
 Two steps are available:
 
@@ -39,7 +40,7 @@ echo $?                        # 0 = success; see the exit-code table below
 ```
 
 Harness and model are independent choices. For example, both of these use the
-OpenAI Agents SDK, while selecting different Doubao endpoints:
+OpenAI Agents SDK, while selecting different Doubao models:
 
 ```bash
 HARNESS=openai eca-pp-identify-columns standardized.h5ad -o out-turbo \
@@ -69,7 +70,19 @@ environment set up (compute nodes only).
 |---|---|
 | standardize | `standardized.h5ad` — integer counts layer · log-normalized `X` · canonical gene symbols with full mapping provenance in `var` · authoritative QC columns in `obs` (`pct_counts_mt`, `pct_counts_hb`, `total_counts`, `n_genes_by_counts`) · run provenance in `uns` |
 | identify-columns | the verdict in `result.json → columns` (batch column + whether correction is even needed, cell-type column, each with confidence and evidence) · `batch.tsv` when the batch is a derived column (barcode/composite) · a full audit trail (`decisions` with the agent's per-round reasoning, tool use, and token/cost usage — totals in `metrics.llm` with a billing URL, `trials` with iLISI/cLISI metrics) |
-| every tool | `result.json` — every decision and its evidence, per-stage wall times, **written on failure too**. All writes are atomic: a crash never leaves a torn output. |
+| every tool | `result.json` — every decision and its evidence, per-stage wall times, **written on failure too** when the destination is writable. Formal result files are published atomically; runtime logs are incremental. |
+
+Reusing an output directory moves known previous step outputs into
+`.history/<step>-<unique suffix>/` before running. This includes `result.json`,
+`standardized.h5ad` for standardize, and `batch.tsv`, `candidates/`, and `trial_N/`
+for identify-columns. Other files are retained. Use a different output directory
+if the input overlaps those previous outputs. Read the current `result.json`
+before consuming output files; publication of multiple files is not one transaction.
+
+Existing QC and gene-mapping metadata are preserved in `name__original[_N]`
+backup columns. Equal backups within that field's backup family share the shortest
+existing name; distinct values use the next free name. Unrelated author columns
+are retained even when they contain equal values.
 
 ## Exit codes — the caller's contract
 
@@ -90,8 +103,7 @@ decision, re-run with a flag or decide from the evidence · `1` unexpected error
 
 ## Options
 
-All flags are optional; with none given, everything is inferred and defaults
-apply.
+The source path and `-o/--outdir` are required. Other options use the defaults below.
 
 <details>
 <summary>eca-pp-standardize flags</summary>
@@ -103,7 +115,7 @@ apply.
 | `--min-cells N` / `--min-genes N` | 100 / 5000 | hard QC gates: samples below either threshold are rejected (exit 2, no h5ad) |
 | `--no-gate` | off | disable both gates (e.g. for rare, deliberately small samples); metrics are still computed and recorded |
 | `--keep-unmapped` | off | keep features that cannot be mapped to a canonical gene (unknown names, ambiguous old symbols, spike-ins) under their original names, instead of dropping them. Drops are counted per category in `result.json`; cells are never removed either way. |
-| `--llm` | off | allow one tool-less harness session as a species-inference fallback (same backend and model as identify-columns); any failure falls back to exit 3 |
+| `--llm` | off | allow a harness session with a validated `submit_species` tool when deterministic inference is inconclusive; uses `HARNESS` and the model environment settings. Unresolved inference exits 3 and logs the failure cause. |
 
 </details>
 
@@ -132,6 +144,12 @@ CLI (`apps/cli/lib/bin.js`) and otherwise defaults to
 Downstream tools accept the identified batch as
 `--batch-col <obs column or batch.tsv path>`.
 
+All three backends receive the structured decision state in the prompt and expose
+only the validated submit tool for this step. Backend failures trigger the local
+deterministic policy; they do not automatically switch harness or model. A probe
+technical failure (exit 1 or an unexpected exit) makes identify-columns fail with
+exit 1. Only probe exit 2 is treated as candidate rejection.
+
 </details>
 
 ## How it works
@@ -154,12 +172,15 @@ verifies each with a small-scale Harmony trial (iLISI mixing gain, cLISI
 structure preservation on non-missing annotation cells, convergence); clear primary-candidate results finish
 through a guarded metric fast path, while borderline and fallback results return
 to the agent → concludes one of four
-verdicts: batch + correction recommended, batch + correction unnecessary, or
-batch null with structured evidence. Missing cell type is likewise a valid
+verdicts: batch + correction recommended, batch + correction unnecessary,
+no batch structure, or insufficient evidence. The latter two return batch null
+with structured evidence. Missing cell type is likewise a valid
 null result. Every round is recorded.
 
 ## Docs
 
+- [`docs/architecture.html`](docs/architecture.html) — interactive architecture;
+  its editable source is `docs/architecture.archify.json`.
 - [`docs/tutorial.md`](docs/tutorial.md) — hands-on walkthrough on a real
   dataset (Tabula Muris droplet, 12 organs), with per-stage timings. Chinese.
 - [`docs/standardize-spec.md`](docs/standardize-spec.md) — standardize

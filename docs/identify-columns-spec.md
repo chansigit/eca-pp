@@ -104,8 +104,8 @@ eca-pp-integration-probe SRC.h5ad -o OUTDIR --batch-col SPEC \
     破坏结构时仍否决候选。
   - `harmony_converged`:**不收敛或运行失败是有效观测结果**(status=ok,
     如实记录)——它是病态批次的最强信号。
-  - 预检数据随附:n_batches、每组细胞数分布、微组占比、批次×细胞类型
-    混杂度、批次对前若干主成分的回归方差(辅助判定 ②)。
+  - 画像记录组规模与微组比例;probe 记录批次数、组大小摘要与批次对
+    主成分的回归方差(辅助判定 ②)。当前未输出批次×细胞类型混杂度指标。
 - 退出码:0 = 试验完成(与整合效果无关);2 = 输入不合法;1 = 意外错误。
 - 依赖经 extras `[probe]` 安装:scanpy、harmonypy、scikit-learn、
   leidenalg(伪标签 Leiden 使用)。
@@ -135,7 +135,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 
 ```
 ① obs 画像(确定性,§3)
-② 候选生成:启发式枚举 ∪ agent 依画像补充(受判定准则 §4 约束)
+② 候选生成:host 按画像枚举并分类;agent 从合法候选中选择(§4)
 ③ 确定性预检:结构性不合格与病态候选排除(§4.3、§6.1)
 ④ 试验循环(≤ max-probes):agent 按自底向上顺序选择候选 → probe →
    评估指标 → 安全余量充足时由 metric fast path 采纳 /
@@ -250,11 +250,22 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
   并分列 `successful_calls` / `failed_calls` / `timeout_calls` /
   `failed_seconds` / `failures`(附账户级账单查询 URL)。
 - 打包:extras `[probe]`(scanpy/harmonypy/scikit-learn/leidenalg)、
-  `[agent]`(DSH + MCP)、`[openai]`(可选 OpenAI Agents SDK + Doubao
-  对照后端)、`[claude]`(可选 Claude 后端);
-  核心包不引入重依赖。
-- OpenAI 对照后端直接注册 Python submit tool,不经过 MCP;
-  默认不暴露本地文件工具,依赖每轮 prompt 中的完整 state。
+  `[agent]`(OpenAI + DSH/MCP)、`[openai]`(仅 OpenAI)、`[llm]`(DSH 兼容 extra)、
+  `[claude]`(Claude 后端);核心包不引入模型 SDK。
+- 默认 `HARNESS=openai`、`doubao-seed-2-1-turbo-260628`、reasoning=`minimal`。
+  `HARNESS=deepseek|claude` 显式选择其他后端;`--model` 或
+  `ECA_PP_AGENT_MODEL` 独立选择模型。模型故障时使用确定性策略,不自动换后端。
+- OpenAI 直接注册 Python submit tool,不经过 MCP;默认服务端会话续接、
+  `parallel_tool_calls=False`,未提交时最多同会话 nudge 两次。
+  三个后端在本步骤都只开放校验后的 submit tool,完整 state 放入每轮 prompt。
+- probe exit 2 是候选拒绝;exit 1 或异常退出会使主流程 exit 1、status=error。
+  Harmony 不收敛仍作为试验观测记录。cLISI 排除缺失作者标签,不足时用
+  pseudo labels;只有实际使用 annotated labels 才在输出 evidence 声明使用作者标签。
+- 等价候选必须分区与缺失位置都一致才可合并;整数值浮点 group ID 也可
+  参与分组,常见整数 QC 指标仍被排除。
+- `batch.tsv` 原子发布。重跑时旧 result.json、batch.tsv、candidates/、trial_N/
+  移入 `.history/identify_columns-*/`。需保留的 DSH session 日志使用唯一文件名,
+  避免覆盖此前轮次;运行记录与正式结果文件的原子发布约定不同。
 - 验收沿用双环境流程(原生 + 容器);agent 相关测试以 mock 驱动,不发起
   真实 API 调用。
 

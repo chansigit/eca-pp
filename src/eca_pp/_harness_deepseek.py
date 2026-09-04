@@ -5,7 +5,7 @@ are Python closures. One process-local FastMCP server bridges those handlers
 for all sequential DSH sessions. Keeping it alive matters: repeatedly tearing
 down its long-lived SSE connection can poison the next FastMCP lifespan and
 make DSH's initial tools/list request wait for 60 seconds. The DSH sandbox is
-read-only; tool-less calls also disable its shell/editor tools.
+read-only; calls with no allowed builtins also disable its shell/editor tools.
 """
 
 from __future__ import annotations

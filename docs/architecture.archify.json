@@ -37,7 +37,7 @@
           "probe",
           "scanpy"
         ],
-        "note": "identify-columns 把状态发给默认的 DSH 豆包后端或可选 Claude 后端，决定候选；明确指标由本地 fast path 收敛。"
+        "note": "默认 OpenAI + 豆包 Turbo（minimal）；DSH/Claude 可选。模型通过校验工具提交决策，明确指标由本地 fast path 收敛。"
       },
       {
         "id": "shared-core",
@@ -52,7 +52,7 @@
     ],
     "repository": {
       "url": "https://github.com/chansigit/eca-pp",
-      "revision": "ba9b836aeece766a8be0ab3286dd395a3adb56a3"
+      "revision": "560d9f280b3785470fb9a8fcb307d1efe2f30ef0"
     }
   },
   "components": [
@@ -73,7 +73,7 @@
       "sources": [
         {
           "path": "run.sh",
-          "line": 39,
+          "line": 44,
           "label": "run.sh 子命令"
         }
       ]
@@ -81,8 +81,8 @@
     {
       "id": "agentsdk",
       "type": "external",
-      "label": "DSH / Claude harness",
-      "sublabel": "豆包默认 · Claude 可选 · MCP 提交",
+      "label": "OpenAI / DSH / Claude",
+      "sublabel": "默认 OpenAI + 豆包 Turbo",
       "pos": [
         540,
         70
@@ -93,9 +93,9 @@
       ],
       "sources": [
         {
-          "path": "src/eca_pp/identify_columns/policies.py",
-          "line": 45,
-          "label": "ClaudeAgentPolicy"
+          "path": "src/eca_pp/harness.py",
+          "line": 142,
+          "label": "默认后端与模型"
         }
       ]
     },
@@ -129,7 +129,7 @@
       "sources": [
         {
           "path": "src/eca_pp/standardize/cli.py",
-          "line": 141,
+          "line": 143,
           "label": "_run 流水线"
         }
       ]
@@ -150,7 +150,7 @@
       "sources": [
         {
           "path": "src/eca_pp/identify_columns/cli.py",
-          "line": 255,
+          "line": 511,
           "label": "_run 决策环"
         }
       ]
@@ -206,7 +206,7 @@
       "sources": [
         {
           "path": "src/eca_pp/standardize/countsloc.py",
-          "line": 121,
+          "line": 138,
           "label": "countsloc.resolve"
         }
       ]
@@ -227,12 +227,12 @@
       "sources": [
         {
           "path": "src/eca_pp/standardize/species.py",
-          "line": 54,
+          "line": 56,
           "label": "species.resolve"
         },
         {
           "path": "src/eca_pp/standardize/harmonize.py",
-          "line": 39,
+          "line": 40,
           "label": "harmonize_genes"
         }
       ]
@@ -329,6 +329,7 @@
       "from": "probe",
       "to": "outdir",
       "label": "trial_N/ · result.json",
+      "labelDy": 66,
       "variant": "emphasis"
     },
     {
@@ -380,7 +381,7 @@
       "items": [
         "h5ad 输入 → 文件 + result.json 输出，失败时也写",
         "退出码：0 成功 · 2 数据永久问题 · 3 需要决策 · 1 意外错误",
-        "所有写入原子化：先写 .tmp 再 os.replace；三个步骤共用 eca_pp.core"
+        "正式结果文件原子写入；重跑时旧结果移入 .history"
       ]
     },
     {
@@ -396,9 +397,9 @@
       "dot": "violet",
       "title": "identify-columns",
       "items": [
-        "技术/供体/条件列可为批次；注释/QC/ID 列永不",
+        "优先技术/供体；耗尽后才试条件/未知列，等价候选共用试验",
         "agent 自底向上挑候选，每个候选用一次 Harmony 试验验证",
-        "无 SDK 凭据或 --no-probe → 降级：只出画像与排序，exit 3"
+        "模型失败 → 确定性策略；--no-probe → batch=null，exit 0"
       ]
     },
     {
@@ -406,8 +407,8 @@
       "title": "运行环境",
       "items": [
         "Sherlock 上 run.sh 负责 venv/hdf5/PYTHONPATH，只在计算节点运行",
-        "extras：[probe] scanpy 栈 · [agent] Agent SDK · [llm] anthropic",
-        "Agent SDK 优先用 PATH 上的 npm claude（旧 glibc 兼容）"
+        "extras：[probe] 计算栈 · [agent] OpenAI + DSH · [llm] DSH",
+        "OpenAI 直接调用 Python submit；DSH/Claude 经 MCP，只开放提交工具"
       ]
     }
   ]

@@ -3,13 +3,13 @@
     T0  --species CODE          the driver's explicit call; always wins
     T1  stangene.infer_species  deterministic (ID prefixes, mito styles,
                                 reference symbol-inventory overlap)
-    T2  single-shot LLM         --llm only; validated submit tool; any failure
-                                falls through — never retried, never looped
+    T2  optional LLM            --llm only; validated submit tool; unresolved
+                                calls fall through after harness error handling
     T3  unresolved              caller blocks with exit 3 and the evidence
 
-The LLM tier is one tool-less harness session via :mod:`eca_pp.agent` (DSH by
-default, Claude when selected), whose answer is validated against stangene's
-supported species before adoption.
+The LLM tier uses :mod:`eca_pp.agent` (OpenAI by default, DSH/Claude when
+selected) with only a validated submit tool. Species, confidence, and reason
+are checked before adoption; invalid submissions can be corrected in-session.
 """
 
 from __future__ import annotations

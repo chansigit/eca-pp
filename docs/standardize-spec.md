@@ -29,7 +29,7 @@
 | # | 不变量 | 落地期 | 下游依赖方 |
 |---|---|---|---|
 | I1 | `layers["counts"]` = 整数原始 counts | v0.2 | filter_cells、doublets、HVG |
-| I2 | `X` = log1p(normalize_total(counts, 1e4)),float32,在**最终基因空间**上计算 | v0.2 | 嵌入、QC UMAP |
+| I2 | `X` = log1p(normalize_total(counts, 1e4)),float32,在**最终基因空间**上计算 | v0.2 | 下游嵌入与表达分析 |
 | I3 | `var_names` = 规范基因 symbol(make_unique 去重);**未映射基因默认丢弃**(可关);原名与 mapping 溯源在 `var` | v0.2 | mito/hb 检测、跨数据集合并 |
 | I4 | 常规 QC 列存在且为本步**权威计算**:`pct_counts_mt`、`pct_counts_hb`、`total_counts`、`n_genes_by_counts`(scanpy 惯例名)——这是本步写入 obs 的**唯一常规内容** | v0.2 | QC 图、filter_cells、dissect 诊断 |
 | I5 | ~~批次候选识别~~ **移交 identify-columns 环节**(派生列以 TSV 值文件交付,本步不再物化) | 移出 | doublets 分组、Harmony/MrVI 校正(经 `--batch-col`) |
@@ -45,7 +45,7 @@ obs 哲学:**原有列原样保留**(batch 候选活在里面),本步只增 I4 �
 | 编号 | 功能 | 期 | 状态 |
 |---|---|---|---|
 | F1 | 输入校验(合法 h5ad) | v0.1 | ✅ 已交付 |
-| F3 | 硬 QC 门(min_cells / min_genes),两道门设计,**先于 F2** | v0.1 | ✅ 已交付 |
+| F3 | 硬 QC 门(min_cells / min_genes):F2 前预检、F2 后按真 counts 复核 | v0.1 | ✅ 已交付 |
 | F2 | counts 定位与恢复(stancounts + 三层防线,§5.1) | v0.1 | ✅ 已交付 |
 | F4a | 物种解析(F4/F5 的共同前置;四级阶梯,§5.2) | v0.2 | ✅ 已交付 |
 | F4 | 基因名统一(stangene;改名 + **默认丢弃未映射**,§5.3) | v0.2 | ✅ 已交付 |
@@ -77,7 +77,9 @@ T1 推断另有 stangene 侧 9 项单元测试(test_infer_species.py)。
 ```
 
 原则:预门控只负责"快拒"(省算力),终门控负责"准"(保正确);同一套阈值。
-①–⑥ 为 v0.1 已交付部分,行为不变。
+预门控使用显式指定的 counts layer;若存在其他 layer 或 raw,推迟基因
+判断到 F2 之后。只有 X 时,当前仍在 X 存在且未检出负数的情况下使用其
+非零结构预检。最终 counts gate 始终保留;稀疏矩阵存储的显式零不计为表达。
 
 ## 5. 功能块细则
 
@@ -103,11 +105,16 @@ velocity 等其他 layer 保留(列随 F4 基因丢弃同步裁剪)。
 |---|---|---|
 | T0 | `--species CODE` 显式声明 | 永远最高优先级;批量可复现跑法 |
 | T1 | 确定性推断(已实现于 stangene:`infer_species`) | 规则级联:① 稳定 ID 前缀(ENSG/ENSMUSG/FBgn/…,≥95% 一致即判决,混合前缀=矛盾直接停);② 特异线粒体命名风格(果蝇 `mt:`、线虫 nduo-*);③ 命名惯例圈定候选组后,与各候选物种 bundled 参考的 **symbol 交集率**裁决(margin ≥5pp);④ 灵长类平票默认 human(降置信 0.75,证据留注)。mt/hb 命中只进证据不做裁决。只写主干规则,不追长尾 |
-| T2 | LLM 单 session 调用(`--llm` 显式开启,默认关) | T1 证据矛盾时:抽样基因名 + T1 计票摘要,一次 validated submit-tool 调用;有 T3 兜底 |
+| T2 | LLM session 调用(`--llm` 显式开启,默认关) | T1 无法确定时:抽样基因名 + T1 摘要,经 `submit_species` 校验;有 T3 兜底 |
 | T3 | 阻塞待决(exit 3) | result.json 给全部证据,调用方拍板后带 `--species` 重跑 |
 
 物种确定后,mt/hb 识别是 stangene 精确基因集查询,**不涉及任何猜测**。
 stangene 未覆盖的物种 → T3(补参考数据的问题,不是猜的问题)。
+
+T2 使用 `HARNESS` 与模型环境配置,默认 OpenAI + Doubao Turbo + minimal。
+confidence 必须为有限的 0–1 数值(拒绝布尔值),reason 必须非空;
+非法提交允许模型在 session 中修正,有效 confidence <0.5 仍走 T3。
+低置信度和异常原因写入日志,不改变 unresolved 的退出约定。
 
 ### 5.3 F4 · 基因统一:改名 + 默认丢弃未映射
 
@@ -116,7 +123,7 @@ unmapped)逐行注释后,应用策略:
 
 - **改名**:采纳 canonical symbol 为 `var_names`(重名 make_unique 保双列,
   不自动合并);原名存 `var["original_feature_name"]`,mapping 溯源列全部并入
-  `var`(I8)。
+  `var`(I8)。已有同名来源/mapping 列先按 §5.4 的备份规则保留。
 - **丢弃(默认)**:`mapping_status ∈ {unmapped, ambiguous, non_gene_feature}`
   的基因从矩阵及所有 layers 移除;`--keep-unmapped` 关闭丢弃(保留者维持原名)。
 - **统计入账**:result.json 记 per-status 丢弃数与总丢弃比例;
@@ -131,7 +138,9 @@ unmapped)逐行注释后,应用策略:
   `pct_counts_mt`、`pct_counts_hb`(分子 = stangene 物种 mt/hb 基因集在
   harmonized `var_names` 上的精确命中)、`total_counts`、`n_genes_by_counts`。
 - **权威性**:数据自带的同名列不作数——写入前同名原列改名保留
-  (后缀 `__original`,信息无损),覆盖行为记入 result.json。
+  (后缀 `__original`,冲突时使用 `__original_2` 等空闲编号),覆盖行为记入 result.json。
+  只在同一字段的备份家族内合并完全相同的列,保留最短现有备份名;
+  不合并无关的作者 metadata 列。这套规则也用于 F4 的 var 来源/mapping 列。
 - mt/hb 基因集命中数(`n_mt_genes` / `n_hb_genes`)记入 result.json(metrics.qc);
   命中为 0 → 对应列全 0,**不触发 needs_review**——预过滤矩阵(上游已剔 mt 基因)
   与无 RBC 血红蛋白的物种(果蝇/线虫)都是正常情况,调用方按需查 metrics.qc。
@@ -217,14 +226,16 @@ python -m eca_pp.standardize SRC.h5ad -o OUTDIR \
 
 - **可复现**:同输入同参数 → 同判定与同产物(result.json 的时间戳/耗时字段除外);
   默认无网络、无 LLM。
-- **幂等**:所有写盘原子化(临时文件 + rename),重跑安全。
+- **正式文件原子发布**:临时文件 + rename;运行日志增量写入。
+  重跑前旧 `result.json` 与 `standardized.h5ad` 移到 `.history/standardize-*/`。
+  输入不得与待归档输出重叠。多文件发布不构成整体事务,以本轮 result.json 为准。
 - **失败三分**:rejected ≠ error ≠ needs_review,是给调用方的正式接口。
 - **可移植 / 可发行**:eca-pp 是规范 pip 包(pyproject.toml,py≥3.10;依赖 =
-  标准科学栈 + stancounts/stangene/stanmetacols,重依赖走 extras:`[llm]`
-  `[doublets]` `[gpu]`)。代码不绑定任何集群。部署形态三选:
+  标准科学栈 + stancounts/stangene,可选依赖走 `[probe]`、`[agent]`、
+  `[openai]`、`[llm]`、`[claude]`、`[test]`)。代码不绑定任何集群。部署形态:
   ① Sherlock 原生:`run.sh` 引导 dl2025 venv(环境 fixup 只活在 run.sh);
   ② 任意机器:`pip install`(stan* 经 GitHub / PyPI);
-  ③ 容器:Docker 镜像(CPU 与 GPU 分建),Sherlock 上以 Apptainer 消费同一镜像。
+  ③ CPU 容器:Sherlock 上用 Apptainer 运行测试环境。
   **验收含双环境**:原生 + 容器(v0.1 已建立,`scripts/test-in-container.sh`)。
 - 单进程 CPU,无 GPU,内存与数据同量级。
 
@@ -269,16 +280,18 @@ bash scripts/test-in-container.sh            # python:3.12-slim 容器(Apptainer
 src/eca_pp/
   core/                跨环节契约:result.json+退出码、原子写、列SPEC(colspec)
   standardize/         环节1(确定性):cli + countsloc/species/harmonize/qc/build
-  identify_columns/    环节2(agent 型):cli + obsprofile + policies(agent 全在此)
+  identify_columns/    环节2(agent 型):cli + obsprofile + policies
+  agent.py / harness.py  校验提交与后端选择;_harness_* 实现各后端
   probe/               独立工具(确定性仪器):integration-probe
 tests/                 验收测试(原生与容器同一套);dsets/intdata 构造数据
 run.sh                 Sherlock 环境引导(唯一集群相关文件)
 ```
 
-组织规则:一个环节=一个子包,`cli.py` 是唯一入口;`core/` 是环节间唯一横向
-依赖;所有模型调用经 `agent.py` / `harness.py`;extras 与子包对齐
-(`[probe]`→probe+identify_columns,`[agent]`→DSH,`[openai]`→OpenAI
-Agents SDK + Doubao 对照后端,`[claude]`→Claude 后端)。未来环节
+组织规则:一个环节=一个子包,`cli.py` 是入口;`core/` 提供共享契约,
+identify-columns 调用 probe 进行试验;所有模型调用经 `agent.py` / `harness.py`。
+`[probe]` 安装计算依赖,`[agent]` 安装默认 OpenAI 与可选 DSH,
+`[openai]` 仅安装 OpenAI 后端,`[llm]` 是 DSH 依赖的兼容 extra,
+`[claude]` 安装 Claude 后端。未来环节
 (doublets/integrate/dissect)以平级子包加入。
 
 ## 11. 不做的事(non-goals)

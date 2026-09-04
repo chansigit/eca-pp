@@ -1,8 +1,8 @@
 """Validated JSON interface shared by all eca-pp agent call sites.
 
 The backend is selected by ``HARNESS`` through :mod:`eca_pp.harness`.
-Answers are accepted only through a caller-named submit tool, so both DSH
-and Claude use the same validation and retry path.
+Answers are accepted only through a caller-named submit tool, so OpenAI,
+DSH, and Claude share the validation and retry contract.
 """
 
 from __future__ import annotations

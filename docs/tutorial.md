@@ -2,6 +2,8 @@
 
 把一个来源不明的单样本 `.h5ad` 变成下游可信赖的标准形。本教程所有输出都来自
 真实运行:`data/tabula_muris_droplet/`(小鼠 12 器官,软链接,已 gitignore)。
+下文数值和耗时保留为当时的运行记录,不是当前版本的速度保证;
+命令与配置说明已按当前实现更新。
 
 ## 1. 跑一个真样本
 
@@ -64,7 +66,7 @@ qc:
 | 0 | 成功(status=`needs_review` 时附带存疑点) | 用输出;看 `reasons` |
 | 2 | 数据永久性问题(细胞/基因太少、counts 不可恢复) | 放弃该样本,重试无用 |
 | 3 | **等你拍板** | 看证据 → 补参数重跑 |
-| 1 | 意外错误 | 原样重跑一次 |
+| 1 | 技术错误 | 检查日志与环境,修复原因后重跑 |
 
 **真实的 exit 3 长这样**(故意指错 counts 层):
 
@@ -155,27 +157,31 @@ Sherlock 容器环境用 `bash scripts/test-in-container.sh` 一键验证
 
 ### 8.1 配置 agent harness(不配也能确定性降级)
 
-默认是 DSH + Doubao。Sherlock 上使用源码构建的 dsh CLI:
+默认是 **OpenAI Agents SDK + Doubao Turbo + minimal reasoning**:
 
 ```bash
 export ARK_API_KEY=...
+pip install ".[probe,openai]"
+# HARNESS 未设置时默认 openai;若此前设置过其他后端,可显式切回:
+export HARNESS=openai
+# 可选: export DOUBAO_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+```
+
+需要对照 DSH 时显式选择(不会在 OpenAI 失败后自动切换):
+
+```bash
+pip install ".[llm]"
+export HARNESS=deepseek
 export DSH_BIN=$SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js
 # DSH_BIN 不设时会自动尝试上面这个路径
 ```
 
-用同一个 Doubao 模型对照 OpenAI Agents SDK:
-
-```bash
-pip install ".[openai]"
-export HARNESS=openai
-export ARK_API_KEY=...
-# 可选: export DOUBAO_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
-```
-
-这条路径直接注册 Python submit tool,不启动 DSH CLI 或 MCP server。
-它目前不暴露本地 Read/Glob/Grep;identify-columns 的完整 state 已包含在
-prompt 中。有效 submit 会立即结束 runner,无效 submit 会把校验错误返回
-模型重试。OpenAI tracing 默认关闭,避免用 Ark key 误向 OpenAI 上传。
+OpenAI 直接注册 Python submit tool,不启动 DSH CLI 或 MCP server。
+三个后端都只开放经过校验的 submit tool;画像、候选与 trial 指标已包含在
+每轮 prompt 中。OpenAI 使用串行工具调用、服务端会话续接;未提交时最多
+同会话提醒两次。有效 submit 结束 runner,无效 submit 返回校验错误供模型修正。
+可用 `OPENAI_AGENTS_REASONING_EFFORT`、`OPENAI_AGENTS_SERVER_STATE=0`、
+`OPENAI_AGENTS_MAX_NUDGES` 调整对应设置。OpenAI tracing 默认关闭。
 
 要切回 Claude Agent SDK:
 
@@ -193,9 +199,18 @@ pip install ".[claude]"
 不指定时两个 Doubao 后端都使用 `doubao-seed-2-1-turbo-260628`,
 Claude 后端使用 `claude-sonnet-5`。每轮实际模型记录在
 `decisions[].usage.model`。
+例如对照 Pro(输出目录同时区分后端和模型):
+
+```bash
+HARNESS=openai bash run.sh identify-columns data/out/Marrow/standardized.h5ad \
+  -o data/out/Marrow-openai-pro --model doubao-seed-2-1-pro-260628
+```
+
+`standardize --llm` 使用同一后端配置;其模型通过 `ECA_PP_AGENT_MODEL`
+设置,standardize 没有 `--model` 参数。
 单次 agent run 默认有 2 分钟墙钟上限; `AGENT_WALL_MIN` 可覆盖。
 超时不重复消耗同样的等待预算,identify-columns 会记录 warning 并
-切换到确定性策略继完成。
+切换到确定性策略继续完成。
 
 **不配置会怎样**:不报错——自动使用确定性 policy 跑完;无法安全判断时
 输出 null 和结构化 warning(exit 0)。
@@ -207,7 +222,7 @@ bash run.sh identify-columns data/out/Marrow/standardized.h5ad \
     -o data/out/Marrow_idc
 ```
 
-真实结果(约 90 秒,agent 一轮试验即判定):
+历史运行结果(约 90 秒,不代表当前默认后端的耗时):
 
 ```
 columns.batch     = channel   correction=unnecessary
@@ -227,3 +242,19 @@ fallback 情形仍会回到 agent 复核。下游消费:
 DSH/OpenAI Agents SDK 均在 Ark 控制台查询账户级消费;
 Claude 在其自身控制台查询;
 `result.json` 的 `billing_url` 会随当前后端给出入口。
+
+probe 的技术故障会返回 exit 1,需要查日志;不会被当作“没有批次证据”的
+成功结果。probe exit 2 才表示该候选被拒绝。计算 cLISI 时排除缺失作者
+标签;有效标签不足时改用 pseudo labels,实际来源记录于 `clisi_labels`。
+
+## 9. 重跑与原始 metadata
+
+复用 outdir 会先将本步骤已有的正式输出移入 `.history/<step>-<唯一后缀>/`。
+standardize 归档旧 `result.json` 与 `standardized.h5ad`;identify-columns
+归档旧 `result.json`、`batch.tsv`、`candidates/` 和 `trial_N/`。
+输入若位于这些旧输出中,需使用另一个 outdir。历史文件不会自动删除。
+消费结果时先看本轮 `result.json` 的退出码与状态。
+
+QC 与 gene mapping 的同名旧列备份为 `name__original[_N]`。
+同一字段备份家族内的相同内容只保留最短备份名,不同内容使用空闲编号;
+`donor`、`sample_id` 等其他作者列即使取值相同也照常保留。

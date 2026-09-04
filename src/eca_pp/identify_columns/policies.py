@@ -55,7 +55,7 @@ class HeuristicPolicy:
 
 
 class AgentPolicy:
-    """Harness-backed policy (DSH by default, OpenAI/Claude when selected).
+    """Harness-backed policy (OpenAI by default, DSH/Claude when selected).
 
     The historical ``ClaudeAgentPolicy`` name remains an alias for source
     compatibility. Construction or any exchange failure raises
