@@ -92,7 +92,7 @@ def profile_obs(adata) -> dict:
         "n_obs": n,
         "columns": columns,
         "relations": _relations(grouping),
-        "derived": (barcode_candidates(list(adata.obs_names))
+        "derived": (barcode_candidates(list(adata.obs_names), grouping)
                     + composite_candidates(grouping)),
     }
 
@@ -117,9 +117,25 @@ def _relations(grouping: dict) -> list[dict]:
     return out
 
 
-def barcode_candidates(obs_names: list) -> list[dict]:
+def _equivalent_with(values: pd.Series, grouping: dict) -> list[str]:
+    """Existing columns that encode exactly the same cell partition."""
+    left = pd.factorize(values.astype("string").fillna("<NA>"), sort=False)[0]
+    matches = []
+    for name, other in grouping.items():
+        if other.nunique(dropna=False) != values.nunique(dropna=False):
+            continue
+        right = pd.factorize(
+            other.astype("string").fillna("<NA>"), sort=False
+        )[0]
+        if np.array_equal(left, right):
+            matches.append(name)
+    return sorted(matches)
+
+
+def barcode_candidates(obs_names: list, grouping: dict | None = None) -> list[dict]:
     s = pd.Series([str(x) for x in obs_names])
     n = len(s)
+    grouping = grouping or {}
     out = []
     for d in BARCODE_DELIMS:
         if not s.str.contains(re.escape(d), regex=True).all():
@@ -132,6 +148,7 @@ def barcode_candidates(obs_names: list) -> list[dict]:
                 out.append({"label": f"barcode:{pos}:{d}", "kind": "barcode",
                             "n_groups": nun,
                             "missing_frac": 0.0,
+                            "equivalent_with": _equivalent_with(vals, grouping),
                             "group_sizes": _group_sizes_block(sizes, n),
                             "entropy": round(
                                 _entropy_norm(sizes.to_numpy(dtype=float)), 4)})
@@ -150,6 +167,7 @@ def composite_candidates(grouping: dict) -> list[dict]:
             out.append({"label": f"composite:{a}+{b}", "kind": "composite",
                         "n_groups": nun,
                         "missing_frac": round(float(combo.isna().mean()), 4),
+                        "equivalent_with": _equivalent_with(combo, grouping),
                         "group_sizes": _group_sizes_block(sizes, len(combo)),
                         "entropy": round(
                             _entropy_norm(sizes.to_numpy(dtype=float)), 4)})

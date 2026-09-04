@@ -97,6 +97,9 @@ eca-pp-integration-probe SRC.h5ad -o OUTDIR --batch-col SPEC \
     生成伪标签——该构图路径避免每个 probe 子进程重复的 Numba 编译;
     `clisi_labels: "annotated" | "pseudo"` 与
     `pseudo_label_graph: "knn_gauss_sklearn"` 如实标注。
+    作者注释存在缺失值时,cLISI 只在非缺失子集上计算;
+    `cell_type_coverage_sampled` 与 `n_cells_clisi` 记录覆盖率和实际样本数。
+    可用注释少于 50 个细胞或只剩一类时改用伪标签。
     作者注释使用 0.05 的下降容忍度;伪标签是较弱证据,使用 0.15,但明显
     破坏结构时仍否决候选。
   - `harmony_converged`:**不收敛或运行失败是有效观测结果**(status=ok,
@@ -184,7 +187,8 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
     "derived": [ { "label": "", "kind": "barcode | composite", "n_groups": 0 } ]
   },
   "candidates": {
-    "batch": [ { "label": "", "tier": "primary | fallback" } ],
+    "batch": [ { "label": "", "tier": "primary | fallback",
+                   "equivalent_to": "先出现的 canonical 候选或缺省" } ],
     "cell_type": [ { "label": "", "output_eligible": true,
                      "usable_for_clisi": true } ]
   },
@@ -205,7 +209,9 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
                              "ilisi_norm_pre": 0.0, "ilisi_norm_post": 0.0,
                              "clisi_norm_pre": 0.0, "clisi_norm_post": 0.0,
                              "clisi_labels": "annotated | pseudo",
-                             "pseudo_label_graph": "knn_gauss_sklearn | omitted",
+                             "pseudo_label_graph": "knn_gauss_sklearn | null",
+                             "cell_type_coverage_sampled": 1.0,
+                             "n_cells_clisi": 5000,
                              "harmony_converged": true,
                              "n_batches": 0, "pc_regression_r2": 0.0,
                              "timings": { "load": 0.0, "hvg_pca": 0.0,
@@ -238,8 +244,10 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
   下 probe 指标完全可复现(agent 的选择顺序可能不同,但每条证据可独立
   复算验证)。
 - **调用开销有界且可见**:agent 调用次数受 max-probes 与流程结构约束,
-  不存在无上界的循环;每轮的 token 用量与费用记入 `decisions[].usage`,
-  汇总于 `metrics.llm`(附账户级账单查询 URL)。
+  不存在无上界的循环;每轮成功决策的 token 用量与费用记入
+  `decisions[].usage`。`metrics.llm` 中 `calls` 包含失败/超时尝试,
+  并分列 `successful_calls` / `failed_calls` / `timeout_calls` /
+  `failed_seconds` / `failures`(附账户级账单查询 URL)。
 - 打包:extras `[probe]`(scanpy/harmonypy/scikit-learn/leidenalg)、
   `[agent]`(DSH + MCP)、`[claude]`(可选 Claude 后端);
   核心包不引入重依赖。

@@ -122,3 +122,20 @@ def test_probe_excludes_missing_batch_labels(tmp_path):
     assert res["metrics"]["n_batch_missing"] == 30
     assert res["metrics"]["n_batches_sampled"] == 2
     assert res["metrics"]["sampling"] == "stratified_min_per_batch"
+
+
+def test_clisi_excludes_missing_cell_type_labels(tmp_path):
+    import anndata as ad
+
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    A = ad.read_h5ad(src)
+    A.obs["partial_cell_type"] = A.obs["cell_type"].astype(object)
+    A.obs.loc[A.obs.index[:200], "partial_cell_type"] = None
+    A.write_h5ad(src)
+    code, res = run(tmp_path, src, "--batch-col", "batch",
+                    "--cell-type-col", "partial_cell_type", "--n-cells", 600)
+    assert code == 0
+    assert res["metrics"]["clisi_labels"] == "annotated"
+    assert res["metrics"]["cell_type_missing_sampled"] == 200
+    assert res["metrics"]["cell_type_coverage_sampled"] == 0.6667
+    assert res["metrics"]["n_cells_clisi"] == 400

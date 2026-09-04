@@ -192,6 +192,25 @@ def test_ask_json_rejects_non_object(monkeypatch, tmp_path):
         )
 
 
+def test_agent_policy_preserves_timeout_kind(monkeypatch, tmp_path):
+    from eca_pp.identify_columns.policies import AgentPolicy, PolicyUnavailable
+
+    monkeypatch.setattr(agent, "check_available", lambda: None)
+
+    def timeout(**kwargs):
+        del kwargs
+        try:
+            raise harness.AgentTimeout("request timed out")
+        except harness.AgentTimeout as exc:
+            raise agent.AgentUnavailable(str(exc)) from exc
+
+    monkeypatch.setattr(agent, "ask_json", timeout)
+    policy = AgentPolicy(str(tmp_path))
+    with pytest.raises(PolicyUnavailable) as caught:
+        policy.decide({})
+    assert caught.value.kind == "timeout"
+
+
 def test_policy_uses_validated_submit_tool(monkeypatch, tmp_path):
     from eca_pp.identify_columns.policies import AgentPolicy
 

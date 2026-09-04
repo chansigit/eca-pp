@@ -60,6 +60,9 @@ def test_barcode_and_composite_candidates():
     p = obsprofile.profile_obs(make_adata())
     labels = {d["label"]: d for d in p["derived"]}
     assert labels["barcode:prefix:-"]["n_groups"] == 3
+    assert set(labels["barcode:prefix:-"]["equivalent_with"]) >= {
+        "donor", "donor_name"
+    }
     # composite only appears for orthogonal pairs (donor x day); a pair where
     # one column already refines the other adds nothing and must NOT appear
     assert "composite:day+donor" in labels

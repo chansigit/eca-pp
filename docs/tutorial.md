@@ -206,6 +206,8 @@ columns.cell_type = cell_ontology_class
 fallback 情形仍会回到 agent 复核。下游消费:
 `--batch-col channel`;`correction=unnecessary` 时 integration 应跳过校正。
 
-**费用可见**:每轮的 token 用量与费用记录在 `decisions[].usage`,汇总在
-`metrics.llm`。DSH/Ark 与 Claude 的账户级消费分别在各自控制台查询;
+**费用可见**:每轮成功决策的 token 用量与费用记录在
+`decisions[].usage`,汇总在 `metrics.llm`。`calls` 也包含失败和超时尝试;
+`failed_calls` / `timeout_calls` / `failed_seconds` / `failures` 保留失败审计。
+DSH/Ark 与 Claude 的账户级消费分别在各自控制台查询;
 `result.json` 的 `billing_url` 会随当前后端给出入口。

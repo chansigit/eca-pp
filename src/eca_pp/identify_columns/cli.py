@@ -212,11 +212,47 @@ def build_candidates(profile: dict) -> dict:
                       "tier": tier, "n_groups": d["n_groups"],
                       "missing_frac": d.get("missing_frac", 0.0),
                       "tiny_cell_frac": d["group_sizes"]["tiny_cell_frac"],
+                      "_equivalent_with": d.get("equivalent_with", []),
                       "excluded": bool(note), "note": note or ""})
     order = {"technical": 0, "donor": 1, "derived": 2,
              "condition": 3, "other": 4}
     batch.sort(key=lambda c: (c["excluded"], c["tier"] != "primary",
                               order[c["class"]], -c["n_groups"]))
+
+    # Collapse equivalent partitions before any expensive probe. Existing
+    # columns use the profile relation graph; derived candidates additionally
+    # carry exact partition matches computed while their values are available.
+    parent = {c["label"]: c["label"] for c in batch}
+
+    def find(label):
+        while parent[label] != label:
+            parent[label] = parent[parent[label]]
+            label = parent[label]
+        return label
+
+    def union(left, right):
+        if left not in parent or right not in parent:
+            return
+        left_root, right_root = find(left), find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    for relation in profile.get("relations", []):
+        if relation["kind"] == "equivalent":
+            union(relation["finer"], relation["coarser"])
+    for candidate in batch:
+        for existing in candidate.pop("_equivalent_with", []):
+            union(candidate["label"], existing)
+
+    representative = {}
+    for candidate in batch:
+        if candidate["excluded"]:
+            continue
+        root = find(candidate["label"])
+        if root in representative:
+            candidate["equivalent_to"] = representative[root]
+        else:
+            representative[root] = candidate["label"]
     cell_type.sort(key=lambda c: (CELL_TYPE_CLASS_ORDER[c["class"]],
                                   c["numeric_labels"]))  # stable: obs order
     return {"batch": batch, "cell_type": cell_type}
@@ -330,6 +366,8 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
                         ("ilisi_pre", "ilisi_post", "ilisi_norm_pre",
                          "ilisi_norm_post", "clisi_norm_pre", "clisi_norm_post",
                          "clisi_labels", "pseudo_label_graph",
+                         "cell_type_missing_sampled",
+                         "cell_type_coverage_sampled", "n_cells_clisi",
                          "harmony_converged", "n_batches",
                          "n_batches_sampled", "pc_regression_r2", "timings")},
             "verdict": verdict, "reason": ""}
@@ -373,7 +411,8 @@ def _active_batch_tier(candidates: dict, trials: list) -> str | None:
         return None
     tried = {t["batch_col"] for t in trials}
     viable = [c for c in candidates["batch"]
-              if not c["excluded"] and c["label"] not in tried]
+              if not c["excluded"] and not c.get("equivalent_to")
+              and c["label"] not in tried]
     if any(c["tier"] == "primary" for c in viable):
         return "primary"
     if any(c["tier"] == "fallback" for c in viable):
@@ -392,15 +431,27 @@ def _billing_url() -> str:
     return "https://claude.ai/settings/usage"  # subscription (CLI credentials)
 
 
-def _tally_llm(res: dict, usage: dict | None) -> None:
-    """Aggregate per-round agent usage into metrics.llm (tokens + dollars)."""
-    if not usage or not any(v is not None for v in usage.values()):
-        return
+def _llm_metrics(res: dict) -> dict:
     llm = res["metrics"].setdefault("llm", {
         "calls": 0, "models": [], "input_tokens": 0, "output_tokens": 0,
         "cache_creation_tokens": 0, "cache_read_tokens": 0,
-        "cost_usd": 0.0, "cost_complete": True, "billing_url": _billing_url()})
+        "cost_usd": 0.0, "cost_complete": True, "billing_url": _billing_url(),
+        "successful_calls": 0, "failed_calls": 0, "timeout_calls": 0,
+        "failed_seconds": 0.0, "failures": []})
+    for key, default in (("successful_calls", 0), ("failed_calls", 0),
+                         ("timeout_calls", 0), ("failed_seconds", 0.0),
+                         ("failures", [])):
+        llm.setdefault(key, default)
+    return llm
+
+
+def _tally_llm(res: dict, usage: dict | None) -> None:
+    """Aggregate one successful agent attempt into metrics.llm."""
+    if not usage or not any(v is not None for v in usage.values()):
+        return
+    llm = _llm_metrics(res)
     llm["calls"] += 1
+    llm["successful_calls"] += 1
     model = usage.get("model")
     if model and model not in llm["models"]:
         llm["models"].append(model)
@@ -412,6 +463,26 @@ def _tally_llm(res: dict, usage: dict | None) -> None:
         llm["cost_usd"] = round(llm["cost_usd"] + usage["cost_usd"], 6)
     else:  # provider did not report a per-call cost (e.g. subscription auth)
         llm["cost_complete"] = False
+
+
+def _tally_llm_failure(res: dict, *, error: Exception, elapsed: float,
+                       model: str, backend: str) -> None:
+    """Record a failed attempt even though it produced no decision/usage."""
+    llm = _llm_metrics(res)
+    message = str(error)
+    timed_out = getattr(error, "kind", "error") == "timeout"
+    llm["calls"] += 1
+    llm["failed_calls"] += 1
+    llm["timeout_calls"] += int(timed_out)
+    llm["failed_seconds"] = round(llm["failed_seconds"] + elapsed, 3)
+    if model and model not in llm["models"]:
+        llm["models"].append(model)
+    llm["cost_complete"] = False
+    llm["failures"].append({
+        "backend": backend, "model": model,
+        "kind": "timeout" if timed_out else "error",
+        "elapsed_seconds": round(elapsed, 3), "error": message,
+    })
 
 
 def _run(args, res: dict, policy) -> int:
@@ -453,13 +524,23 @@ def _run(args, res: dict, policy) -> int:
 
     pending_decision = None
     while True:
+        if len(trials) >= args.max_probes and not any(
+            trial["verdict"] in ("adopted", "correction_unnecessary")
+            for trial in trials
+        ):
+            return _null_batch_ok(
+                res, best_ct, candidates,
+                "probe budget exhausted without a qualifying batch",
+                code="batch_evidence_insufficient",
+            )
         active_tier = _active_batch_tier(candidates, trials)
         state = {"profile": profile, "candidates": candidates, "trials": trials,
                  "thresholds": res["thresholds"], "best_cell_type": best_ct,
                  "active_batch_tier": active_tier,
                  "eligible_batch_candidates": [
                      c["label"] for c in candidates["batch"]
-                     if not c["excluded"] and c["tier"] == active_tier
+                     if not c["excluded"] and not c.get("equivalent_to")
+                     and c["tier"] == active_tier
                      and c["label"] not in {t["batch_col"] for t in trials}],
                  "probes_left": args.max_probes - len(trials)}
         if pending_decision is not None:
@@ -474,6 +555,14 @@ def _run(args, res: dict, policy) -> int:
             try:
                 decision = policy.decide(state)
             except PolicyUnavailable as exc:
+                failed_elapsed = time.perf_counter() - t0
+                if source == "agent":
+                    from eca_pp import agent
+                    _tally_llm_failure(
+                        res, error=exc, elapsed=failed_elapsed,
+                        model=agent.model_name(args.model),
+                        backend=agent.backend_name(),
+                    )
                 _warn(res, "agent_failed",
                       "agent failed during the decision loop; continued deterministically",
                       error=str(exc))
@@ -501,7 +590,8 @@ def _run(args, res: dict, policy) -> int:
 
         if action == "probe":
             cand = by_label.get(decision.get("candidate"))
-            if (cand is None or cand["excluded"] or cand["tier"] != active_tier
+            if (cand is None or cand["excluded"] or cand.get("equivalent_to")
+                    or cand["tier"] != active_tier
                     or len(trials) >= args.max_probes):
                 reason = ("policy proposed an invalid, out-of-tier, or "
                           "exhausted probe")

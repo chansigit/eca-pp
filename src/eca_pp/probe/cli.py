@@ -32,6 +32,7 @@ LEIDEN_RESOLUTION = 1.0
 PSEUDO_LABEL_GRAPH = "knn_gauss_sklearn"
 MIN_CELLS = 300
 MIN_SAMPLED_PER_BATCH = 5
+MIN_ANNOTATED_CLISI_CELLS = 50
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -251,8 +252,23 @@ def _run(args, res: dict) -> int:
     pre = A.obsm["X_pca"]
     timings["hvg_pca"] = round(time.perf_counter() - t0, 3); t0 = time.perf_counter()
 
-    ct = (ct_full.iloc[idx].fillna("<missing>")
-          if ct_full is not None else _pseudo_labels(A, args.seed))
+    ct_mask = np.ones(n_keep, dtype=bool)
+    ct_missing = 0
+    if ct_full is not None:
+        sampled_ct = ct_full.iloc[idx]
+        ct_mask = sampled_ct.notna().to_numpy()
+        ct_missing = int((~ct_mask).sum())
+        ct = sampled_ct.iloc[np.flatnonzero(ct_mask)]
+        if len(ct) < MIN_ANNOTATED_CLISI_CELLS or ct.nunique() < 2:
+            res["reasons"].append(
+                "too few non-missing author cell-type labels for cLISI; "
+                "used pre-integration Leiden pseudo-labels instead"
+            )
+            ct = _pseudo_labels(A, args.seed)
+            ct_mask = np.ones(n_keep, dtype=bool)
+            ct_kind = "pseudo"
+    else:
+        ct = _pseudo_labels(A, args.seed)
     n_t = int(ct.nunique())
     timings["labels"] = round(time.perf_counter() - t0, 3); t0 = time.perf_counter()
 
@@ -266,16 +282,22 @@ def _run(args, res: dict) -> int:
     m["pc_regression_r2"] = _pc_regression_r2(
         pre, A.uns["pca"]["variance_ratio"], batch)
     ilisi_pre = _lisi_median(pre, batch)
-    clisi_pre = _lisi_median(pre, ct)
+    clisi_pre = _lisi_median(pre[ct_mask], ct)
     m.update({"ilisi_pre": round(ilisi_pre, 3),
               "ilisi_norm_pre": _norm_ilisi(ilisi_pre, n_b),
               "clisi_norm_pre": _norm_clisi(clisi_pre, n_t),
               "clisi_labels": ct_kind, "n_cell_types": n_t})
+    if ct_full is not None:
+        m["cell_type_missing_sampled"] = ct_missing
+        m["cell_type_coverage_sampled"] = round(
+            (n_keep - ct_missing) / n_keep, 4
+        )
+    m["n_cells_clisi"] = len(ct)
     if ct_kind == "pseudo":
         m["pseudo_label_graph"] = PSEUDO_LABEL_GRAPH
     if post is not None:
         ilisi_post = _lisi_median(post, batch)
-        clisi_post = _lisi_median(post, ct)
+        clisi_post = _lisi_median(post[ct_mask], ct)
         m.update({"ilisi_post": round(ilisi_post, 3),
                   "ilisi_norm_post": _norm_ilisi(ilisi_post, n_b),
                   "clisi_norm_post": _norm_clisi(clisi_post, n_t)})

@@ -128,9 +128,10 @@ group-size health, a nesting/equivalence graph) and enumerate derived
 candidates (barcode prefixes, composites) → classify candidates (technical /
 donor candidates are exhausted before condition or unknown fallbacks;
 annotation, cluster, QC and identifier columns never are batches; only author
-annotations are reported as cell type) → an agent picks candidates bottom-up and
+annotations are reported as cell type; equivalent existing/derived partitions
+share one canonical probe) → an agent picks candidates bottom-up and
 verifies each with a small-scale Harmony trial (iLISI mixing gain, cLISI
-structure preservation, convergence); clear primary-candidate results finish
+structure preservation on non-missing annotation cells, convergence); clear primary-candidate results finish
 through a guarded metric fast path, while borderline and fallback results return
 to the agent → concludes one of four
 verdicts: batch + correction recommended, batch + correction unnecessary, or

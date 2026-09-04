@@ -14,6 +14,7 @@ from collections.abc import Callable
 from . import harness
 
 AgentUnavailable = harness.AgentUnavailable
+AgentTimeout = harness.AgentTimeout
 DEFAULT_MODEL = harness._DEFAULT_MODEL[harness.DEFAULT_BACKEND]
 MODEL_ENV = harness.MODEL_ENV
 

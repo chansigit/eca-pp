@@ -13,7 +13,9 @@ import re
 
 
 class PolicyUnavailable(Exception):
-    pass
+    def __init__(self, message: str, *, kind: str = "error"):
+        super().__init__(message)
+        self.kind = kind
 
 
 class HeuristicPolicy:
@@ -31,19 +33,26 @@ class HeuristicPolicy:
                         "reason": "converged with iLISI gain and cLISI preserved",
                         "cell_type": state["best_cell_type"]}
         active_tier = state.get("active_batch_tier")
+        if state.get("probes_left", 0) <= 0:
+            return {"action": "give_up", "candidate": None,
+                    "reason": "probe budget exhausted without a qualifying batch",
+                    "cell_type": state["best_cell_type"]}
         for c in state["candidates"]["batch"]:
-            if not c["excluded"] and c["label"] not in tried:
+            if (not c["excluded"] and not c.get("equivalent_to")
+                    and c["label"] not in tried):
                 if active_tier and c.get("tier") != active_tier:
                     continue
                 return {"action": "probe", "candidate": c["label"],
+                        "cell_type": state["best_cell_type"],
                         "reason": f"next viable candidate ({c['class']}, "
                                   f"{c['n_groups']} groups, {c.get('tier', 'primary')} tier)"}
         if not any(not c["excluded"] for c in state["candidates"]["batch"]):
             return {"action": "conclude_no_batch",
                     "reason": "no viable grouping column exists",
                     "cell_type": state["best_cell_type"]}
-        return {"action": "give_up",
-                "reason": "all viable candidates probed, none qualified"}
+        return {"action": "give_up", "candidate": None,
+                "reason": "all viable candidates probed, none qualified",
+                "cell_type": state["best_cell_type"]}
 
 
 class AgentPolicy:
@@ -61,7 +70,8 @@ class AgentPolicy:
             self._outdir = outdir
             self._model = model
         except agent.AgentUnavailable as exc:
-            raise PolicyUnavailable(str(exc))
+            kind = "timeout" if isinstance(exc.__cause__, agent.AgentTimeout) else "error"
+            raise PolicyUnavailable(str(exc), kind=kind) from exc
 
     def _ask(self, state: dict, message: str) -> tuple[dict, str | None, list, dict]:
         """One decision = one self-contained agent session (the full state is
@@ -130,7 +140,8 @@ class AgentPolicy:
                 label="identify columns",
             )
         except agent.AgentUnavailable as exc:
-            raise PolicyUnavailable(str(exc))
+            kind = "timeout" if isinstance(exc.__cause__, agent.AgentTimeout) else "error"
+            raise PolicyUnavailable(str(exc), kind=kind) from exc
 
     def decide(self, state: dict) -> dict:
         message = (

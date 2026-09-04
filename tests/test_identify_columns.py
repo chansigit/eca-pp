@@ -208,6 +208,33 @@ def test_midrun_agent_failure_falls_back_without_blocking(tmp_path):
     assert any(w["code"] == "agent_failed" for w in res["warnings"])
 
 
+def test_agent_timeout_is_counted_as_failed_llm_attempt(monkeypatch, tmp_path):
+    from eca_pp import agent
+    from eca_pp.identify_columns.policies import AgentPolicy, PolicyUnavailable
+
+    monkeypatch.setattr(agent, "check_available", lambda: None)
+    policy = AgentPolicy(str(tmp_path), model="test-model")
+    monkeypatch.setattr(
+        policy, "decide",
+        lambda state: (_ for _ in ()).throw(
+            PolicyUnavailable(
+                "[identify columns] agent run exceeded 2 min (AGENT_WALL_MIN)",
+                kind="timeout",
+            )
+        ),
+    )
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    code, res, _ = run(tmp_path, src, policy, "--n-cells", 600,
+                       "--model", "test-model")
+    assert code == 0
+    llm = res["metrics"]["llm"]
+    assert llm["calls"] == 1
+    assert llm["successful_calls"] == 0
+    assert llm["failed_calls"] == 1
+    assert llm["timeout_calls"] == 1
+    assert llm["failures"][0]["model"] == "test-model"
+
+
 def test_pathological_column_excluded_before_trials(tmp_path):
     n = 600
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
@@ -226,9 +253,27 @@ def test_probe_budget_exhaustion_succeeds_with_null_batch(tmp_path):
     code, res, _ = run(tmp_path, src, policy, "--max-probes", 0)
     assert code == 0 and res["status"] == "ok"
     assert res["columns"]["batch"] is None
+    assert res["decisions"] == []
+    assert not any(w["code"] == "invalid_policy_decision"
+                   for w in res["warnings"])
     assert any(w["code"] == "batch_evidence_insufficient"
                for w in res["warnings"])
     assert not res["trials"]
+
+
+def test_equivalent_candidates_are_marked_and_skipped(tmp_path):
+    import anndata as ad
+
+    from eca_pp.identify_columns import obsprofile
+
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    A = ad.read_h5ad(src)
+    A.obs["patient"] = A.obs["batch"].astype(str).to_numpy()
+    candidates = build_candidates(obsprofile.profile_obs(A))["batch"]
+    batch = next(c for c in candidates if c["label"] == "batch")
+    patient = next(c for c in candidates if c["label"] == "patient")
+    assert "equivalent_to" not in batch
+    assert patient["equivalent_to"] == "batch"
 
 
 # ---------------------------------------------------- cell-type column choice
