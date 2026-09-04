@@ -130,7 +130,10 @@ identification continues using built-in rules and integration trials.
 See the [tutorial](docs/tutorial.md#8-识别批次列--细胞类型列identify-columns)
 for configuration and model choices.
 
-The default size checks require at least 100 cells and 5,000 detected genes.
+The default size checks apply to the **whole dataset**: at least 100 cells and
+5,000 genes detected across those cells. A gene counts as detected if it has a
+nonzero count in at least one cell; **individual cells do not need to express
+5,000 genes**. The gene threshold is checked again after gene mapping and filtering.
 For smaller datasets or other input-specific settings, consult the
 [tutorial's options](docs/tutorial.md#4-常用参数) or run either command with `--help`.
 
