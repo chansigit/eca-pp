@@ -9,7 +9,6 @@ deterministic baseline and test double. Any policy failure raises
 from __future__ import annotations
 
 import json
-import re
 
 
 class PolicyUnavailable(Exception):
@@ -180,45 +179,6 @@ DECISION_SCHEMA = {
     },
     "required": ["action", "candidate", "cell_type", "reason"],
 }
-
-
-def _payload_of(reply: str) -> str:
-    """The JSON object in the agent's reply: the ```json fenced block when
-    present, else the bare ``{...}`` span (the agent occasionally omits the
-    fence — e.g. a single-sample conclude_no_batch — which used to fail with
-    IndexError and turn a correct verdict into exit 3)."""
-    if "```json" in reply:
-        return reply.split("```json", 1)[1].split("```", 1)[0]
-    i, j = reply.find("{"), reply.rfind("}")
-    if i < 0 or j <= i:
-        raise ValueError("no JSON object in reply")
-    return reply[i:j + 1]
-_FIELD = {k: re.compile(rf'"{k}"\s*:\s*(?:(null)|"((?:[^"\\]|\\.)*)")')
-          for k in ("action", "candidate", "cell_type")}
-_REASON = re.compile(r'"reason"\s*:\s*"(.*)"\s*}\s*$', re.S)
-
-
-def parse_decision(payload: str) -> dict:
-    """``json.loads`` with a lenient fallback for the one malformation the
-    agent actually produces: unescaped double quotes inside the free-text
-    ``reason`` (e.g. quoting a label like "Unassigned"). The structured
-    fields are short quoted labels or null and are recovered by regex; the
-    reason is everything between its opening quote and the closing brace."""
-    try:
-        return json.loads(payload)
-    except json.JSONDecodeError as exc:
-        found = {}
-        for k, rx in _FIELD.items():
-            m = rx.search(payload)
-            if m:
-                found[k] = None if m.group(1) else m.group(2)
-        if found.get("action") not in ACTIONS:
-            raise exc
-        m = _REASON.search(payload)
-        found["reason"] = (m.group(1).strip() if m else "")
-        found.setdefault("candidate", None)
-        found.setdefault("cell_type", None)
-        return found
 
 
 PROMPT = """\

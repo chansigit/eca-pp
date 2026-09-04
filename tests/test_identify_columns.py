@@ -516,26 +516,3 @@ def test_pseudo_clisi_uses_weaker_but_still_conservative_veto():
     assert qualifies({**base, "clisi_labels": "pseudo"})
     assert not qualifies({**base, "clisi_labels": "pseudo",
                            "clisi_norm_post": 0.7})
-
-
-def test_parse_decision_tolerates_unescaped_quotes_in_reason():
-    from eca_pp.identify_columns.policies import parse_decision
-    good = '{"action": "probe", "candidate": "batch", "cell_type": null, "reason": "ok"}'
-    assert parse_decision(good)["candidate"] == "batch"
-    bad = ('{"action": "adopt", "candidate": "batch", "cell_type": "ann_major",\n'
-           ' "reason": "major_celltype leaves 28% as "Unassigned" so ann_major wins"}')
-    d = parse_decision(bad)
-    assert d == {"action": "adopt", "candidate": "batch", "cell_type": "ann_major",
-                 "reason": 'major_celltype leaves 28% as "Unassigned" so ann_major wins'}
-    with pytest.raises(json.JSONDecodeError):
-        parse_decision('{"action": "fly", "reason": "x "y" z"}')
-
-
-def test_payload_of_accepts_bare_json_without_fence():
-    from eca_pp.identify_columns.policies import _payload_of, parse_decision
-    fenced = 'Thoughts.\n```json\n{"action": "probe", "candidate": "b", "cell_type": null, "reason": "r"}\n```\n'
-    assert parse_decision(_payload_of(fenced))["action"] == "probe"
-    bare = '{"action": "conclude_no_batch", "candidate": null, "cell_type": null, "reason": "single sample"}'
-    assert parse_decision(_payload_of(bare))["action"] == "conclude_no_batch"
-    with pytest.raises(ValueError):
-        _payload_of("no json here")
