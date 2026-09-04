@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Version-0.4.0-258B81?style=flat" alt="Project version 0.4.0"></a>
+  <a href="https://pypi.org/project/eca-pp/"><img src="https://img.shields.io/pypi/v/eca-pp?style=flat&amp;logo=pypi&amp;logoColor=white&amp;color=258B81" alt="ECA-PP version on PyPI"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat&amp;logo=python&amp;logoColor=white" alt="Python 3.10 or newer"></a>
   <a href="#where-it-fits"><img src="https://img.shields.io/badge/Input-H5AD-64748B?style=flat" alt="Starts from H5AD data"></a>
   <a href="https://github.com/chansigit/eca-rsi"><img src="https://img.shields.io/badge/Ecosystem-Ensemble_Cell_Atlas-258B81?style=flat" alt="Part of the Ensemble Cell Atlas ecosystem"></a>
