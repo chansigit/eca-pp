@@ -16,15 +16,15 @@
 </p>
 
 <p align="center">
-  <a href="#why-standardize-before-analysis">🔬 Why ECA-PP?</a>
+  <a href="#why-standardize-before-analysis">Why ECA-PP?</a>
   &nbsp;&nbsp;&nbsp;
   <a href="#what-you-get">What you get</a>
   &nbsp;&nbsp;&nbsp;
-  <a href="#try-it">🚀 Try it</a>
+  <a href="#try-it">Try it</a>
   &nbsp;&nbsp;&nbsp;
   <a href="#faq">FAQ</a>
   &nbsp;&nbsp;&nbsp;
-  <a href="#further-reading">📖 Further reading</a>
+  <a href="#further-reading">Further reading</a>
 </p>
 
 <br>
@@ -43,7 +43,9 @@ You can also use ECA-PP independently in your own pipeline.
 
 <br>
 
-## Why standardize before analysis?
+<a id="why-standardize-before-analysis"></a>
+
+## 🔬 Why standardize before analysis?
 
 Public single-cell data reflects the choices of many different authors.
 Expression matrices arrive as text tables, sparse matrix files, Seurat objects,
@@ -71,7 +73,9 @@ ECA-PP gives these recurring problems a shared treatment:
 
 <br>
 
-## What you get
+<a id="what-you-get"></a>
+
+## 📦 What you get
 
 - **A standardized dataset.** An H5AD with counts, normalized expression,
   standardized gene names, QC measurements, and preserved author metadata.
@@ -117,7 +121,9 @@ an interactive version with search, zoom, and guided views.
 
 <br>
 
-## Try it
+<a id="try-it"></a>
+
+## 🚀 Try it
 
 ### 1. Install
 
@@ -222,7 +228,9 @@ unsupported or ambiguous cases are reported rather than silently treated as raw 
 
 <br>
 
-## Further reading
+<a id="further-reading"></a>
+
+## 📖 Further reading
 
 **For users:** the [hands-on tutorial](https://github.com/chansigit/eca-pp/blob/main/docs/tutorial.md) walks through a real
 mouse dataset, result interpretation, common options, model setup, and reruns.
