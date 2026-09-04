@@ -13,6 +13,7 @@ import json
 import os
 import time
 from importlib.metadata import PackageNotFoundError, version
+from typing import Any
 
 from .harness import (
     AgentIncompleteError,
@@ -24,6 +25,12 @@ from .harness import (
 
 MIN_OPENAI_AGENTS_SDK = (0, 22, 0)
 DOUBAO_BASE_URL_DEFAULT = "https://ark.cn-beijing.volces.com/api/v3"
+DEFAULT_MAX_NUDGES = 2
+# ECAPP calls are short, schema-constrained decisions over evidence already
+# computed by the host.  Doubao's ``low`` setting still spent most output
+# tokens on hidden reasoning in real runs; ``minimal`` produced the same valid
+# tool submission without that overhead.  Callers can raise it for harder work.
+DEFAULT_REASONING_EFFORT = "minimal"
 
 
 def _version_tuple(value: str) -> tuple[int, ...]:
@@ -88,21 +95,22 @@ def _params_schema(spec: ToolSpec) -> dict:
 
 
 def _usage_dict(
-    result, model: str | None, runtime_init: float, agent_run: float, total: float
+    totals: dict[str, int],
+    model: str | None,
+    runtime_init: float,
+    agent_run: float,
+    total: float,
 ) -> dict:
-    raw = getattr(getattr(result, "context_wrapper", None), "usage", None)
-    input_details = getattr(raw, "input_tokens_details", None)
-    output_details = getattr(raw, "output_tokens_details", None)
     return {
         "backend": "openai",
         "model": model,
         "cost_usd": None,
-        "input_tokens": getattr(raw, "input_tokens", None),
-        "output_tokens": getattr(raw, "output_tokens", None),
-        "reasoning_tokens": getattr(output_details, "reasoning_tokens", None),
-        "cache_creation_tokens": getattr(input_details, "cache_write_tokens", None),
-        "cache_read_tokens": getattr(input_details, "cached_tokens", None),
-        "num_turns": getattr(raw, "requests", None),
+        "input_tokens": totals["input_tokens"],
+        "output_tokens": totals["output_tokens"],
+        "reasoning_tokens": totals["reasoning_tokens"],
+        "cache_creation_tokens": totals["cache_creation_tokens"],
+        "cache_read_tokens": totals["cache_read_tokens"],
+        "num_turns": totals["requests"],
         "timings": {
             "runtime_init": round(runtime_init, 3),
             "agent_run": round(agent_run, 3),
@@ -142,6 +150,17 @@ async def run_agent(
     from openai import APITimeoutError, AsyncOpenAI
 
     os.makedirs(cwd, exist_ok=True)
+    max_nudges = int(os.environ.get("OPENAI_AGENTS_MAX_NUDGES", DEFAULT_MAX_NUDGES))
+    if max_nudges < 0:
+        raise ValueError("OPENAI_AGENTS_MAX_NUDGES must be >= 0")
+    server_state = os.environ.get("OPENAI_AGENTS_SERVER_STATE", "1").strip().lower() \
+        not in {"0", "false", "no", "off"}
+    configured_effort = os.environ.get(
+        "OPENAI_AGENTS_REASONING_EFFORT", DEFAULT_REASONING_EFFORT
+    ).strip().lower()
+    effective_effort = effort or configured_effort
+    if effective_effort in {"", "none", "off"}:
+        effective_effort = None
     submitted: dict = {}
     tools_used: list[dict] = []
 
@@ -195,8 +214,16 @@ async def run_agent(
     client = AsyncOpenAI(
         api_key=os.environ["ARK_API_KEY"],
         base_url=os.environ.get("DOUBAO_BASE_URL", DOUBAO_BASE_URL_DEFAULT),
+        max_retries=0,
     )
-    settings = ModelSettings(timeout=wall_seconds) if wall_seconds else ModelSettings()
+    settings = ModelSettings(
+        timeout=wall_seconds,
+        parallel_tool_calls=True,
+        reasoning={"effort": effective_effort} if effective_effort else None,
+        # Ark implements Responses server-side continuation.  Let the SDK send
+        # only the incremental turn instead of replaying prior tool results.
+        store=server_state,
+    )
     sdk_agent = Agent(
         name="eca-pp",
         instructions=system_prompt,
@@ -209,20 +236,110 @@ async def run_agent(
         tracing_disabled=True,
         workflow_name=f"eca-pp: {label}",
     )
-    _ = effort, allowed_builtin, max_buffer_size
+    _ = allowed_builtin, max_buffer_size
     agent_started = time.perf_counter()
     runtime_init = agent_started - runtime_started
+
+    async def run_loop():
+        run_input: str | list = prompt
+        previous_response_id: str | None = None
+        turns_used = 0
+        nudges = 0
+        transcript_parts: list[str] = []
+        usage_totals = {
+            "requests": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 0,
+        }
+
+        while True:
+            remaining = max_turns - turns_used
+            if remaining <= 0:
+                raise AgentIncompleteError(
+                    f"[{label}] HARNESS=openai exhausted max_turns={max_turns} "
+                    f"without a successful {submit_tool} call"
+                )
+            runner_kwargs: dict[str, Any] = {}
+            if server_state:
+                runner_kwargs["auto_previous_response_id"] = True
+                if previous_response_id is not None:
+                    runner_kwargs["previous_response_id"] = previous_response_id
+            try:
+                result = await Runner.run(
+                    sdk_agent,
+                    run_input,
+                    max_turns=remaining,
+                    run_config=run_config,
+                    **runner_kwargs,
+                )
+            except MaxTurnsExceeded as exc:
+                raise AgentIncompleteError(
+                    f"[{label}] HARNESS=openai exceeded max_turns={max_turns} "
+                    "without a successful submit call"
+                ) from exc
+
+            raw = getattr(getattr(result, "context_wrapper", None), "usage", None)
+            input_details = getattr(raw, "input_tokens_details", None)
+            output_details = getattr(raw, "output_tokens_details", None)
+            requests = int(getattr(raw, "requests", 0) or 0)
+            turns_used += max(1, requests)
+            usage_totals["requests"] += requests
+            usage_totals["input_tokens"] += int(getattr(raw, "input_tokens", 0) or 0)
+            usage_totals["output_tokens"] += int(getattr(raw, "output_tokens", 0) or 0)
+            usage_totals["reasoning_tokens"] += int(
+                getattr(output_details, "reasoning_tokens", 0) or 0
+            )
+            usage_totals["cache_creation_tokens"] += int(
+                getattr(input_details, "cache_write_tokens", 0) or 0
+            )
+            usage_totals["cache_read_tokens"] += int(
+                getattr(input_details, "cached_tokens", 0) or 0
+            )
+            text = ItemHelpers.text_message_outputs(result.new_items).strip()
+            if text:
+                transcript_parts.append(text)
+
+            if "value" in submitted:
+                return result, transcript_parts, usage_totals, nudges
+
+            if nudges >= max_nudges or turns_used >= max_turns:
+                final_text = text or str(result.final_output or "")
+                raise AgentIncompleteError(
+                    f"[{label}] agent finished without a successful {submit_tool} "
+                    f"call after {turns_used} model request(s) and {nudges} "
+                    f"nudge(s). Final reply:\n{final_text}"
+                )
+
+            nudges += 1
+            print(
+                f"== [{label}] turn ended without {submit_tool} after "
+                f"{turns_used} model request(s) - nudging the same session "
+                f"({nudges}/{max_nudges})",
+                flush=True,
+            )
+            nudge_input = {
+                "role": "user",
+                "content": (
+                    f"Your previous turn ended without calling {submit_tool}. "
+                    f"Continue exactly where you left off and finish by calling "
+                    f"{submit_tool}."
+                ),
+            }
+            if server_state and getattr(result, "last_response_id", None):
+                previous_response_id = result.last_response_id
+                run_input = [nudge_input]
+            else:
+                run_input = result.to_input_list()
+                run_input.append(nudge_input)
+
     try:
-        run = Runner.run(
-            sdk_agent,
-            prompt,
-            max_turns=max_turns,
-            run_config=run_config,
-        )
-        result = (
-            await asyncio.wait_for(run, timeout=wall_seconds)
+        outcome = (
+            await asyncio.wait_for(run_loop(), timeout=wall_seconds)
             if wall_seconds
-            else await run
+            else await run_loop()
         )
     except (APITimeoutError, asyncio.TimeoutError) as exc:
         message = (
@@ -231,26 +348,19 @@ async def run_agent(
             else f"[{label}] agent request timed out"
         )
         raise AgentTimeout(message) from exc
-    except MaxTurnsExceeded as exc:
-        raise AgentIncompleteError(
-            f"[{label}] HARNESS=openai exceeded max_turns={max_turns} "
-            "without a successful submit call"
-        ) from exc
     finally:
         await client.close()
+    result, transcript_parts, usage_totals, nudges = outcome
     agent_run = time.perf_counter() - agent_started
     total = time.perf_counter() - runtime_started
 
-    if "value" not in submitted:
-        raise AgentIncompleteError(
-            f"[{label}] agent finished without a successful {submit_tool} call. "
-            f"Final reply:\n{result.final_output}"
-        )
-    transcript = ItemHelpers.text_message_outputs(result.new_items).strip()
+    transcript = "\n\n".join(transcript_parts).strip()
     if not transcript:
         transcript = str(result.final_output)
     print(
         f"== [{label}] HARNESS=openai provider=doubao model={model} "
+        f"effort={effective_effort or 'provider-default'} "
+        f"server_state={'on' if server_state else 'off'} nudges={nudges} "
         f"runtime_init={runtime_init:.3f}s agent_run={agent_run:.3f}s",
         flush=True,
     )
@@ -258,5 +368,5 @@ async def run_agent(
         submitted["value"],
         transcript,
         tools_used,
-        _usage_dict(result, model, runtime_init, agent_run, total),
+        _usage_dict(usage_totals, model, runtime_init, agent_run, total),
     )

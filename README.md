@@ -38,6 +38,19 @@ eca-pp-identify-columns out/sample1/standardized.h5ad -o out/sample1_columns
 echo $?                        # 0 = success; see the exit-code table below
 ```
 
+Harness and model are independent choices. For example, both of these use the
+OpenAI Agents SDK, while selecting different Doubao endpoints:
+
+```bash
+HARNESS=openai eca-pp-identify-columns standardized.h5ad -o out-turbo \
+  --model doubao-seed-2-1-turbo-260628
+HARNESS=openai eca-pp-identify-columns standardized.h5ad -o out-pro \
+  --model doubao-seed-2-1-pro-260628
+```
+
+The same `--model` switch also works with `HARNESS=deepseek`; use
+`ECA_PP_AGENT_MODEL` to select a model for a whole campaign.
+
 Python ≥ 3.10. Extras: `[probe]` (scanpy/harmonypy stack), `[agent]`
 (DeepSeek Harness plus its MCP bridge; `[llm]` is an alias), `[claude]`
 (optional Claude Agent SDK fallback), `[openai]` (OpenAI Agents SDK comparison
@@ -108,7 +121,11 @@ apply.
 Without selected-backend credentials, or if the agent fails during a run, the step
 continues with its deterministic policy and records that fallback in
 `warnings`. Both Doubao backends use `ARK_API_KEY`; `HARNESS=openai` additionally
-needs `pip install ".[openai]"`. DSH's `DSH_BIN` may point at a source-built dsh
+needs `pip install ".[openai]"`. Its Responses backend defaults to minimal reasoning,
+server-side response chaining, parallel function calls, and up to two continuation
+nudges when the model ends without submitting. Override these with
+`OPENAI_AGENTS_REASONING_EFFORT`, `OPENAI_AGENTS_SERVER_STATE=0`, and
+`OPENAI_AGENTS_MAX_NUDGES`. DSH's `DSH_BIN` may point at a source-built dsh
 CLI (`apps/cli/lib/bin.js`) and otherwise defaults to
 `$SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js`. For the fallback,
 `ECA_PP_CLAUDE_CLI` can point at a specific `claude` executable.
