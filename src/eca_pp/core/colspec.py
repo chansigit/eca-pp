@@ -11,6 +11,8 @@ import os
 
 import pandas as pd
 
+from eca_pp.core.values import normalize_missing
+
 
 class ColumnSpecError(ValueError):
     """SPEC cannot be resolved against this AnnData (a permanent input problem)."""
@@ -24,7 +26,7 @@ def resolve_spec(adata, spec: str) -> tuple[pd.Series, str]:
     cover every cell.
     """
     if spec in adata.obs.columns:
-        return adata.obs[spec].astype("string").fillna("<NA>"), "column"
+        return normalize_missing(adata.obs[spec]).astype("string"), "column"
     if os.path.isfile(spec):
         mapping = read_values_tsv(spec)
         missing = [c for c in map(str, adata.obs_names) if c not in mapping.index]
@@ -34,7 +36,7 @@ def resolve_spec(adata, spec: str) -> tuple[pd.Series, str]:
                 f"cells (first missing: {missing[0]!r})")
         vals = mapping.reindex([str(c) for c in adata.obs_names])
         vals.index = adata.obs_names
-        return vals.astype("string"), "tsv"
+        return normalize_missing(vals).astype("string"), "tsv"
     raise ColumnSpecError(
         f"{spec!r} is neither an obs column ({list(adata.obs.columns)[:10]}...) "
         f"nor an existing value file")

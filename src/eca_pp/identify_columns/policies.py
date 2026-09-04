@@ -1,6 +1,7 @@
 """Decision policies for identify-columns: who chooses the next candidate and
 when to conclude. Everything agent-related lives HERE and nowhere else —
-``ClaudeAgentPolicy`` (Agent SDK) with ``HeuristicPolicy`` as the
+``AgentPolicy`` (with ``ClaudeAgentPolicy`` retained as a compatibility alias)
+with ``HeuristicPolicy`` as the
 deterministic baseline and test double. Any policy failure raises
 :class:`PolicyUnavailable`; the caller degrades deterministically.
 """
@@ -8,6 +9,7 @@ deterministic baseline and test double. Any policy failure raises
 from __future__ import annotations
 
 import json
+import re
 
 
 class PolicyUnavailable(Exception):
@@ -28,11 +30,14 @@ class HeuristicPolicy:
                 return {"action": "adopt", "candidate": t["batch_col"],
                         "reason": "converged with iLISI gain and cLISI preserved",
                         "cell_type": state["best_cell_type"]}
+        active_tier = state.get("active_batch_tier")
         for c in state["candidates"]["batch"]:
             if not c["excluded"] and c["label"] not in tried:
+                if active_tier and c.get("tier") != active_tier:
+                    continue
                 return {"action": "probe", "candidate": c["label"],
                         "reason": f"next viable candidate ({c['class']}, "
-                                  f"{c['n_groups']} groups, bottom-up order)"}
+                                  f"{c['n_groups']} groups, {c.get('tier', 'primary')} tier)"}
         if not any(not c["excluded"] for c in state["candidates"]["batch"]):
             return {"action": "conclude_no_batch",
                     "reason": "no viable grouping column exists",
@@ -41,31 +46,89 @@ class HeuristicPolicy:
                 "reason": "all viable candidates probed, none qualified"}
 
 
-class ClaudeAgentPolicy:
-    """Agent SDK-backed policy (via :mod:`eca_pp.agent`): the model reads the
-    profile, trial metrics and UMAP panels (via its Read tool) and returns one
-    structured decision per round. Construction or any exchange failure
-    raises PolicyUnavailable — the caller degrades deterministically."""
+class AgentPolicy:
+    """Harness-backed policy (DSH by default, Claude when selected).
+
+    The historical ``ClaudeAgentPolicy`` name remains an alias for source
+    compatibility. Construction or any exchange failure raises
+    PolicyUnavailable and the caller degrades deterministically.
+    """
 
     def __init__(self, outdir: str, model: str | None = None):
         from eca_pp import agent
         try:
             agent.check_available()
-            self._options = agent.make_options(
-                system_prompt=PROMPT, cwd=outdir, allowed_tools=["Read"],
-                max_turns=6, model=model)
+            self._outdir = outdir
+            self._model = model
         except agent.AgentUnavailable as exc:
             raise PolicyUnavailable(str(exc))
 
-    def _ask(self, message: str) -> tuple[str, list, dict]:
+    def _ask(self, state: dict, message: str) -> tuple[dict, str | None, list, dict]:
         """One decision = one self-contained agent session (the full state is
         resent every round, so no cross-round session memory is needed — and
         every decision stays independently reproducible). Returns the reply
         text, the tool calls the agent made (e.g. Reading UMAP panels), and
         the session's token/cost usage."""
         from eca_pp import agent
+
+        def validate(decision: dict) -> dict:
+            missing = [key for key in ("action", "candidate", "cell_type", "reason")
+                       if key not in decision]
+            if missing:
+                raise ValueError(f"missing field(s): {missing}")
+            action = decision["action"]
+            if action not in ACTIONS:
+                raise ValueError(f"unknown action {action!r}")
+            if not isinstance(decision["reason"], str) or not decision["reason"].strip():
+                raise ValueError("reason must be a non-empty sentence")
+            cell_type = decision["cell_type"]
+            valid_cell_types = {
+                item["label"] for item in state["candidates"]["cell_type"]
+                if item.get("class") == "annotation"
+            }
+            if cell_type is not None and cell_type not in valid_cell_types:
+                raise ValueError(
+                    f"cell_type must be an author annotation or null; got {cell_type!r}"
+                )
+            candidate = decision["candidate"]
+            eligible = set(state.get("eligible_batch_candidates", []))
+            if action == "probe":
+                if state.get("probes_left", 0) <= 0:
+                    raise ValueError("probe budget is exhausted")
+                if candidate not in eligible:
+                    raise ValueError(
+                        f"probe candidate must be currently eligible: {sorted(eligible)}"
+                    )
+            elif action in ("adopt", "conclude_unnecessary"):
+                expected = "adopted" if action == "adopt" else "correction_unnecessary"
+                accepted = {trial["batch_col"] for trial in state["trials"]
+                            if trial["verdict"] == expected}
+                if candidate not in accepted:
+                    raise ValueError(
+                        f"{action} candidate must have verdict {expected!r}: {sorted(accepted)}"
+                    )
+            elif candidate is not None:
+                raise ValueError(f"candidate must be null for {action}")
+            if action in ("conclude_no_batch", "give_up") and eligible \
+                    and state.get("probes_left", 0) > 0:
+                raise ValueError(
+                    f"eligible candidates remain and must be probed first: {sorted(eligible)}"
+                )
+            return decision
+
         try:
-            return agent.ask(self._options, message)
+            return agent.ask_json(
+                system_prompt=PROMPT,
+                message=message,
+                cwd=self._outdir,
+                submit_tool="submit_column_decision",
+                schema=DECISION_SCHEMA,
+                validate=validate,
+                allowed_builtin=("read", "glob", "grep"),
+                max_turns=6,
+                model=self._model,
+                label="identify columns",
+            )
         except agent.AgentUnavailable as exc:
             raise PolicyUnavailable(str(exc))
 
@@ -76,25 +139,71 @@ class ClaudeAgentPolicy:
             + "\n```\nTrial UMAP panels are PNG files in the working directory "
               "(paths in trials[].umap); Read them if helpful.\n"
               "Set \"cell_type\" in EVERY reply (probe included): it is the "
-              "cLISI label column for the trials. candidates.cell_type is "
-              "ranked; best_cell_type is the current default.\n"
-              "Reply with EXACTLY one fenced json block:\n"
-              '{"action": "probe|adopt|conclude_unnecessary|conclude_no_batch'
-              '|give_up", "candidate": "<label or null>", '
-              '"cell_type": "<label or null>", "reason": "<one sentence>"}')
-        reply, tools_used, usage = self._ask(message)
-        try:
-            payload = reply.split("```json", 1)[1].split("```", 1)[0]
-            decision = json.loads(payload)
-            assert decision.get("action") in (
-                "probe", "adopt", "conclude_unnecessary", "conclude_no_batch",
-                "give_up")
-            decision["tools_used"] = tools_used
-            decision["raw_reply"] = reply  # the agent's full reply text
-            decision["usage"] = usage      # tokens + cost for this round
-            return decision
-        except Exception as exc:  # noqa: BLE001
-            raise PolicyUnavailable(f"unparseable agent decision: {exc}")
+              "author annotation to report. candidates.cell_type is ranked; "
+              "best_cell_type is the current default. A constant annotation "
+              "is valid output but the program will omit it from cLISI.\n"
+              "Only propose a batch candidate whose tier equals "
+              "active_batch_tier; primary technical/donor candidates must be "
+              "exhausted before fallback biological/unknown candidates.")
+        decision, transcript, tools_used, usage = self._ask(state, message)
+        decision["tools_used"] = tools_used
+        decision["raw_reply"] = transcript or json.dumps(decision, ensure_ascii=False)
+        decision["usage"] = usage
+        return decision
+
+
+ACTIONS = ("probe", "adopt", "conclude_unnecessary", "conclude_no_batch",
+           "give_up")
+
+DECISION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"enum": list(ACTIONS)},
+        "candidate": {"type": ["string", "null"]},
+        "cell_type": {"type": ["string", "null"]},
+        "reason": {"type": "string"},
+    },
+    "required": ["action", "candidate", "cell_type", "reason"],
+}
+
+
+def _payload_of(reply: str) -> str:
+    """The JSON object in the agent's reply: the ```json fenced block when
+    present, else the bare ``{...}`` span (the agent occasionally omits the
+    fence — e.g. a single-sample conclude_no_batch — which used to fail with
+    IndexError and turn a correct verdict into exit 3)."""
+    if "```json" in reply:
+        return reply.split("```json", 1)[1].split("```", 1)[0]
+    i, j = reply.find("{"), reply.rfind("}")
+    if i < 0 or j <= i:
+        raise ValueError("no JSON object in reply")
+    return reply[i:j + 1]
+_FIELD = {k: re.compile(rf'"{k}"\s*:\s*(?:(null)|"((?:[^"\\]|\\.)*)")')
+          for k in ("action", "candidate", "cell_type")}
+_REASON = re.compile(r'"reason"\s*:\s*"(.*)"\s*}\s*$', re.S)
+
+
+def parse_decision(payload: str) -> dict:
+    """``json.loads`` with a lenient fallback for the one malformation the
+    agent actually produces: unescaped double quotes inside the free-text
+    ``reason`` (e.g. quoting a label like "Unassigned"). The structured
+    fields are short quoted labels or null and are recovered by regex; the
+    reason is everything between its opening quote and the closing brace."""
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError as exc:
+        found = {}
+        for k, rx in _FIELD.items():
+            m = rx.search(payload)
+            if m:
+                found[k] = None if m.group(1) else m.group(2)
+        if found.get("action") not in ACTIONS:
+            raise exc
+        m = _REASON.search(payload)
+        found["reason"] = (m.group(1).strip() if m else "")
+        found.setdefault("candidate", None)
+        found.setdefault("cell_type", None)
+        return found
 
 
 PROMPT = """\
@@ -112,11 +221,13 @@ Doctrine:
 1. Classify grouping columns first: technical (lane/channel/library/run/
    pool/hash), donor, experimental condition (disease/treatment/timepoint/
    genotype), annotation, QC numeric, identifier.
-2. Batch candidates: ANY grouping across which cell identities should be
-   aligned - technical, donor, AND experimental condition (atlas setting:
-   merging condition-driven expression shifts is the goal; count data stay
-   untouched for downstream differential analysis). When you adopt a
-   condition-like column, state this consequence in your reason.
+2. Batch candidates have two strict tiers. PRIMARY = technical and donor/
+   sample factors, including technical structure derived from barcodes. Probe
+   every viable primary candidate before considering FALLBACK = experimental
+   condition or unknown grouping. Never jump to fallback while an untried
+   primary candidate remains. A fallback is acceptable only when no primary
+   candidate qualifies and its probe preserves biological structure; state
+   this biological-risk consequence in the reason.
 3. Never batch: annotation columns, QC numeric columns, per-cell-unique
    identifiers, constant columns.
 4. Nested groupings: prefer the finest viable technical level (correcting
@@ -139,13 +250,17 @@ Doctrine:
    "cluster"; text labels before bare integers) and best_cell_type is
    the current default. Override it when the sampled values show the
    default is wrong (e.g. the "annotation" column holds integers while
-   another column holds cell-type names). Fall back to a cluster column
-   ONLY when no annotation column exists; if none is usable, set null.
-   When several annotation columns exist (e.g. coarse and fine), prefer
+   another annotation column holds cell-type names).
+   A constant author annotation is still a valid output, although it cannot
+   be used for cLISI. If only clusters exist, report null; the probe will make
+   its own pseudo-labels. When several annotation columns exist (e.g. coarse and fine), prefer
    the one with recognizable cell-type names at a usable granularity and
-   mention the other in your reason.
+   mention the other in your reason. If no author annotation exists, set null;
+   that is a successful unattended outcome, not an error.
+8. Exhausted or ambiguous batch evidence is also a successful unattended
+   outcome: use give_up and let the pipeline report batch=null with warnings.
 
-Every reply must be EXACTLY one fenced json block:
+Finish by submitting this JSON object through the provided submit tool:
 {"action": "probe|adopt|conclude_unnecessary|conclude_no_batch|give_up",
  "candidate": "<batch candidate label>",
  "cell_type": "<cell-type column label or null>",
@@ -157,3 +272,8 @@ conclude_no_batch / give_up.
 "cell_type" is REQUIRED in every reply, probe included: the trials use it
 as the cLISI label column, so a wrong choice corrupts the probe metrics.
 """
+
+
+# Public compatibility for callers written before the harness became
+# backend-neutral. New code should use AgentPolicy.
+ClaudeAgentPolicy = AgentPolicy

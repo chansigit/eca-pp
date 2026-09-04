@@ -83,3 +83,24 @@ def test_tiny_groups_flagged():
     gs = _col(p, "micro")["group_sizes"]
     assert gs["n_tiny"] == gs["n_groups"]  # every group < 25 cells
     assert gs["tiny_cell_frac"] == 1.0
+
+
+def test_blank_and_common_missing_strings_are_not_groups():
+    A = make_adata()
+    values = np.array(["b1"] * 40 + ["b2"] * 40
+                      + ["", "  ", "NA", "missing"] * 10, dtype=object)
+    A.obs["batch_with_blanks"] = values
+    p = obsprofile.profile_obs(A)
+    col = _col(p, "batch_with_blanks")
+    assert col["n_unique"] == 2
+    assert col["missing_frac"] == 0.3333
+    assert col["group_sizes"]["n_groups"] == 2
+    assert "" not in col["examples"] and col["examples"]["<NA>"] == 40
+
+
+def test_derived_candidates_carry_group_health():
+    p = obsprofile.profile_obs(make_adata())
+    barcode = next(d for d in p["derived"]
+                   if d["label"] == "barcode:prefix:-")
+    assert barcode["group_sizes"]["n_groups"] == 3
+    assert 0 <= barcode["entropy"] <= 1

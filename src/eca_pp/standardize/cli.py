@@ -95,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "full names accepted too")
     p.add_argument("--llm", action="store_true",
                    help="allow one LLM call as a species-inference fallback "
-                        "(off by default; needs ANTHROPIC_API_KEY)")
+                        "(off by default; uses the selected HARNESS backend)")
     p.add_argument("--keep-unmapped", action="store_true",
                    help="keep unmappable features under their original names "
                         "instead of dropping them (default: drop)")

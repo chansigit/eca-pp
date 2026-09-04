@@ -3,14 +3,13 @@
     T0  --species CODE          the driver's explicit call; always wins
     T1  stangene.infer_species  deterministic (ID prefixes, mito styles,
                                 reference symbol-inventory overlap)
-    T2  single-shot LLM         --llm only; structured output; any failure
+    T2  single-shot LLM         --llm only; validated submit tool; any failure
                                 falls through — never retried, never looped
     T3  unresolved              caller blocks with exit 3 and the evidence
 
-The LLM tier is one single-turn, tool-less Agent SDK exchange via
-:mod:`eca_pp.agent` (same model and credentials as identify-columns, NOT an
-agent loop), whose answer is validated against stangene's supported species
-before adoption.
+The LLM tier is one tool-less harness session via :mod:`eca_pp.agent` (DSH by
+default, Claude when selected), whose answer is validated against stangene's
+supported species before adoption.
 """
 
 from __future__ import annotations
@@ -81,11 +80,8 @@ def resolve(adata, *, cli_species: str | None = None, llm: bool = False) -> Spec
 
 
 def _llm_infer(symbols_sample: list[str], evidence: dict):
-    """One single-turn Agent SDK exchange; ``(canonical_species, confidence,
-    usage)`` or ``None`` on ANY failure (SDK missing, no credentials, exchange
-    failed, unparsable or unsupported answer, low confidence). Deterministic
-    T3 is the fallback — this tier never loops."""
-    import json
+    """One harness session; ``(canonical_species, confidence, usage)`` or
+    ``None`` on any failure. Deterministic T3 is always the fallback."""
     import tempfile
 
     from eca_pp import agent
@@ -95,29 +91,56 @@ def _llm_infer(symbols_sample: list[str], evidence: dict):
         "You identify the species of a single-cell RNA-seq dataset from its "
         f"gene identifiers. Answer with one of: {supported}. If the names are "
         "genuinely uninformative, still pick the most likely species but give "
-        "a low confidence (< 0.5). Reply with EXACTLY one fenced json block: "
+        "a low confidence (< 0.5). Submit exactly this object: "
         '{"species": "<one of the supported names>", "confidence": <0..1>, '
-        '"reason": "<one sentence>"} and nothing else.')
+        '"reason": "<one sentence>"}.')
     user = (
         f"Deterministic inference was inconclusive. Its evidence:\n{evidence}\n\n"
         f"A sample of the dataset's feature names:\n{symbols_sample}\n\n"
         "Which species is this dataset from?")
     try:
         agent.check_available()
+
+        def validate(payload: dict) -> dict:
+            missing = [key for key in ("species", "confidence", "reason")
+                       if key not in payload]
+            if missing:
+                raise ValueError(f"missing field(s): {missing}")
+            payload["species"] = stangene.resolve_species(str(payload["species"]))
+            payload["confidence"] = max(0.0, min(1.0, float(payload["confidence"])))
+            if not isinstance(payload["reason"], str) or not payload["reason"].strip():
+                raise ValueError("reason must be a non-empty sentence")
+            return payload
+
         with tempfile.TemporaryDirectory(prefix="eca-pp-species-") as cwd:
-            options = agent.make_options(system_prompt=system, cwd=cwd,
-                                         allowed_tools=(), max_turns=1)
-            reply, _tools, usage = agent.ask(options, user)
-        parsed = json.loads(agent.extract_json(reply))
-        canon = stangene.resolve_species(str(parsed["species"]))
-        conf = max(0.0, min(1.0, float(parsed["confidence"])))
+            parsed, _reply, _tools, usage = agent.ask_json(
+                system_prompt=system,
+                message=user,
+                cwd=cwd,
+                submit_tool="submit_species",
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "species": {"enum": sorted(CODE_BY_SPECIES)},
+                        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["species", "confidence", "reason"],
+                },
+                validate=validate,
+                allowed_builtin=(),
+                max_turns=3,
+                label="infer species",
+            )
+        canon = parsed["species"]
+        conf = parsed["confidence"]
         if conf < 0.5:  # the model itself is unsure — let T3 block instead
             return None
         usage = {"model": usage.get("model") or agent.model_name(),
                  "cost_usd": usage.get("cost_usd"),
                  "input_tokens": usage.get("input_tokens"),
                  "output_tokens": usage.get("output_tokens"),
-                 "billing_url": "https://console.anthropic.com/settings/usage"}
+                 "backend": usage.get("backend")}
         return canon, conf, usage
     except Exception:  # noqa: BLE001 - any failure -> deterministic T3
         return None

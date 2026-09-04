@@ -149,39 +149,38 @@ pip install ".[probe,agent]"        # 本 repo 的 checkout
 ```
 
 Sherlock 容器环境用 `bash scripts/test-in-container.sh` 一键验证
-(python:3.12-slim + Apptainer,53 项验收测试)。
+(python:3.12-slim + Apptainer)。
 
 ## 8. 识别批次列 / 细胞类型列(identify-columns)
 
-### 8.1 先配置 LLM 凭据(二选一;不配也能降级运行)
+### 8.1 配置 agent harness(不配也能确定性降级)
 
-**方式 A:Claude 订阅(推荐)**——安装 Claude Code CLI 并登录一次:
-
-```bash
-npm install -g @anthropic-ai/claude-code
-claude          # 首次运行按提示登录;凭据写入 ~/.claude/.credentials.json
-```
-
-之后 identify-columns 不需要任何环境变量,计费走订阅额度。
-
-**方式 B:API key**:
+默认是 DSH + Doubao。Sherlock 上使用源码构建的 dsh CLI:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export ARK_API_KEY=...
+export DSH_BIN=$SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js
+# DSH_BIN 不设时会自动尝试上面这个路径
 ```
 
-同时启用 standardize 的 `--llm` 物种回退;计费走 API 余额。
+要切回 Claude Agent SDK:
 
-可选项:`ECA_PP_CLAUDE_CLI=/path/to/claude` 指定 CLI 可执行文件
-(glibc 较老的系统需用 npm 版 CLI,备选方案见 run.sh 头部注释)。
+```bash
+export HARNESS=claude
+export ANTHROPIC_API_KEY=sk-ant-...  # 或先用 Claude Code CLI 登录
+export ECA_PP_CLAUDE_CLI=/path/to/claude  # 可选
+pip install ".[claude]"
+```
 
-**选择模型**:`--model claude-sonnet-5`(或环境变量
-`ECA_PP_AGENT_MODEL`)。不指定则沿用 claude CLI 的默认模型——注意订阅
-账户的默认往往是最贵的档位;这类任务用 Sonnet 通常足够。每轮实际使用的
-模型会记录在 `decisions[].usage.model`,汇总在 `metrics.llm.models`。
+两种后端共用 submit-tool 协议:模型必须调用提交工具,Python handler 校验
+结构与候选合法性;无效提交会在同一 session 内返回错误并允许修正。
 
-**不配置会怎样**:不报错——降级为"画像 + 候选排名"(exit 3,等你确认),
-全部确定性功能不受影响。
+**选择模型**:`--model MODEL_ID`(或环境变量 `ECA_PP_AGENT_MODEL`)。
+不指定时随后端使用 `doubao-seed-2-1-turbo-260628` 或
+`claude-sonnet-5`。每轮实际模型记录在 `decisions[].usage.model`。
+
+**不配置会怎样**:不报错——自动使用确定性 policy 跑完;无法安全判断时
+输出 null 和结构化 warning(exit 0)。
 
 ### 8.2 跑一个真样本(Marrow,3652 细胞)
 
@@ -204,7 +203,5 @@ columns.cell_type = cell_ontology_class
 `--batch-col channel`;`correction=unnecessary` 时 integration 应跳过校正。
 
 **费用可见**:每轮的 token 用量与费用记录在 `decisions[].usage`,汇总在
-`metrics.llm`。账户级总消费查询:订阅方式在
-<https://claude.ai/settings/usage>,API key 方式在
-<https://console.anthropic.com/settings/usage>(result.json 里的
-`billing_url` 会按认证方式给出对应地址)。
+`metrics.llm`。DSH/Ark 与 Claude 的账户级消费分别在各自控制台查询;
+`result.json` 的 `billing_url` 会随当前后端给出入口。

@@ -13,6 +13,8 @@ import re
 import numpy as np
 import pandas as pd
 
+from eca_pp.core.values import normalize_missing
+
 TINY_GROUP_CELLS = 25     # groups below this are "tiny" (spec §6)
 MAX_GROUPING_CARD = 1000  # above this a column is not a plausible grouping
 MAX_EXAMPLES = 20
@@ -64,21 +66,26 @@ def profile_obs(adata) -> dict:
     n = int(adata.n_obs)
     columns, grouping = [], {}
     for name in adata.obs.columns:
-        s = adata.obs[name]
-        vc = s.astype("string").fillna("<NA>").value_counts()
+        original = adata.obs[name]
+        s = normalize_missing(original)
+        vc = s.astype("string").value_counts(dropna=True)
+        missing_n = int(s.isna().sum())
+        examples = {str(k): int(v) for k, v in vc.head(MAX_EXAMPLES).items()}
+        if missing_n and len(examples) < MAX_EXAMPLES:
+            examples["<NA>"] = missing_n
         entry = {
             "column": str(name),
-            "dtype": _dtype_of(s),
+            "dtype": _dtype_of(original),
             "n_unique": int(s.nunique(dropna=True)),
             "missing_frac": round(float(s.isna().mean()), 4),
             "is_constant": int(s.nunique(dropna=True)) <= 1,
             "is_per_cell_unique": int(s.nunique(dropna=True)) >= n,
-            "examples": {str(k): int(v) for k, v in vc.head(MAX_EXAMPLES).items()},
+            "examples": examples,
         }
         if is_grouping_candidate(entry):
             entry["group_sizes"] = _group_sizes_block(vc, n)
             entry["entropy"] = round(_entropy_norm(vc.to_numpy(dtype=float)), 4)
-            grouping[entry["column"]] = s.astype("string").fillna("<NA>")
+            grouping[entry["column"]] = s.astype("string")
         columns.append(entry)
 
     return {
@@ -121,8 +128,13 @@ def barcode_candidates(obs_names: list) -> list[dict]:
             vals = _split_barcode(s, pos, d)
             nun = int(vals.nunique())
             if 2 <= nun < n and nun <= MAX_GROUPING_CARD:
+                sizes = vals.value_counts()
                 out.append({"label": f"barcode:{pos}:{d}", "kind": "barcode",
-                            "n_groups": nun})
+                            "n_groups": nun,
+                            "missing_frac": 0.0,
+                            "group_sizes": _group_sizes_block(sizes, n),
+                            "entropy": round(
+                                _entropy_norm(sizes.to_numpy(dtype=float)), 4)})
     return out
 
 
@@ -134,8 +146,13 @@ def composite_candidates(grouping: dict) -> list[dict]:
         nun = int(combo.nunique())
         if (nun <= MAX_GROUPING_CARD
                 and nun > max(small[a].nunique(), small[b].nunique())):
+            sizes = combo.value_counts(dropna=True)
             out.append({"label": f"composite:{a}+{b}", "kind": "composite",
-                        "n_groups": nun})
+                        "n_groups": nun,
+                        "missing_frac": round(float(combo.isna().mean()), 4),
+                        "group_sizes": _group_sizes_block(sizes, len(combo)),
+                        "entropy": round(
+                            _entropy_norm(sizes.to_numpy(dtype=float)), 4)})
         if len(out) >= MAX_COMPOSITES:
             break
     return out
@@ -156,6 +173,6 @@ def derive_values(adata, label: str) -> pd.Series:
         return _split_barcode(s, pos, delim)
     if kind == "composite":
         a, _, b = rest.partition("+")
-        return (adata.obs[a].astype("string").fillna("<NA>")
-                .str.cat(adata.obs[b].astype("string").fillna("<NA>"), sep="|"))
+        return normalize_missing(adata.obs[a]).astype("string").str.cat(
+            normalize_missing(adata.obs[b]).astype("string"), sep="|")
     raise ValueError(f"unknown derived-candidate label: {label!r}")

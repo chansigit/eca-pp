@@ -34,13 +34,14 @@ def run(tmp_path, src, policy, *extra):
     return code, res, out
 
 
-def test_degraded_mode_profiles_and_blocks(tmp_path):
+def test_no_probe_profiles_and_succeeds_with_null_batch(tmp_path):
     src = make_integration_h5ad(tmp_path / "s.h5ad")
-    code, res, _ = run(tmp_path, src, None)
-    assert code == 3 and res["status"] == "needs_review"
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
+    assert code == 0 and res["status"] == "ok"
     assert res["profile"]["columns"]
     assert any(c["label"] == "batch" for c in res["candidates"]["batch"])
     assert res["columns"]["batch"] is None
+    assert any(w["code"] == "probe_disabled" for w in res["warnings"])
 
 
 def test_scripted_adopt_flow(tmp_path):
@@ -62,6 +63,21 @@ def test_scripted_adopt_flow(tmp_path):
     # the policy saw candidates with the annotation column excluded from batch
     batch_labels = {c["label"] for c in res["candidates"]["batch"]}
     assert "cell_type" not in batch_labels
+
+
+def test_policy_cannot_ignore_a_qualifying_trial(tmp_path):
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    policy = ScriptedPolicy([
+        {"action": "probe", "candidate": "batch", "cell_type": "cell_type",
+         "reason": "try technical batch"},
+        {"action": "give_up", "candidate": None, "cell_type": "cell_type",
+         "reason": "incorrectly ignored the successful trial"},
+    ])
+    code, res, _ = run(tmp_path, src, policy, "--n-cells", 600)
+    assert code == 0
+    assert res["columns"]["batch"]["value"] == "batch"
+    assert any(w["code"] == "invalid_policy_decision"
+               for w in res["warnings"])
 
 
 def test_heuristic_policy_adopts_true_batch(tmp_path):
@@ -112,25 +128,58 @@ def test_no_grouping_columns_concludes_no_batch(tmp_path):
     assert res["columns"]["batch"] is None
 
 
+def test_agent_unavailable_continues_deterministically(tmp_path):
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=1.0)
+    import anndata as ad
+    A = ad.read_h5ad(src)
+    del A.obs["batch"]
+    del A.obs["cell_type"]
+    A.obs_names = [f"C{i:06d}" for i in range(A.n_obs)]
+    A.write_h5ad(src)
+    code, res, _ = run(tmp_path, src, None)
+    assert code == 0 and res["columns"]["batch"] is None
+    assert any(w["code"] == "agent_unavailable" for w in res["warnings"])
+
+
+def test_midrun_agent_failure_falls_back_without_blocking(tmp_path):
+    from eca_pp.identify_columns.policies import PolicyUnavailable
+
+    class FailingPolicy:
+        def decide(self, state):
+            raise PolicyUnavailable("temporary agent failure")
+
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=1.0)
+    import anndata as ad
+    A = ad.read_h5ad(src)
+    del A.obs["batch"]
+    A.obs_names = [f"C{i:06d}" for i in range(A.n_obs)]
+    A.write_h5ad(src)
+    code, res, _ = run(tmp_path, src, FailingPolicy())
+    assert code == 0 and res["columns"]["batch"] is None
+    assert any(w["code"] == "agent_failed" for w in res["warnings"])
+
+
 def test_pathological_column_excluded_before_trials(tmp_path):
     n = 600
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
         "micro_id": np.array([f"g{i % 200}" for i in range(n)])})
-    code, res, _ = run(tmp_path, src, None)  # degraded: just inspect candidates
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
     micro = next(c for c in res["candidates"]["batch"]
                  if c["label"] == "micro_id")
     assert micro["excluded"] and "pathological" in micro["note"]
 
 
-def test_probe_budget_exhaustion_blocks(tmp_path):
+def test_probe_budget_exhaustion_succeeds_with_null_batch(tmp_path):
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
     policy = ScriptedPolicy([
         {"action": "probe", "candidate": "batch", "reason": "try"},
-        {"action": "give_up", "reason": "not satisfied"},
     ])
-    code, res, _ = run(tmp_path, src, policy, "--n-cells", 600)
-    assert code == 3 and res["status"] == "needs_review"
-    assert res["trials"]
+    code, res, _ = run(tmp_path, src, policy, "--max-probes", 0)
+    assert code == 0 and res["status"] == "ok"
+    assert res["columns"]["batch"] is None
+    assert any(w["code"] == "batch_evidence_insufficient"
+               for w in res["warnings"])
+    assert not res["trials"]
 
 
 # ---------------------------------------------------- cell-type column choice
@@ -163,7 +212,7 @@ def test_cell_type_ranking_prefers_annotation_over_clusters(tmp_path):
     A = ad.read_h5ad(src)
     A.obs = A.obs[["batch", "seurat_clusters", "cell_type"]]  # cluster first
     A.write_h5ad(src)
-    code, res, _ = run(tmp_path, src, None)  # degraded: heuristic default
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
     labels = [c["label"] for c in res["candidates"]["cell_type"]]
     assert labels == ["cell_type", "seurat_clusters"]
     clus = res["candidates"]["cell_type"][1]
@@ -176,7 +225,7 @@ def test_cell_type_ranking_prefers_annotation_over_clusters(tmp_path):
     assert not any("seurat_clusters" in lab for lab in batch_labels)
 
 
-def test_cluster_column_is_last_resort_with_low_confidence(tmp_path):
+def test_cluster_column_is_probe_support_not_reported_as_cell_type(tmp_path):
     n = 600
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=1.0, obs_extra={
         "leiden": np.array([str(i % 4) for i in range(n)])})
@@ -184,10 +233,14 @@ def test_cluster_column_is_last_resort_with_low_confidence(tmp_path):
     A = ad.read_h5ad(src)
     del A.obs["cell_type"]
     A.write_h5ad(src)
-    code, res, _ = run(tmp_path, src, None)
-    ct = res["columns"]["cell_type"]
-    assert ct["value"] == "leiden" and ct["confidence"] == 0.4
-    assert "cluster" in ct["evidence"]
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
+    assert res["columns"]["cell_type"] is None
+    cluster = next(c for c in res["candidates"]["cell_type"]
+                   if c["label"] == "leiden")
+    assert not cluster["output_eligible"] and cluster["usable_for_clisi"]
+    warning = next(w for w in res["warnings"]
+                   if w["code"] == "cell_type_not_found")
+    assert warning["details"]["cluster_columns"] == ["leiden"]
 
 
 def test_policy_cell_type_choice_drives_trials(tmp_path):
@@ -225,3 +278,106 @@ def test_policy_unknown_cell_type_is_ignored(tmp_path):
     assert code == 0
     assert res["trials"][0]["cell_type_col"] == "cell_type"
     assert res["columns"]["cell_type"]["value"] == "cell_type"
+    assert any(w["code"] == "invalid_cell_type_choice"
+               for w in res["warnings"])
+
+
+def test_classify_ann_affix_is_annotation_but_not_channel():
+    named = {"T cell": 10, "B cell": 5}
+    assert classify_column(_entry("ann_major_v260516", named)) == "annotation"
+    assert classify_column(_entry("cell.ann", named)) == "annotation"
+    assert classify_column(_entry("channel", {"c1": 10, "c2": 5})) == "technical"
+
+
+def test_short_ct_alias_and_constant_annotation_are_valid_output(tmp_path):
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=1.0)
+    import anndata as ad
+    A = ad.read_h5ad(src)
+    del A.obs["cell_type"]
+    A.obs["ct"] = "Embryonic stem cell"
+    A.write_h5ad(src)
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
+    assert code == 0
+    ct = res["columns"]["cell_type"]
+    assert ct["value"] == "ct"
+    candidate = next(c for c in res["candidates"]["cell_type"]
+                     if c["label"] == "ct")
+    assert candidate["output_eligible"]
+    assert not candidate["usable_for_clisi"]
+    assert "not used for cLISI" in ct["evidence"]
+
+
+def test_batch_candidates_have_strict_primary_then_fallback_tiers():
+    profile = {"columns": [
+        {**_entry("library", {"l1": 50, "l2": 50}),
+         "missing_frac": 0.0,
+         "group_sizes": {"n_groups": 2, "n_tiny": 0,
+                         "tiny_group_frac": 0.0, "tiny_cell_frac": 0.0}},
+        {**_entry("stage", {"E1": 50, "E2": 50}),
+         "missing_frac": 0.0,
+         "group_sizes": {"n_groups": 2, "n_tiny": 0,
+                         "tiny_group_frac": 0.0, "tiny_cell_frac": 0.0}},
+    ], "derived": []}
+    candidates = build_candidates(profile)
+    assert [(c["label"], c["tier"]) for c in candidates["batch"]] == [
+        ("library", "primary"), ("stage", "fallback")]
+    from eca_pp.identify_columns.cli import _active_batch_tier
+    assert _active_batch_tier(candidates, []) == "primary"
+    assert _active_batch_tier(candidates, [
+        {"batch_col": "library", "verdict": "rejected"}]) == "fallback"
+    assert _active_batch_tier(candidates, [
+        {"batch_col": "library", "verdict": "adopted"}]) is None
+
+
+def test_fallback_batch_is_allowed_but_warned(tmp_path):
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    import anndata as ad
+    A = ad.read_h5ad(src)
+    A.obs["stage"] = A.obs.pop("batch")
+    A.write_h5ad(src)
+    policy = ScriptedPolicy([
+        {"action": "probe", "candidate": "stage", "cell_type": "cell_type",
+         "reason": "no technical candidate exists"},
+        {"action": "adopt", "candidate": "stage", "cell_type": "cell_type",
+         "reason": "fallback preserved cell structure"},
+    ])
+    code, res, _ = run(tmp_path, src, policy, "--n-cells", 600)
+    assert code == 0 and res["columns"]["batch"]["value"] == "stage"
+    assert any(w["code"] == "biological_batch_fallback"
+               for w in res["warnings"])
+
+
+def test_pseudo_clisi_uses_weaker_but_still_conservative_veto():
+    from eca_pp.identify_columns.cli import qualifies
+    base = {"harmony_converged": True, "ilisi_norm_pre": 0.1,
+            "ilisi_norm_post": 0.3, "clisi_norm_pre": 0.9,
+            "clisi_norm_post": 0.8}
+    assert not qualifies({**base, "clisi_labels": "annotated"})
+    assert qualifies({**base, "clisi_labels": "pseudo"})
+    assert not qualifies({**base, "clisi_labels": "pseudo",
+                           "clisi_norm_post": 0.7})
+
+
+def test_parse_decision_tolerates_unescaped_quotes_in_reason():
+    from eca_pp.identify_columns.policies import parse_decision
+    good = '{"action": "probe", "candidate": "batch", "cell_type": null, "reason": "ok"}'
+    assert parse_decision(good)["candidate"] == "batch"
+    bad = ('{"action": "adopt", "candidate": "batch", "cell_type": "ann_major",\n'
+           ' "reason": "major_celltype leaves 28% as "Unassigned" so ann_major wins"}')
+    d = parse_decision(bad)
+    assert d == {"action": "adopt", "candidate": "batch", "cell_type": "ann_major",
+                 "reason": 'major_celltype leaves 28% as "Unassigned" so ann_major wins'}
+    import json, pytest
+    with pytest.raises(json.JSONDecodeError):
+        parse_decision('{"action": "fly", "reason": "x "y" z"}')
+
+
+def test_payload_of_accepts_bare_json_without_fence():
+    from eca_pp.identify_columns.policies import _payload_of, parse_decision
+    fenced = 'Thoughts.\n```json\n{"action": "probe", "candidate": "b", "cell_type": null, "reason": "r"}\n```\n'
+    assert parse_decision(_payload_of(fenced))["action"] == "probe"
+    bare = '{"action": "conclude_no_batch", "candidate": null, "cell_type": null, "reason": "single sample"}'
+    assert parse_decision(_payload_of(bare))["action"] == "conclude_no_batch"
+    import pytest
+    with pytest.raises(ValueError):
+        _payload_of("no json here")

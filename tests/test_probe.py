@@ -6,7 +6,7 @@ import json
 
 import numpy as np
 
-from eca_pp.probe.cli import main
+from eca_pp.probe.cli import _stratified_indices, main
 from intdata import make_integration_h5ad
 
 RNG = np.random.default_rng(7)
@@ -97,3 +97,27 @@ def test_reproducible(tmp_path):
     _, r2 = run(tmp_path / "b", src, "--batch-col", "batch", "--n-cells", 500)
     assert r1["metrics"]["ilisi_norm_pre"] == r2["metrics"]["ilisi_norm_pre"]
     assert r1["metrics"]["ilisi_norm_post"] == r2["metrics"]["ilisi_norm_post"]
+
+
+def test_stratified_sample_preserves_rare_batch_and_is_reproducible():
+    import pandas as pd
+    batch = pd.Series(["common"] * 999 + ["rare"])
+    first = _stratified_indices(batch, 100, seed=3)
+    second = _stratified_indices(batch, 100, seed=3)
+    assert np.array_equal(first, second)
+    assert 999 in first
+
+
+def test_probe_excludes_missing_batch_labels(tmp_path):
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    import anndata as ad
+    A = ad.read_h5ad(src)
+    A.obs["batch_missing"] = A.obs["batch"].astype(object)
+    A.obs.loc[A.obs.index[:30], "batch_missing"] = ""
+    A.write_h5ad(src)
+    code, res = run(tmp_path, src, "--batch-col", "batch_missing",
+                    "--cell-type-col", "cell_type", "--n-cells", 500)
+    assert code == 0
+    assert res["metrics"]["n_batch_missing"] == 30
+    assert res["metrics"]["n_batches_sampled"] == 2
+    assert res["metrics"]["sampling"] == "stratified_min_per_batch"

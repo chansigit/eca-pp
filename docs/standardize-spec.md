@@ -14,8 +14,8 @@
 三条架构原则,贯穿所有功能块:
 
 1. **两层分工**:步骤 = 确定性 CLI(h5ad in → files out + result.json);
-   编排层消费 result.json 与退出码。Agent SDK / agent loop **只存在于编排层**。
-2. **本环节内 LLM 仅一处单次调用**(Claude Agent SDK 单轮、无工具,经 `eca_pp.agent`,与 identify-columns 同一模型与凭据):
+   编排层消费 result.json 与退出码。agent harness / agent loop **只存在于编排层**。
+2. **本环节内 LLM 仅一处单 session 调用**(无文件工具,经 `eca_pp.agent`,与 identify-columns 同一后端、模型与凭据):
    物种解析 T2(§5.2),显式开启(`--llm`)、默认关、有确定性回退。
    列角色识别已移出为显式声明的 agent 型环节(identify-columns),
    其规则见该环节自己的规格。
@@ -103,7 +103,7 @@ velocity 等其他 layer 保留(列随 F4 基因丢弃同步裁剪)。
 |---|---|---|
 | T0 | `--species CODE` 显式声明 | 永远最高优先级;批量可复现跑法 |
 | T1 | 确定性推断(已实现于 stangene:`infer_species`) | 规则级联:① 稳定 ID 前缀(ENSG/ENSMUSG/FBgn/…,≥95% 一致即判决,混合前缀=矛盾直接停);② 特异线粒体命名风格(果蝇 `mt:`、线虫 nduo-*);③ 命名惯例圈定候选组后,与各候选物种 bundled 参考的 **symbol 交集率**裁决(margin ≥5pp);④ 灵长类平票默认 human(降置信 0.75,证据留注)。mt/hb 命中只进证据不做裁决。只写主干规则,不追长尾 |
-| T2 | LLM 单次调用(`--llm` 显式开启,默认关) | T1 证据矛盾时:抽样基因名 + T1 计票摘要,一次 structured-output 调用;有 T3 兜底 |
+| T2 | LLM 单 session 调用(`--llm` 显式开启,默认关) | T1 证据矛盾时:抽样基因名 + T1 计票摘要,一次 validated submit-tool 调用;有 T3 兜底 |
 | T3 | 阻塞待决(exit 3) | result.json 给全部证据,调用方拍板后带 `--species` 重跑 |
 
 物种确定后,mt/hb 识别是 stangene 精确基因集查询,**不涉及任何猜测**。
@@ -276,8 +276,8 @@ run.sh                 Sherlock 环境引导(唯一集群相关文件)
 ```
 
 组织规则:一个环节=一个子包,`cli.py` 是唯一入口;`core/` 是环节间唯一横向
-依赖;agent 相关代码只存在于 agent 型环节的 `policies.py`;extras 与子包对齐
-(`[probe]`→probe+identify_columns,`[agent]`→policies)。未来环节
+依赖;所有模型调用经 `agent.py` / `harness.py`;extras 与子包对齐
+(`[probe]`→probe+identify_columns,`[agent]`→DSH,`[claude]`→Claude 后端)。未来环节
 (doublets/integrate/dissect)以平级子包加入。
 
 ## 11. 不做的事(non-goals)

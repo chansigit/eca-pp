@@ -8,13 +8,10 @@
 #   - ml load hdf5/1.14.4 : dl2025's h5py needs libhdf5.so.310 at runtime
 #   - dl2025 venv python  : prebuilt shared env (anndata, scipy, stancounts, pytest)
 #
-# Agent SDK note: claude-agent-sdk's BUNDLED claude binary needs glibc >= 2.25
-# (CentOS 7 has 2.17). identify-columns therefore prefers the npm-installed
-# `claude` on PATH (newer anyway), overridable via ECA_PP_CLAUDE_CLI.
-# Alternative when no npm CLI exists:
-#   ml load system polyfill-glibc
-#   polyfill-glibc --target-glibc=2.17 <site-packages>/claude_agent_sdk/_bundled/claude
-# (re-patch after every claude-agent-sdk upgrade).
+# Agent harness note: HARNESS=deepseek is the default and uses the source-built
+# dsh CLI at $SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js (override
+# with DSH_BIN). Set HARNESS=claude for the optional Claude Agent SDK backend;
+# ECA_PP_CLAUDE_CLI may point at an npm-installed Claude CLI on old glibc hosts.
 #
 # ALWAYS run on a compute node, never the login node:
 #   bash run.sh standardize SRC.h5ad -o OUTDIR [--min-cells N ...]

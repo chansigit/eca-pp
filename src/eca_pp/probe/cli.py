@@ -1,7 +1,8 @@
 """integration-probe — the deterministic small-scale integration trial
 (identify-columns spec §5).
 
-One seeded uniform subsample → HVG → PCA → Harmony → iLISI/cLISI + UMAP panel.
+A seeded group-preserving subsample → HVG → PCA → Harmony → iLISI/cLISI +
+UMAP panel.
 A non-converging or crashing Harmony run is a LEGITIMATE observation (status
 ok, ``harmony_converged: false``) — it is exactly the pathology this tool
 exists to detect. Heavy dependencies (scanpy/harmonypy/umap) are imported
@@ -30,6 +31,7 @@ N_PCS = 30
 LISI_PERPLEXITY = 30
 LEIDEN_RESOLUTION = 1.0
 MIN_CELLS = 300
+MIN_SAMPLED_PER_BATCH = 5
 UMAP_FILENAME = "umap.png"
 
 
@@ -61,9 +63,43 @@ class _Stop(Exception):
 
 
 def _group_stats(values: pd.Series) -> dict:
-    sizes = values.value_counts()
+    sizes = values.value_counts(dropna=True)
+    if not len(sizes):
+        return {"n_batches": 0, "min_cells": 0,
+                "median_cells": 0.0, "max_cells": 0}
     return {"n_batches": int(len(sizes)), "min_cells": int(sizes.min()),
             "median_cells": float(sizes.median()), "max_cells": int(sizes.max())}
+
+
+def _stratified_indices(batch: pd.Series, n_keep: int, seed: int) -> np.ndarray:
+    """Seeded sample that preserves every batch group when the budget allows.
+
+    Reserve up to ``MIN_SAMPLED_PER_BATCH`` cells per group, then fill the
+    remaining budget uniformly from all unselected cells.  This prevents a
+    valid rare barcode-derived batch from disappearing by chance while still
+    keeping the bulk of the sample representative of the full dataset.
+    """
+    n = len(batch)
+    if n_keep >= n:
+        return np.arange(n)
+    rng = np.random.default_rng(seed)
+    groups = []
+    arr = batch.astype("string").to_numpy()
+    for value in sorted(pd.unique(arr), key=str):
+        groups.append(np.flatnonzero(arr == value))
+    reserve = min(MIN_SAMPLED_PER_BATCH, n_keep // len(groups))
+    selected = []
+    if reserve:
+        for idx in groups:
+            selected.extend(rng.choice(idx, min(reserve, len(idx)),
+                                       replace=False).tolist())
+    selected_arr = np.asarray(selected, dtype=int)
+    left = n_keep - len(selected_arr)
+    if left:
+        available = np.setdiff1d(np.arange(n), selected_arr, assume_unique=False)
+        selected_arr = np.concatenate(
+            [selected_arr, rng.choice(available, left, replace=False)])
+    return np.sort(selected_arr)
 
 
 def _lisi_median(embedding: np.ndarray, labels: pd.Series) -> float:
@@ -203,6 +239,9 @@ def _run(args, res: dict) -> int:
     except ColumnSpecError as exc:
         raise _Stop(EXIT_REJECTED, [str(exc)])
     full_stats = _group_stats(batch_full)
+    batch_missing = batch_full.isna()
+    full_stats["n_batch_missing"] = int(batch_missing.sum())
+    full_stats["batch_missing_frac"] = round(float(batch_missing.mean()), 4)
     res["metrics"].update(full_stats)
     if full_stats["n_batches"] < 2:
         raise _Stop(EXIT_REJECTED, [f"batch column {args.batch_col!r} has a "
@@ -213,17 +252,27 @@ def _run(args, res: dict) -> int:
             ct_full, ct_kind = resolve_spec(adata, args.cell_type_col)[0], "annotated"
         except ColumnSpecError as exc:
             raise _Stop(EXIT_REJECTED, [str(exc)])
+    if batch_missing.any():
+        adata = adata[~batch_missing.to_numpy()].copy()
+        batch_full = batch_full.loc[~batch_missing]
+        if ct_full is not None:
+            ct_full = ct_full.loc[~batch_missing]
+        res["reasons"].append(
+            f"excluded {int(batch_missing.sum())} cells with missing batch labels from the probe")
+    if adata.n_obs < MIN_CELLS:
+        raise _Stop(EXIT_REJECTED, [
+            f"only {adata.n_obs} cells have known batch labels (< {MIN_CELLS})"])
     timings["load"] = round(time.perf_counter() - t0, 3); t0 = time.perf_counter()
 
-    # One seeded uniform subsample over ALL cells (spec §5).
-    rng = np.random.default_rng(args.seed)
+    # One seeded, group-preserving subsample for this candidate.
     n_keep = min(args.n_cells, adata.n_obs)
-    idx = np.sort(rng.choice(adata.n_obs, n_keep, replace=False))
+    idx = _stratified_indices(batch_full, n_keep, args.seed)
     A = adata[idx].copy()
     batch = batch_full.iloc[idx]
     n_b = int(batch.nunique())
     res["metrics"]["n_cells_sampled"] = n_keep
     res["metrics"]["n_batches_sampled"] = n_b
+    res["metrics"]["sampling"] = "stratified_min_per_batch"
     if n_b < 2:
         raise _Stop(EXIT_REJECTED, ["subsample retained a single batch — "
                                     "raise --n-cells"])
@@ -236,7 +285,8 @@ def _run(args, res: dict) -> int:
     pre = A.obsm["X_pca"]
     timings["hvg_pca"] = round(time.perf_counter() - t0, 3); t0 = time.perf_counter()
 
-    ct = ct_full.iloc[idx] if ct_full is not None else _pseudo_labels(A, args.seed)
+    ct = (ct_full.iloc[idx].fillna("<missing>")
+          if ct_full is not None else _pseudo_labels(A, args.seed))
     n_t = int(ct.nunique())
     timings["labels"] = round(time.perf_counter() - t0, 3); t0 = time.perf_counter()
 
