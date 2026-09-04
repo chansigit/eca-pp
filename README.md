@@ -52,11 +52,11 @@ The same `--model` switch also works with `HARNESS=deepseek`; use
 `ECA_PP_AGENT_MODEL` to select a model for a whole campaign.
 
 Python ≥ 3.10. Extras: `[probe]` (scanpy/harmonypy stack), `[agent]`
-(DeepSeek Harness plus its MCP bridge; `[llm]` is an alias), `[claude]`
-(optional Claude Agent SDK fallback), `[openai]` (OpenAI Agents SDK comparison
-backend), and `[test]` (pytest). Agent calls use `HARNESS=deepseek` by default,
-driving Doubao through Volcengine Ark. Set `HARNESS=openai` to drive the same
-Doubao model through the OpenAI Agents SDK, or `HARNESS=claude` to use Claude.
+(default OpenAI Agents SDK plus the DSH fallback), `[llm]` (legacy DSH alias),
+`[claude]` (optional Claude Agent SDK fallback), `[openai]` (OpenAI-only
+lightweight agent extra), and `[test]` (pytest). Agent calls use
+`HARNESS=openai` by default, driving Doubao through Volcengine Ark. Set
+`HARNESS=deepseek` to use DSH, or `HARNESS=claude` to use Claude.
 Models default to `doubao-seed-2-1-turbo-260628` for both Doubao backends and
 `claude-sonnet-5` for Claude, and can be overridden with `--model` /
 `ECA_PP_AGENT_MODEL`. On Stanford

@@ -23,6 +23,14 @@ def test_backend_specific_model_defaults(monkeypatch):
     assert agent.model_name() == "chosen-model"
 
 
+def test_default_backend_is_openai_turbo(monkeypatch):
+    monkeypatch.delenv("HARNESS", raising=False)
+    monkeypatch.delenv("ECA_PP_AGENT_MODEL", raising=False)
+    monkeypatch.delenv("MODEL", raising=False)
+    assert agent.backend_name() == "openai"
+    assert agent.model_name() == "doubao-seed-2-1-turbo-260628"
+
+
 def test_unknown_backend_fails_explicitly(monkeypatch):
     monkeypatch.setenv("HARNESS", "mystery")
     with pytest.raises(harness.AgentUnavailable, match="unknown HARNESS"):

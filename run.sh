@@ -8,11 +8,11 @@
 #   - ml load hdf5/1.14.4 : dl2025's h5py needs libhdf5.so.310 at runtime
 #   - dl2025 venv python  : prebuilt shared env (anndata, scipy, stancounts, pytest)
 #
-# Agent harness note: HARNESS=deepseek is the default and uses the source-built
-# dsh CLI at $SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js (override
-# with DSH_BIN). Set HARNESS=openai for the OpenAI Agents SDK + Doubao comparison,
-# or HARNESS=claude for Claude Agent SDK; ECA_PP_CLAUDE_CLI may point at an
-# npm-installed Claude CLI on old glibc hosts.
+# Agent harness note: HARNESS=openai is the default and uses the OpenAI Agents
+# SDK with Doubao Turbo and minimal reasoning. Set HARNESS=deepseek for the
+# source-built dsh CLI at $SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js
+# (override with DSH_BIN), or HARNESS=claude for Claude Agent SDK;
+# ECA_PP_CLAUDE_CLI may point at an npm-installed Claude CLI on old glibc hosts.
 #
 # ALWAYS run on a compute node, never the login node:
 #   bash run.sh standardize SRC.h5ad -o OUTDIR [--min-cells N ...]

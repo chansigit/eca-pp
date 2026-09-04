@@ -1,10 +1,10 @@
 """Pluggable execution harness for every model-facing call in eca-pp.
 
 Callers expose one validated submit tool and never depend on an agent's
-free-text final response.  ``HARNESS=deepseek`` uses DeepSeek Harness (dsh)
-and is the default; ``HARNESS=openai`` drives Doubao through the OpenAI Agents
-SDK; ``HARNESS=claude`` keeps the Claude Agent SDK backend as an explicit
-fallback.
+free-text final response.  ``HARNESS=openai`` is the default and drives Doubao
+through the OpenAI Agents SDK; ``HARNESS=deepseek`` keeps the DeepSeek Harness
+(dsh) path as a fallback; ``HARNESS=claude`` keeps the Claude Agent SDK backend
+as an explicit fallback.
 """
 
 from __future__ import annotations
@@ -139,7 +139,7 @@ class AgentRunResult:
     usage: dict = field(default_factory=dict)
 
 
-DEFAULT_BACKEND = "deepseek"
+DEFAULT_BACKEND = "openai"
 MODEL_ENV = "ECA_PP_AGENT_MODEL"
 _DEFAULT_MODEL = {
     "claude": "claude-sonnet-5",
