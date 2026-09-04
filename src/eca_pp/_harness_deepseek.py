@@ -69,7 +69,8 @@ def _keep_session_log(dsh_home: str, cwd: str, label: str) -> None:
     if not sources:
         return
     source = max(sources, key=os.path.getmtime)
-    destination = os.path.join(cwd, f"dsh_session_{safe_label}.jsonl")
+    # Each decision round has the same label; retain every session separately.
+    destination = os.path.join(cwd, f"dsh_session_{safe_label}_{uuid.uuid4().hex}.jsonl")
     try:
         shutil.copy(source, destination)
         print(f"== [{label}] dsh session transcript kept at {destination}", flush=True)
