@@ -43,6 +43,12 @@ class SpeciesResolution:
                 "confidence": self.confidence, "evidence": self.evidence}
 
 
+def validate_cli_species(code: str) -> str:
+    """Canonical name for a ``--species`` code; ``ValueError`` if unknown.
+    Cheap (no data needed) so the CLI can reject typos before loading."""
+    return stangene.resolve_species(code)
+
+
 def _gene_ids(adata):
     if "gene_ids" in adata.var.columns:
         return [str(x) for x in adata.var["gene_ids"]]

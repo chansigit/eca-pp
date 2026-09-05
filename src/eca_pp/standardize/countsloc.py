@@ -24,6 +24,7 @@ import scipy.sparse as sp
 import stancounts
 from stancounts.counts import DEFAULT_EXCLUDE_LAYERS, DEFAULT_PREFER_LAYERS
 
+from eca_pp.core.layers import layer_names
 from eca_pp.standardize.qc import is_integer_matrix
 
 PREFER = set(DEFAULT_PREFER_LAYERS)
@@ -44,6 +45,11 @@ class Resolution:
     blocked: list = field(default_factory=list)
     census: list = field(default_factory=list)
     x_normalization: dict = field(default_factory=dict)
+    # Layers whose NAME claims to be counts (stancounts whitelist) but whose
+    # values failed the integer check. They are treated as if absent: the
+    # caller drops them so they are never silently overwritten or shipped
+    # under a misleading name, and result.json records the decision.
+    ignored_layers: list = field(default_factory=list)
 
 
 def _row_dense(M, i) -> np.ndarray:
@@ -118,6 +124,27 @@ def _unrecognized_integer_layers(census: list) -> list[str]:
             if e["is_integer"] and e["name"] not in PREFER and e["name"] not in EXCLUDE]
 
 
+def _misnamed_counts_layers(census: list) -> list[str]:
+    """Whitelist-named layers (counts/raw_counts/...) that are NOT integer."""
+    return [e["name"] for e in census if e["name"] in PREFER and not e["is_integer"]]
+
+
+def _note_misnamed(res: Resolution) -> None:
+    """A layer called "counts" that holds non-integers is a red flag (SoupX /
+    CellBender / alevin decimals, or a normalized matrix saved under the wrong
+    name). Treat it as absent for counts discovery, but never silently."""
+    misnamed = [n for n in _misnamed_counts_layers(res.census)
+                if f"layer:{n}" != res.source]
+    if not misnamed:
+        return
+    res.ignored_layers = misnamed
+    res.needs_review.append(
+        f"layer(s) {misnamed} are named like counts but failed the integer check "
+        f"(see the layer census); ignored and dropped from the output — counts "
+        f"were taken from {res.source!r} instead. Verify, or re-run with "
+        f"--counts-layer if the decimals are the true (corrected) counts")
+
+
 def _eliminate_explicit_zeros(adata) -> None:
     """Canonicalize sparse storage before counts discovery.
 
@@ -126,8 +153,7 @@ def _eliminate_explicit_zeros(adata) -> None:
     them as observations.  Removing them mutates only the in-memory sparse
     representation; all matrix values and the source h5ad remain unchanged.
     """
-    matrices = [adata.X, *(adata.layers[name] for name in adata.layers
-                           if name is not None)]
+    matrices = [adata.X, *(adata.layers[name] for name in layer_names(adata))]
     if adata.raw is not None:
         matrices.append(adata.raw.X)
     for matrix in matrices:
@@ -141,9 +167,7 @@ def resolve(adata, *, counts_layer: str | None = None) -> Resolution:
     _eliminate_explicit_zeros(adata)
     X = adata.X
 
-    for name in adata.layers:
-        if name is None:  # anndata >=0.13 exposes X as layers[None]; X is
-            continue      # covered by x_normalization, not the layer census
+    for name in layer_names(adata):  # anndata >=0.13: layers[None] is X, skipped
         res.census.append({"name": name, **_matrix_stats(adata.layers[name]),
                            "consistent_with_X": None})
     try:
@@ -157,7 +181,7 @@ def resolve(adata, *, counts_layer: str | None = None) -> Resolution:
             res.outcome = "blocked"
             res.blocked.append(
                 f"--counts-layer {counts_layer!r} not found; layers present: "
-                f"{[n for n in adata.layers if n is not None]}")
+                f"{layer_names(adata)}")
             return res
         M = adata.layers[counts_layer]
         if not is_integer_matrix(M):
@@ -192,6 +216,7 @@ def resolve(adata, *, counts_layer: str | None = None) -> Resolution:
         # whitelist layer / integer X / raw — unambiguous.
         res.counts, res.source = got["counts"], src
         res.counts_integer = True
+        _note_misnamed(res)
         return res
 
     # Layer 1 of the defence: recovery happened — is a pristine counts layer being
@@ -212,6 +237,7 @@ def resolve(adata, *, counts_layer: str | None = None) -> Resolution:
         res.adopted_by = "consistency_check"
         res.name_recognized = False
         res.counts_integer = True
+        _note_misnamed(res)
         return res
     if len(proven) > 1:
         res.outcome = "blocked"
@@ -228,4 +254,5 @@ def resolve(adata, *, counts_layer: str | None = None) -> Resolution:
             f"counts were RECOVERED by reversing log1p while unrecognized integer "
             f"layer(s) {cands} exist (consistency check failed for all) — verify, "
             f"or re-run with --counts-layer")
+    _note_misnamed(res)
     return res

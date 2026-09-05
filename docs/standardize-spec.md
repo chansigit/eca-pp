@@ -97,6 +97,15 @@ stancounts 白名单(`counts/count/raw_counts/umi/...`)接不住奇名 layer 时
 counts 采纳后,若来源是奇名 layer,该层在 F7 **改名**为 `counts`(不存两份);
 velocity 等其他 layer 保留(列随 F4 基因丢弃同步裁剪)。
 
+**同名非 counts**:白名单名字(如 `counts`)但整数性检查不过的 layer,视同不存在——
+counts 另行定位(其他层 / X / 逆推),该层从产出中**删除**(绝不静默覆盖或顶着
+误导性名字带走),`metrics.ignored_counts_layers` 与 `uns` 溯源记录之,并挂
+`needs_review`(SoupX / CellBender / alevin 的小数 counts 属正当情形,调用方
+可用 `--counts-layer` 明确采纳)。
+
+**anndata ≥ 0.13 注意**:`adata.layers` 会把 X 暴露为 `layers[None]`,
+`len(adata.layers)` 恒 ≥ 1;一切"是否还有别的层"判断走 `eca_pp.core.layers.layer_names`。
+
 ### 5.2 F4a · 物种解析:四级阶梯
 
 物种是 F4(基因统一)和 F5(mt/hb)的共同前提。解析顺序:

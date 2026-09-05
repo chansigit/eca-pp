@@ -11,6 +11,7 @@ Flow (spec §4):
     ⑤  F2       counts location & recovery (countsloc: stancounts + 3-layer defence)
     ⑥  F3-final authoritative re-check of both gates on the true counts
     ⑦  F4a      species resolution ladder (T0 --species → T1 infer → T2 --llm → T3 block)
+                (an unknown --species code is rejected up front, before any load)
     ⑧  F4       harmonize gene names; drop unmappable features (default); re-gate
     ⑨  F5       authoritative QC obs columns on the final gene space
     ⑩  F7       build (counts layer + lognorm X + provenance) → atomic standardized.h5ad
@@ -32,6 +33,7 @@ import anndata as ad
 import h5py
 
 from eca_pp import __version__
+from eca_pp.core.layers import has_layers
 from eca_pp.standardize import build, countsloc, harmonize
 from eca_pp.standardize import species as species_ladder
 from eca_pp.standardize.qc import apply_qc, count_n_genes_detected, has_negative
@@ -132,7 +134,10 @@ def _pre_gate_matrix(adata, counts_layer: str | None):
     """
     if counts_layer and counts_layer in adata.layers:
         return adata.layers[counts_layer], True, True
-    if counts_layer or len(adata.layers) or adata.raw is not None:
+    # NOTE: never test ``len(adata.layers)`` here — anndata >= 0.13 lists X as
+    # ``layers[None]`` so the length is always >= 1 and this gate would never
+    # fire (see eca_pp.core.layers).
+    if counts_layer or has_layers(adata) or adata.raw is not None:
         return None, False, False
     X = adata.X
     if X is None or has_negative(X):
@@ -144,6 +149,15 @@ def _run(args, res: dict) -> int:
     src = res["src"]
     gates = not args.no_gate
     timer = _Timer(res["metrics"].setdefault("timings", {}))
+
+    # ⓪ Driver parameters that can be checked without touching the data. An
+    # unknown --species code used to surface only at F4a, after the full load
+    # and counts recovery — a costly way to learn about a typo.
+    if args.species:
+        try:
+            species_ladder.validate_cli_species(args.species)
+        except ValueError as exc:
+            raise _Stop(EXIT_BLOCKED, "needs_review", None, [str(exc)])
 
     # ① F1 — input validation, nothing loaded.
     if not os.path.isfile(src):
@@ -216,7 +230,16 @@ def _run(args, res: dict) -> int:
             reasons.append(f"n_genes_detected {nd} < min_genes {args.min_genes}")
         if reasons:
             raise _Stop(EXIT_REJECTED, "rejected", "final_gate", reasons)
-    review = list(loc.needs_review)
+    # Review notes accumulate directly in result.json's ``reasons`` so that a
+    # later _Stop (species blocked, final gate after gene dropping, ...) still
+    # reports everything found so far — they used to live in a local list that
+    # only the success path copied over.
+    review = res["reasons"]
+    review.extend(loc.needs_review)
+    if loc.ignored_layers:
+        res["metrics"]["ignored_counts_layers"] = list(loc.ignored_layers)
+        for name in loc.ignored_layers:  # never carry a misleading "counts" along
+            del adata.layers[name]
     timer.lap("f3_gates")
 
     # Attach counts as the canonical layer NOW so F4's gene dropping subsets it
@@ -274,6 +297,7 @@ def _run(args, res: dict) -> int:
         "species_source": spec.source or "",
         "counts_source": loc.source,
         "counts_adopted_by": loc.adopted_by,
+        "ignored_counts_layers": ",".join(loc.ignored_layers),
     })
     if raw_dropped:
         res["metrics"]["raw_dropped"] = True
@@ -281,11 +305,7 @@ def _run(args, res: dict) -> int:
     timer.lap("f7_build_write")
     log.info("wrote %s", res["output"])
 
-    if review:
-        res["status"] = "needs_review"
-        res["reasons"].extend(review)
-    else:
-        res["status"] = "ok"
+    res["status"] = "needs_review" if review else "ok"
     return EXIT_OK
 
 
@@ -308,7 +328,8 @@ def main(argv=None) -> int:
     except _Stop as stop:
         res["status"] = stop.status
         res["rejected_at"] = stop.rejected_at
-        res["reasons"].extend(stop.reasons)
+        # The stop reason leads; review notes gathered before the stop follow.
+        res["reasons"] = list(stop.reasons) + res["reasons"]
         code = stop.exit_code
         log.warning("%s: %s", stop.status, "; ".join(stop.reasons))
     except Exception as exc:  # noqa: BLE001 - anything else is exit 1

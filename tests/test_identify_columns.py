@@ -516,3 +516,19 @@ def test_pseudo_clisi_uses_weaker_but_still_conservative_veto():
     assert qualifies({**base, "clisi_labels": "pseudo"})
     assert not qualifies({**base, "clisi_labels": "pseudo",
                            "clisi_norm_post": 0.7})
+
+
+def test_dataset_below_probe_minimum_skips_trials(tmp_path):
+    """standardize accepts >=100 cells but the probe needs >=300: say so once
+    instead of probing (and re-reading the h5ad for) every candidate."""
+    from eca_pp.probe.cli import MIN_CELLS
+
+    src = make_integration_h5ad(tmp_path / "s.h5ad", n_per_batch=100)
+    code, res, _ = run(tmp_path, src, HeuristicPolicy())
+    assert code == 0 and res["status"] == "ok"
+    assert res["columns"]["batch"] is None
+    assert res["trials"] == []
+    warning = next(w for w in res["warnings"]
+                   if w["code"] == "dataset_too_small_to_probe")
+    assert str(MIN_CELLS) in warning["message"]
+    assert res["columns"]["cell_type"]["value"] == "cell_type"

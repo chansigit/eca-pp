@@ -7,11 +7,15 @@ import os
 import shutil
 
 from .harness import (
+    AgentError,
     AgentIncompleteError,
+    AgentRateLimited,
     AgentRunResult,
     AgentTimeout,
+    AgentTransient,
     AgentUnavailable,
     ToolSpec,
+    classify_error_message,
 )
 
 MIN_CLAUDE_AGENT_SDK = (0, 2, 152)
@@ -174,9 +178,18 @@ async def run_agent(
         elif isinstance(message, ResultMessage):
             transcript = message.result
             if message.is_error or message.subtype != "success":
-                raise RuntimeError(
-                    f"[{label}] Claude run ended with {message.subtype}: {message.result}"
-                )
+                # The CLI reports limits and infrastructure failures only as
+                # text in ``result``; classify it HERE (it is an error string,
+                # not a model reply) and raise the typed exception.
+                detail = f"[{label}] Claude run ended with {message.subtype}: {message.result}"
+                if message.subtype == "error_max_turns":
+                    raise AgentIncompleteError(detail)
+                kind = classify_error_message(str(message.result))
+                if kind == "limit":
+                    raise AgentRateLimited(detail)
+                if kind == "transient":
+                    raise AgentTransient(detail)
+                raise AgentError(detail)
             raw = message.usage or {}
             get = raw.get if isinstance(raw, dict) else lambda key, default=None: getattr(raw, key, default)
             usage.update({

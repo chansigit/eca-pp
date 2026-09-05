@@ -26,6 +26,9 @@ TM="$REPO/scripts/tabula-muris"          # shared helpers
 OAK_BASE=/home/users/chensj16/oak/data/sc
 WORK_BASE="$SCRATCH/eca-pp-runs"
 MODEL="${ECA_PP_AGENT_MODEL:-claude-sonnet-5}"
+# The default backend is HARNESS=openai (Doubao); a claude-* model only works
+# through HARNESS=claude, so pin the backend alongside the model.
+HARNESS="${HARNESS:-claude}"
 CLAUDE_CLI="${ECA_PP_CLAUDE_CLI:-$(command -v claude)}"
 NAME_PREFIX="${ECA_NAME_PREFIX:-seurat_object_}"   # stripped from the file name -> sample id
 
@@ -79,6 +82,7 @@ WORK=$work
 OAK_OUT=$oak_out
 export ECA_PP_CLAUDE_CLI=$CLAUDE_CLI
 export ECA_PP_AGENT_MODEL=$MODEL
+export HARNESS=$HARNESS
 
 mkdir -p "\$WORK" "\$OAK_OUT"
 cd "\$WORK"

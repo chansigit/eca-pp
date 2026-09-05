@@ -281,3 +281,75 @@ def test_policy_submit_validation_rejects_out_of_tier(monkeypatch, tmp_path):
     }
     with pytest.raises(ValueError, match="currently eligible"):
         policy.decide(state)
+
+
+def test_incomplete_reply_text_is_never_treated_as_a_limit(monkeypatch):
+    """The model's final reply rides inside AgentIncompleteError; words like
+    "capacity" or a number containing 429 in it must not trigger the
+    rate-limit wait (this used to sleep 10 min per attempt)."""
+    import anyio
+
+    attempts = 0
+
+    async def chatty():
+        nonlocal attempts
+        attempts += 1
+        raise harness.AgentIncompleteError(
+            "[t] agent finished without submit. Final reply:\n"
+            "The 1429 cells exceed the sequencing capacity; quota unclear.")
+
+    monkeypatch.setenv("AGENT_LIMIT_WAIT_MIN", "0.0001")
+    with pytest.raises(harness.AgentIncompleteError):
+        anyio.run(harness.retry_transient, chatty, "t")
+    assert attempts == 1
+
+
+def test_typed_transient_and_rate_limit_are_retried(monkeypatch):
+    import anyio
+
+    monkeypatch.setattr(harness, "TRANSIENT_BACKOFF_SECONDS", 0)
+    monkeypatch.setenv("AGENT_LIMIT_WAIT_MIN", "0.0001")
+    monkeypatch.setenv("AGENT_LIMIT_WAIT_MAX_H", "1")
+    seen = []
+
+    async def flaky():
+        seen.append(1)
+        if len(seen) == 1:
+            raise harness.AgentTransient("Connection error.")
+        if len(seen) == 2:
+            raise harness.AgentRateLimited("429 Too Many Requests")
+        return "done"
+
+    assert anyio.run(harness.retry_transient, flaky, "t") == "done"
+    assert len(seen) == 3
+
+
+def test_foreign_connection_errors_use_the_string_fallback(monkeypatch):
+    import anyio
+
+    monkeypatch.setattr(harness, "TRANSIENT_BACKOFF_SECONDS", 0)
+    attempts = 0
+
+    async def flaky():
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("Error code: 502 - Bad Gateway")
+        if attempts == 2:
+            raise RuntimeError("Connection error.")
+        return 1
+
+    assert anyio.run(harness.retry_transient, flaky, "t") == 1
+    assert attempts == 3
+    assert harness.classify_error_message("this dataset has 1429 cells") is None
+
+
+def test_claude_model_on_other_backend_is_refused(monkeypatch):
+    import anyio
+
+    monkeypatch.setenv("HARNESS", "openai")
+    monkeypatch.setenv("ARK_API_KEY", "x")
+    with pytest.raises(harness.AgentUnavailable, match="HARNESS=claude"):
+        anyio.run(lambda: harness.run_agent(
+            tools=[], submit_tool="s", prompt="p", system_prompt=None,
+            cwd=".", model="claude-sonnet-5"))

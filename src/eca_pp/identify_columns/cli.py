@@ -545,6 +545,17 @@ def _run(args, res: dict, policy) -> int:
     decisions = res["decisions"] = []  # full audit trail, incl. agent tool use
     by_label = {c["label"]: c for c in candidates["batch"]}
 
+    # The probe needs probe.MIN_CELLS cells (standardize accepts fewer). Say so
+    # once, up front, instead of re-reading the h5ad for every candidate only
+    # to have each trial rejected with the same dataset-level reason.
+    if adata.n_obs < probe.MIN_CELLS:
+        return _null_batch_ok(
+            res, best_ct, candidates,
+            f"dataset has {adata.n_obs} cells (< {probe.MIN_CELLS}); too small "
+            f"for integration trials, so no batch column was probed",
+            code="dataset_too_small_to_probe",
+        )
+
     pending_decision = None
     while True:
         if len(trials) >= args.max_probes and not any(

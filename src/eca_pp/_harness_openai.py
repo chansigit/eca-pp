@@ -17,8 +17,10 @@ from typing import Any
 
 from .harness import (
     AgentIncompleteError,
+    AgentRateLimited,
     AgentRunResult,
     AgentTimeout,
+    AgentTransient,
     AgentUnavailable,
     ToolSpec,
 )
@@ -154,7 +156,13 @@ async def run_agent(
     )
     from agents.exceptions import MaxTurnsExceeded
     from agents.models.openai_responses import OpenAIResponsesModel
-    from openai import APITimeoutError, AsyncOpenAI
+    from openai import (
+        APIConnectionError,
+        APIStatusError,
+        APITimeoutError,
+        AsyncOpenAI,
+        RateLimitError,
+    )
 
     os.makedirs(cwd, exist_ok=True)
     max_nudges = int(os.environ.get("OPENAI_AGENTS_MAX_NUDGES", DEFAULT_MAX_NUDGES))
@@ -357,6 +365,15 @@ async def run_agent(
             else f"[{label}] agent request timed out"
         )
         raise AgentTimeout(message) from exc
+    except RateLimitError as exc:  # HTTP 429 — typed, so the harness waits
+        raise AgentRateLimited(f"[{label}] provider rate limit: {exc}") from exc
+    except APIConnectionError as exc:  # "Connection error." — retry with backoff
+        raise AgentTransient(f"[{label}] connection failure: {exc}") from exc
+    except APIStatusError as exc:
+        status = getattr(exc, "status_code", None) or 0
+        if status >= 500:  # 500/502/503/504 from Ark — retry with backoff
+            raise AgentTransient(f"[{label}] provider {status}: {exc}") from exc
+        raise
     finally:
         await client.close()
     result, transcript_parts, usage_totals, nudges = outcome

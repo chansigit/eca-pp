@@ -149,7 +149,54 @@ def test_too_few_genes_rejects(tmp_path):
     src = write_h5ad(tmp_path / "s.h5ad", sp.csr_matrix(c))
     code, res = run_cli(tmp_path, src)
     assert code == EXIT_REJECTED and res["status"] == "rejected"
-    assert res["rejected_at"] in ("pre_gate", "final_gate")
+    # integer X with no other counts source: the provisional gate must fire
+    # before counts discovery (it silently stopped doing so on anndata 0.13)
+    assert res["rejected_at"] == "pre_gate"
+    assert "f2_counts" not in res["metrics"]["timings"]
+
+
+def test_misnamed_counts_layer_is_ignored_and_dropped(tmp_path):
+    """A float layer called "counts" is treated as absent: counts come from
+    elsewhere, the layer is dropped from the output, and result.json says so."""
+    c = make_counts()
+    src = write_h5ad(tmp_path / "s.h5ad", lognorm(c), {"counts": lognorm(c)})
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "needs_review"
+    assert res["metrics"]["counts_source"].startswith("recovered")
+    assert res["metrics"]["ignored_counts_layers"] == ["counts"]
+    assert any("named like counts" in r for r in res["reasons"])
+    out = ad.read_h5ad(res["output"])
+    L = out.layers["counts"]
+    assert is_integer_matrix(L)
+    assert out.uns["eca_pp_standardize"]["ignored_counts_layers"] == "counts"
+
+
+def test_review_notes_survive_a_later_block(tmp_path, monkeypatch):
+    """Counts-stage doubts must reach result.json even when the species
+    stage blocks afterwards (they used to live in a local list)."""
+    import eca_pp.standardize.species as species_ladder
+
+    c = make_counts()
+    shuffled = c[:, RNG.permutation(G)]
+    src = write_h5ad(tmp_path / "s.h5ad", lognorm(c), {"weird": sp.csr_matrix(shuffled)})
+    monkeypatch.setattr(species_ladder, "_t1_infer", lambda adata: {
+        "species": None, "confidence": 0.0, "evidence": {}})
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_BLOCKED and res["status"] == "needs_review"
+    assert "--species" in res["reasons"][0]          # the stop reason leads
+    assert any("weird" in r for r in res["reasons"])  # the earlier note follows
+
+
+def test_unknown_species_code_blocks_before_loading(tmp_path, monkeypatch):
+    src = write_h5ad(tmp_path / "s.h5ad", sp.csr_matrix(make_counts()))
+
+    def boom(*a, **k):
+        raise AssertionError("a bad --species must be rejected before read_h5ad")
+
+    monkeypatch.setattr(ad, "read_h5ad", boom)
+    code, res = run_cli(tmp_path, src, "--species", "martian")
+    assert code == EXIT_BLOCKED and res["status"] == "needs_review"
+    assert any("martian" in r for r in res["reasons"])
 
 def test_not_h5ad_rejects(tmp_path):
     junk = tmp_path / "junk.h5ad"

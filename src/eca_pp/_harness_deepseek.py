@@ -26,11 +26,15 @@ import uuid
 import yaml
 
 from .harness import (
+    AgentError,
     AgentIncompleteError,
+    AgentRateLimited,
     AgentRunResult,
     AgentTimeout,
+    AgentTransient,
     AgentUnavailable,
     ToolSpec,
+    classify_error_message,
 )
 
 for _logger_name in (
@@ -402,7 +406,7 @@ def _run_sync(
                 f"== [{label}] dsh stderr tail:\n{stderr_tail()}",
                 flush=True,
             )
-            raise RuntimeError(
+            raise AgentTransient(
                 f"[{label}] mcp tools never listed by dsh; mcp-client failed to attach"
             ) from None
         if isinstance(exc, _TurnsExceeded):
@@ -529,7 +533,16 @@ async def run_agent(
             and event.get("data", {}).get("reason", {}).get("kind") == "error"
         ]
         detail = errors[-1]["data"]["reason"]["error"] if errors else result.final_response
-        raise RuntimeError(f"[{label}] HARNESS=deepseek run ended in error: {detail}")
+        message = f"[{label}] HARNESS=deepseek run ended in error: {detail}"
+        # ``detail`` is the provider/CLI error when a turn/end error event
+        # exists; only then is string classification safe. Without one the
+        # text is the model's final response and must stay terminal.
+        kind = classify_error_message(str(detail)) if errors else None
+        if kind == "limit":
+            raise AgentRateLimited(message)
+        if kind == "transient":
+            raise AgentTransient(message)
+        raise AgentError(message)
     if "value" not in submitted:
         raise AgentIncompleteError(
             f"[{label}] agent finished without a successful {submit_tool} call. "
