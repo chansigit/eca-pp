@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 
-CLASSES = ("technical", "donor", "condition", "annotation", "cluster",
+CLASSES = ("technical", "donor", "condition", "annotation", "cluster", "state",
            "qc_numeric", "identifier", "constant", "other")
 MAX_BATCH_RANKED = 3
 
@@ -185,7 +185,12 @@ values are the truth — and answer two questions in one submission.
      "<batch>-<cell type>" (e.g. "ABM2-ILC2P.4"), is batch x annotation:
      use the coarser technical column instead.
    - Never a batch: annotation columns, QC numbers, per-cell identifiers,
-     constants, cluster IDs. Only columns listed as probeable are allowed.
+     constants, cluster IDs, and per-cell biological STATES such as cell-cycle
+     phase, activation/stress state, or doublet/QC bins — correcting on them
+     would erase biology. Only columns listed as probeable are allowed, but
+     "probeable" only means the program can run a trial on it, not that it
+     is a batch: return an EMPTY list rather than a state or annotation
+     column when no sample/technical structure exists.
    - An empty list means no plausible batch structure exists in obs.
 2. CELL TYPE column: the AUTHOR'S cell-type annotation, judged from values
    (lineage names, ontology terms, abbreviations such as proB, CDP, ILC2P,
@@ -196,7 +201,7 @@ values are the truth — and answer two questions in one submission.
    none exists.
 
 Also classify each grouping column (technical/donor/condition/annotation/
-cluster/qc_numeric/identifier/constant/other) in "columns".
+cluster/state/qc_numeric/identifier/constant/other) in "columns".
 
 Submit exactly this JSON through the provided tool:
 {"batch_ranked": [{"column": "<name>", "class": "<class>", "reason": "<why, citing values>"}],

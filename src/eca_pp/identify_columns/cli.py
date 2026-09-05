@@ -68,6 +68,8 @@ ANNOTATION_EXACT = frozenset({"ct", "celltype", "celltypes", "celllabel",
 ANNOTATION_AFFIX = re.compile(r"(?i)(^|[_.\s])ann(?:\d+|_?v?\d+)?([_.\s]|$)")
 # Algorithmic cluster IDs: never the author's cell-type annotation.
 CLUSTER_TOKENS = ("cluster", "louvain", "leiden")
+# Per-cell biological states (cell-cycle phase, ...): never a batch factor.
+STATE_TOKENS = ("cellcycle", "phase", "cyclestate")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -103,8 +105,9 @@ def _norm(name: str) -> str:
 
 def classify_column(entry: dict) -> str:
     """Name heuristic: technical | donor | condition | annotation | cluster |
-    qc_numeric | identifier | constant | other. A hint for the model and the
-    deterministic fallback, never a hard filter on the model's answer."""
+    state | qc_numeric | identifier | constant | other. A hint for the model
+    and the deterministic fallback; it also defines the probeable set (state /
+    annotation / cluster / qc / identifier columns are never probed)."""
     n = _norm(entry["column"])
     if (n.startswith(("pctcounts", "percent", "nfeature", "ncount", "ngenes"))
             or n in {"totalcounts", "doubletscore", "scrubletscore", "pctmt", "pcthb"}):
@@ -118,6 +121,8 @@ def classify_column(entry: dict) -> str:
         return "identifier"
     if entry["dtype"] == "float":
         return "qc_numeric"
+    if any(t in n for t in STATE_TOKENS):
+        return "state"
     for tokens, label in ((CLUSTER_TOKENS, "cluster"),
                           (TECH_TOKENS, "technical"),
                           (DONOR_TOKENS, "donor"),

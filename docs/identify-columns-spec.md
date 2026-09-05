@@ -66,7 +66,8 @@ result.json 输出 → 退出码汇报);内部只有**一次**模型调用:模�
    其次供体/样本/动物,再次实验条件;嵌套的技术层级取"组不以微组为主"的最细
    一层。嵌套在细胞类型样文本列之内、或取值形如 `<batch>-<celltype>` 的列是
    批次×注释的复合列,应改用较粗的技术列。注释列、QC 数值、每细胞标识符、
-   常量、cluster ID 不能做批次;只允许排入程序标为可探测的列。空列表 = obs
+   常量、cluster ID、细胞周期等单细胞状态列不能做批次;只允许排入程序标为可探测的列,
+   但可探测不等于是批次,没有样本/技术结构时应返回空列表。空列表 = obs
    中不存在合理的批次结构。
 3. **细胞类型列**:作者注释,由取值判断(谱系名、本体术语、proB/CDP/ILC2P 一类
    缩写),列名无关紧要(ann0608、ImmGen_refine、labels_v2 皆可);绝不是算法
@@ -333,7 +334,12 @@ values are the truth — and answer two questions in one submission.
      "<batch>-<cell type>" (e.g. "ABM2-ILC2P.4"), is batch x annotation:
      use the coarser technical column instead.
    - Never a batch: annotation columns, QC numbers, per-cell identifiers,
-     constants, cluster IDs. Only columns listed as probeable are allowed.
+     constants, cluster IDs, and per-cell biological STATES such as cell-cycle
+     phase, activation/stress state, or doublet/QC bins — correcting on them
+     would erase biology. Only columns listed as probeable are allowed, but
+     "probeable" only means the program can run a trial on it, not that it
+     is a batch: return an EMPTY list rather than a state or annotation
+     column when no sample/technical structure exists.
    - An empty list means no plausible batch structure exists in obs.
 2. CELL TYPE column: the AUTHOR'S cell-type annotation, judged from values
    (lineage names, ontology terms, abbreviations such as proB, CDP, ILC2P,
@@ -344,7 +350,7 @@ values are the truth — and answer two questions in one submission.
    none exists.
 
 Also classify each grouping column (technical/donor/condition/annotation/
-cluster/qc_numeric/identifier/constant/other) in "columns".
+cluster/state/qc_numeric/identifier/constant/other) in "columns".
 
 Submit exactly this JSON through the provided tool:
 {"batch_ranked": [{"column": "<name>", "class": "<class>", "reason": "<why, citing values>"}],

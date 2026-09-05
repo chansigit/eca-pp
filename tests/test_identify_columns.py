@@ -357,6 +357,16 @@ def test_classify_ann_affix_is_annotation_but_not_channel():
     assert classify_column(_entry("channel", {"c1": 10, "c2": 5})) == "technical"
 
 
+def test_cell_state_columns_are_never_probeable(tmp_path):
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
+        "cell_cycle_phase": np.array(["G1", "S", "G2M"] * (n // 3))})
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
+    assert classify_column(_entry("cell_cycle_phase", {"G1": 1, "S": 1})) == "state"
+    assert "cell_cycle_phase" not in [c["label"] for c in res["candidates"]["batch"]]
+    assert "cell_cycle_phase" not in [c["label"] for c in res["candidates"]["cell_type"]]
+
+
 def test_cell_type_ranking_prefers_annotation_over_clusters(tmp_path):
     """Seurat-style obs: seurat_clusters precedes the manual annotation."""
     n = 600
