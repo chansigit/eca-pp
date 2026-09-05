@@ -83,6 +83,18 @@ T1 推断另有 stangene 侧 9 项单元测试(test_infer_species.py)。
 
 ## 5. 功能块细则
 
+### 5.0 F1b · .raw 优先:X 的基因少于 raw 时切到 raw
+
+scanpy 流程常把全基因空间只留在 `adata.raw`(log 归一化),而把 X / layers 裁到
+几千个 HVG。直接标准化 HVG 子集会丢掉大部分转录组,通常也过不了基因门。
+因此加载后若 `raw.var_names ⊇ var_names` 且 raw 基因更多,则在 raw 的基因空间
+重建对象:X ← raw.X(counts 由 F2 照常定位或逆推),obs/obsm/uns 保留,HVG
+空间的 layers 丢弃;HVG 空间若有整数 counts 则保留为**参照**,与恢复出的 counts
+在共有基因上逐值比对(抽样 200 细胞),一致率 < 99% → `needs_review`(raw 可能
+来自不同的 counts 或归一化)。`metrics.raw_expansion` 记录是否切换、基因数、
+丢弃的层与比对结果;`uns` 溯源记 `raw_expanded`。`--no-raw-expand` 关闭。
+raw 不覆盖 X 的基因名时不切换,仅记录原因。
+
 ### 5.1 F2 · counts 定位:三层防线(步骤内零 LLM)
 
 stancounts 白名单(`counts/count/raw_counts/umi/...`)接不住奇名 layer 时:

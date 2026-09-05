@@ -6,6 +6,9 @@ Flow (spec §4):
     ①  F1       no load: file exists → is_hdf5 → has obs/var structure
     ②  F3-pre   no load: n_cells peeked from HDF5 metadata (millisecond fast-reject)
     ③  load     anndata.read_h5ad
+    ③b F1b      prefer .raw when it holds MORE genes than X (scanpy HVG subsets):
+                rebuild on raw's gene space; the HVG-space counts, if any, become
+                a reference that the recovered counts are checked against
     ④  F3-pre   provisional genes gate on X's nonzero structure (skipped when
                 untrustworthy: scaled X, missing X)
     ⑤  F2       counts location & recovery (countsloc: stancounts + 3-layer defence)
@@ -34,7 +37,7 @@ import h5py
 
 from eca_pp import __version__
 from eca_pp.core.layers import has_layers
-from eca_pp.standardize import build, countsloc, harmonize
+from eca_pp.standardize import build, countsloc, harmonize, rawspace
 from eca_pp.standardize import species as species_ladder
 from eca_pp.standardize.qc import apply_qc, count_n_genes_detected, has_negative
 from eca_pp.core.result import (
@@ -101,6 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--keep-unmapped", action="store_true",
                    help="keep unmappable features under their original names "
                         "instead of dropping them (default: drop)")
+    p.add_argument("--no-raw-expand", action="store_true",
+                   help="do not switch to .raw's gene space when raw carries more "
+                        "genes than X (default: switch, keep the HVG counts as a "
+                        "cross-check)")
     return p
 
 
@@ -188,6 +195,14 @@ def _run(args, res: dict) -> int:
         raise _Stop(EXIT_REJECTED, "rejected", "pre_gate",
                     [f"n_cells {adata.n_obs} < min_cells {args.min_cells}"])
 
+    # ③b F1b — the full transcriptome may live only in .raw.
+    adata, expansion = rawspace.maybe_expand(adata, enabled=not args.no_raw_expand)
+    res["metrics"]["raw_expansion"] = expansion.as_dict()
+    if expansion.applied:
+        res["metrics"]["n_vars"] = int(adata.n_vars)
+        log.info("raw expansion: %s (dropped HVG-space layers %s; reference counts %s)",
+                 expansion.reason, expansion.dropped_layers, expansion.reference_source)
+
     # ④ F3-pre — provisional genes gate.
     pm, trusted, exact = _pre_gate_matrix(adata, args.counts_layer)
     if gates and trusted:
@@ -236,6 +251,20 @@ def _run(args, res: dict) -> int:
     # only the success path copied over.
     review = res["reasons"]
     review.extend(loc.needs_review)
+    check = rawspace.verify_against_reference(loc.counts, adata.var_names, expansion)
+    if check is not None:
+        res["metrics"]["raw_expansion"] = expansion.as_dict()
+        if check["match_frac"] is not None and check["match_frac"] < rawspace.MATCH_FRAC_REVIEW:
+            review.append(
+                f"counts taken from .raw ({loc.source}) agree with the HVG-space "
+                f"{check['reference']} on only {check['match_frac']:.1%} of "
+                f"{check['n_values_compared']} sampled values across "
+                f"{check['n_shared_genes']} shared genes — raw may derive from "
+                f"different counts or normalization; verify, or re-run with "
+                f"--no-raw-expand")
+        else:
+            log.info("raw counts check: %s of sampled values match the HVG-space %s",
+                     check["match_frac"], check["reference"])
     if loc.ignored_layers:
         res["metrics"]["ignored_counts_layers"] = list(loc.ignored_layers)
         for name in loc.ignored_layers:  # never carry a misleading "counts" along
@@ -298,6 +327,7 @@ def _run(args, res: dict) -> int:
         "counts_source": loc.source,
         "counts_adopted_by": loc.adopted_by,
         "ignored_counts_layers": ",".join(loc.ignored_layers),
+        "raw_expanded": "true" if expansion.applied else "false",
     })
     if raw_dropped:
         res["metrics"]["raw_dropped"] = True
@@ -316,7 +346,8 @@ def main(argv=None) -> int:
     params = {"min_cells": args.min_cells, "min_genes": args.min_genes,
               "counts_layer": args.counts_layer, "no_gate": args.no_gate,
               "species": args.species, "llm": args.llm,
-              "keep_unmapped": args.keep_unmapped}
+              "keep_unmapped": args.keep_unmapped,
+              "no_raw_expand": args.no_raw_expand}
     res = new_result("standardize", os.path.abspath(args.src), params)
 
     t0 = time.perf_counter()

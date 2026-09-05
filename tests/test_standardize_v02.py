@@ -275,3 +275,67 @@ def test_no_stale_tmp_on_success(tmp_path):
     assert code == EXIT_OK
     leftovers = list((tmp_path / "out").glob("*.tmp"))
     assert leftovers == []
+
+
+# ------------------------------------------------------ F1b · raw expansion
+
+def _hvg_object(tmp_path, *, raw_from_same_counts=True, raw_subset=False):
+    """scanpy-style object: X = scaled 2000-HVG subset, layers[counts] = HVG
+    counts, raw = log-normalized FULL gene space (6000 genes)."""
+    c = make_counts()  # N x G integer
+    syms, ids = ref_genes("human", G)
+    full = ad.AnnData(X=lognorm(c if raw_from_same_counts else make_counts()))
+    full.var_names = np.array(syms, dtype=object)
+    full.var["gene_ids"] = ids
+    hvg = np.sort(np.random.default_rng(1).choice(G, 2000, replace=False))
+    sub = full[:, hvg].copy()
+    Xs = np.asarray(sub.X.todense())
+    sub.X = ((Xs - Xs.mean(0)) / (Xs.std(0) + 1e-6)).astype(np.float32)
+    sub.layers["counts"] = sp.csr_matrix(c[:, hvg])
+    sub.raw = full[:, :G - 100].copy() if raw_subset else full
+    path = tmp_path / "hvg.h5ad"
+    sub.write_h5ad(path)
+    return path
+
+
+def test_raw_with_more_genes_is_preferred_and_cross_checked(tmp_path):
+    src = _hvg_object(tmp_path)
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "ok", res["reasons"]
+    exp = res["metrics"]["raw_expansion"]
+    assert exp["applied"] and exp["n_vars_x"] == 2000 and exp["n_vars_raw"] == G
+    assert exp["dropped_layers"] == ["counts"]
+    assert exp["reference_source"] == "layer:counts"
+    assert exp["counts_check"]["n_shared_genes"] == 2000
+    assert exp["counts_check"]["match_frac"] >= 0.99
+    assert res["metrics"]["counts_source"].startswith("recovered")
+    out = ad.read_h5ad(res["output"])
+    assert out.n_vars >= G - 10 and out.raw is None
+    assert {k for k in out.layers.keys() if k is not None} == {"counts"}
+    assert out.uns["eca_pp_standardize"]["raw_expanded"] == "true"
+
+
+def test_raw_from_different_counts_is_flagged(tmp_path):
+    src = _hvg_object(tmp_path, raw_from_same_counts=False)
+    code, res = run_cli(tmp_path, src)
+    assert code == EXIT_OK and res["status"] == "needs_review"
+    assert res["metrics"]["raw_expansion"]["counts_check"]["match_frac"] < 0.99
+    assert any("--no-raw-expand" in r for r in res["reasons"])
+
+
+def test_raw_expansion_can_be_disabled(tmp_path):
+    src = _hvg_object(tmp_path)
+    code, res = run_cli(tmp_path, src, "--no-raw-expand", "--min-genes", "1000")
+    assert code == EXIT_OK
+    exp = res["metrics"]["raw_expansion"]
+    assert not exp["applied"] and "disabled" in exp["reason"]
+    assert res["metrics"]["counts_source"] == "layer:counts"
+    assert res["metrics"]["n_vars"] == 2000
+
+
+def test_raw_that_does_not_cover_x_is_left_alone(tmp_path):
+    src = _hvg_object(tmp_path, raw_subset=True)
+    code, res = run_cli(tmp_path, src, "--min-genes", "1000")
+    exp = res["metrics"]["raw_expansion"]
+    assert not exp["applied"] and "do not align" in exp["reason"]
+    assert res["metrics"]["counts_source"] == "layer:counts"
