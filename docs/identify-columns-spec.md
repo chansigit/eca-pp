@@ -154,7 +154,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 - `--model ID`(或环境变量 `ECA_PP_AGENT_MODEL`):指定 agent 模型;
   缺省值随 `HARNESS` 后端选择。每轮实际使用的模型记录在
   `decisions[].usage.model`,汇总于 `metrics.llm.models`。
-- `AGENT_WALL_MIN`:单次 agent run 墙钟上限,默认 2 分钟。超时后
+- `AGENT_WALL_MIN`:单次 agent run 墙钟上限,默认 6 分钟(medium reasoning 需要)。超时后
   不重试同一请求,改用确定性策略继续,以保证无人值守流程有界。
 - **无 API 凭据 / harness 不可用或中途失败**:自动切换确定性 policy
   继续试验,并记录 `agent_unavailable` / `agent_failed` warning。
@@ -252,7 +252,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 - 打包:extras `[probe]`(scanpy/harmonypy/scikit-learn/leidenalg)、
   `[agent]`(OpenAI + DSH/MCP)、`[openai]`(仅 OpenAI)、`[llm]`(DSH 兼容 extra)、
   `[claude]`(Claude 后端);核心包不引入模型 SDK。
-- 默认 `HARNESS=openai`、`doubao-seed-2-1-turbo-260628`、reasoning=`minimal`。
+- 默认 `HARNESS=openai`、`doubao-seed-2-1-turbo-260628`、reasoning=`medium`(`OPENAI_AGENTS_REASONING_EFFORT` 可调;minimal 曾漏看值计数表中的注释列)。
   `HARNESS=deepseek|claude` 显式选择其他后端;`--model` 或
   `ECA_PP_AGENT_MODEL` 独立选择模型。模型故障时使用确定性策略,不自动换后端。
 - OpenAI 直接注册 Python submit tool,不经过 MCP;默认服务端会话续接、

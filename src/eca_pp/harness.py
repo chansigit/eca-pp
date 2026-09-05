@@ -46,7 +46,10 @@ TRANSIENT_BACKOFF_SECONDS = 20
 # another full wall-clock budget. Callers already degrade to a deterministic
 # policy, which keeps unattended dataset processing moving.
 MAX_TIMEOUT_ATTEMPTS = 1
-DEFAULT_WALL_MINUTES = 2.0
+# Wall clock per agent run (AGENT_WALL_MIN). 2 min was tuned for ``minimal``
+# reasoning; with the ``medium`` default a Doubao decision over a full obs
+# profile exceeded it (abm-ilcp, 2026-09-04) and silently degraded the run.
+DEFAULT_WALL_MINUTES = 6.0
 # Provider limits: wait AGENT_LIMIT_WAIT_MIN minutes per attempt, give up after
 # AGENT_LIMIT_WAIT_MAX_H hours. The default ceiling is 1 h — inside a Slurm job
 # a longer sleep just burns the allocation; callers fall back deterministically.

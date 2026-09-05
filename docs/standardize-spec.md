@@ -120,7 +120,7 @@ counts 另行定位(其他层 / X / 逆推),该层从产出中**删除**(绝不�
 物种确定后,mt/hb 识别是 stangene 精确基因集查询,**不涉及任何猜测**。
 stangene 未覆盖的物种 → T3(补参考数据的问题,不是猜的问题)。
 
-T2 使用 `HARNESS` 与模型环境配置,默认 OpenAI + Doubao Turbo + minimal。
+T2 使用 `HARNESS` 与模型环境配置,默认 OpenAI + Doubao Turbo + medium reasoning。
 confidence 必须为有限的 0–1 数值(拒绝布尔值),reason 必须非空;
 非法提交允许模型在 session 中修正,有效 confidence <0.5 仍走 T3。
 低置信度和异常原因写入日志,不改变 unresolved 的退出约定。

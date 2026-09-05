@@ -28,11 +28,14 @@ from .harness import (
 MIN_OPENAI_AGENTS_SDK = (0, 22, 0)
 DOUBAO_BASE_URL_DEFAULT = "https://ark.cn-beijing.volces.com/api/v3"
 DEFAULT_MAX_NUDGES = 2
-# ECAPP calls are short, schema-constrained decisions over evidence already
-# computed by the host.  Doubao's ``low`` setting still spent most output
-# tokens on hidden reasoning in real runs; ``minimal`` produced the same valid
-# tool submission without that overhead.  Callers can raise it for harder work.
-DEFAULT_REASONING_EFFORT = "minimal"
+# ECAPP calls are schema-constrained decisions, but they must READ the
+# evidence (value-count tables, nesting relations) rather than echo the
+# candidate list.  ``minimal`` produced valid submissions cheaply yet, on the
+# abm-ilcp test (2026-09-04), spent 0 reasoning tokens and missed that an
+# "other" column held cell-type names and that the chosen "technical" batch
+# was batch x annotation.  ``medium`` is the default now; override with
+# OPENAI_AGENTS_REASONING_EFFORT (minimal | low | medium | high).
+DEFAULT_REASONING_EFFORT = "medium"
 
 
 def _version_tuple(value: str) -> tuple[int, ...]:

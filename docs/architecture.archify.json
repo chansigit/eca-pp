@@ -37,7 +37,7 @@
           "probe",
           "scanpy"
         ],
-        "note": "默认 OpenAI + 豆包 Turbo（minimal）；DSH/Claude 可选。模型通过校验工具提交决策，明确指标由本地 fast path 收敛。"
+        "note": "默认 OpenAI + 豆包 Turbo（medium reasoning）；DSH/Claude 可选。模型通过校验工具提交决策，明确指标由本地 fast path 收敛。"
       },
       {
         "id": "shared-core",

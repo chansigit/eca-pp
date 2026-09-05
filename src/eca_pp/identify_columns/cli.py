@@ -150,7 +150,7 @@ def _numeric_labels(entry: dict) -> bool:
     return bool(keys) and all(k.lstrip("-").isdigit() for k in keys)
 
 
-CELL_TYPE_CLASS_ORDER = {"annotation": 0, "cluster": 1}
+CELL_TYPE_CLASS_ORDER = {"annotation": 0, "other": 1, "cluster": 2}
 
 
 def _batch_tier(cls: str) -> str:
@@ -175,11 +175,25 @@ def build_candidates(profile: dict) -> dict:
             and 1 <= e["n_unique"] <= obsprofile.MAX_GROUPING_CARD)
         cluster_probe_only = (
             cls == "cluster" and obsprofile.is_grouping_candidate(e))
-        if cell_type_eligible or cluster_probe_only:
+        # Text-labelled columns the name heuristic could not place (class
+        # "other"/"condition") are listed too, NOT output-eligible by default:
+        # the agent may promote one after reading its value-count table (an
+        # "ann0608" holding "ILC2P.4"/"proB" IS an author annotation).
+        reviewable_text = (
+            cls in ("other", "condition")
+            and e["dtype"] in ("categorical", "string")
+            and not e["is_per_cell_unique"]
+            and 1 <= e["n_unique"] <= obsprofile.MAX_GROUPING_CARD
+            and not _numeric_labels(e))
+        if cell_type_eligible or cluster_probe_only or reviewable_text:
             numeric = _numeric_labels(e)
             usable_for_clisi = e["n_unique"] >= 2
             note = ("algorithmic cluster IDs — probe support only; never "
                     "reported as the author's cell type" if cls == "cluster" else "")
+            if reviewable_text:
+                cls = "other"
+                note = ("text labels not recognized as an annotation by name; "
+                        "decide from the sampled values in profile.columns")
             if numeric and cls == "annotation":
                 note = "annotation-named but values are bare integers"
             if not usable_for_clisi:
@@ -254,6 +268,17 @@ def build_candidates(profile: dict) -> dict:
     for candidate in batch:
         for existing in candidate.pop("_equivalent_with", []):
             union(candidate["label"], existing)
+
+    nested_within: dict[str, list[str]] = {}
+    for relation in profile.get("relations", []):
+        if relation["kind"] == "nested":
+            nested_within.setdefault(relation["finer"], []).append(relation["coarser"])
+    for candidate in batch:
+        parents = nested_within.get(candidate["label"], [])
+        if parents:
+            candidate["nested_within"] = [
+                {"column": parent, "class": class_of.get(parent, "derived")}
+                for parent in parents]
 
     representative = {}
     for candidate in batch:
@@ -405,10 +430,20 @@ def _policy_cell_type(decision: dict, candidates: dict,
                       current: str | None, res: dict) -> str | None:
     """The agent's cell-type choice if it names a listed candidate, else
     ``current``. Applied to EVERY decision (probe included) so the trials'
-    cLISI labels follow the agent's choice rather than the heuristic default."""
+    cLISI labels follow the agent's choice rather than the heuristic default.
+    A reviewable text column (class "other") named by the agent is promoted
+    to an annotation: the name heuristic proposed, the values decided."""
     choice = decision.get("cell_type")
-    if choice and any(c["label"] == choice and c["output_eligible"]
-                      for c in candidates["cell_type"]):
+    cand = next((c for c in candidates["cell_type"] if c["label"] == choice), None)
+    if cand is not None and cand["class"] == "other":
+        cand["class"] = "annotation"
+        cand["output_eligible"] = True
+        cand["note"] = "identified as an author annotation by the agent from sampled values"
+        _warn(res, "cell_type_identified_from_values",
+              "cell-type column was not recognized by name; the agent identified it "
+              "from its sampled values",
+              candidate=choice, reason=decision.get("reason", ""))
+    if cand is not None and cand["output_eligible"]:
         return choice
     if choice:
         _warn(res, "invalid_cell_type_choice",

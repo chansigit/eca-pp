@@ -9,7 +9,7 @@
 #   - dl2025 venv python  : prebuilt shared env (anndata, scipy, stancounts, pytest)
 #
 # Agent harness note: HARNESS=openai is the default and uses the OpenAI Agents
-# SDK with Doubao Turbo and minimal reasoning. Set HARNESS=deepseek for the
+# SDK with Doubao Turbo and medium reasoning. Set HARNESS=deepseek for the
 # source-built dsh CLI at $SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js
 # (override with DSH_BIN), or HARNESS=claude for Claude Agent SDK;
 # ECA_PP_CLAUDE_CLI may point at an npm-installed Claude CLI on old glibc hosts.

@@ -91,13 +91,16 @@ class AgentPolicy:
             if not isinstance(decision["reason"], str) or not decision["reason"].strip():
                 raise ValueError("reason must be a non-empty sentence")
             cell_type = decision["cell_type"]
+            # annotation: recognized by name; other: text labels the agent may
+            # promote after reading their values. Cluster IDs stay forbidden.
             valid_cell_types = {
                 item["label"] for item in state["candidates"]["cell_type"]
-                if item.get("class") == "annotation"
+                if item.get("class") in ("annotation", "other")
             }
             if cell_type is not None and cell_type not in valid_cell_types:
                 raise ValueError(
-                    f"cell_type must be an author annotation or null; got {cell_type!r}"
+                    f"cell_type must be an author annotation (a candidates.cell_type "
+                    f"entry of class annotation or other) or null; got {cell_type!r}"
                 )
             candidate = decision["candidate"]
             eligible = set(state.get("eligible_batch_candidates", []))
@@ -192,6 +195,22 @@ sampled values and per-value cell counts; group-size health; a nesting/
 equivalence graph among grouping columns), candidate lists with pre-check
 results, and the metrics of every probe trial so far.
 
+USE THE EVIDENCE — do not answer from the candidate lists alone:
+- profile.columns[].examples is a value -> cell-count table for EVERY column.
+  Read it for every grouping column before deciding. The program's "class"
+  is a NAME heuristic and can be wrong; the values are the truth.
+- profile.relations and each batch candidate's nested_within tell you which
+  columns refine which. A "technical" candidate nested within an annotation-
+  like text column, or whose values look like "<batch>-<label>" (e.g.
+  "ABM2-ILC2P.4"), is batch x cell type, NOT a technical factor: probe the
+  coarser technical column instead and say why.
+- candidates.cell_type includes class "other" columns: text labels the name
+  heuristic could not place. If their sampled values are cell-type names
+  (lineages, ontology terms, abbreviations such as proB, CDP, ILC2P, NKP,
+  "1:CDP-like"), that column IS the author annotation: choose it and quote
+  two or three of its values in the reason. An uninformative or date-suffixed
+  name (ann0608, ImmGen_refine, labels_v2) never disqualifies a column.
+
 Doctrine:
 1. Classify grouping columns first: technical (lane/channel/library/run/
    pool/hash), donor, experimental condition (disease/treatment/timepoint/
@@ -223,11 +242,13 @@ Doctrine:
 7. Cell type column = the AUTHOR'S cell-type annotation (biological names
    such as "T cell", "hepatocyte", ontology terms), NOT an algorithmic
    clustering (leiden / louvain / seurat_clusters / numeric cluster IDs).
-   candidates.cell_type is pre-ranked (class "annotation" before
-   "cluster"; text labels before bare integers) and best_cell_type is
-   the current default. Override it when the sampled values show the
-   default is wrong (e.g. the "annotation" column holds integers while
-   another annotation column holds cell-type names).
+   candidates.cell_type is pre-ranked (class "annotation", then "other"
+   text columns awaiting your judgement, then "cluster"; text labels
+   before bare integers) and best_cell_type is the current default.
+   Override it when the sampled values show the default is wrong (e.g. the
+   "annotation" column holds integers while another column holds cell-type
+   names), and promote a class "other" column when its values are
+   cell-type names. Only class "cluster" columns can never be the answer.
    A constant author annotation is still a valid output, although it cannot
    be used for cLISI. If only clusters exist, report null; the probe will make
    its own pseudo-labels. When several annotation columns exist (e.g. coarse and fine), prefer

@@ -157,7 +157,7 @@ Sherlock 容器环境用 `bash scripts/test-in-container.sh` 一键验证
 
 ### 8.1 配置 agent harness(不配也能确定性降级)
 
-默认是 **OpenAI Agents SDK + Doubao Turbo + minimal reasoning**:
+默认是 **OpenAI Agents SDK + Doubao Turbo + medium reasoning**(`OPENAI_AGENTS_REASONING_EFFORT` 可调):
 
 ```bash
 export ARK_API_KEY=...
@@ -208,7 +208,7 @@ HARNESS=openai bash run.sh identify-columns data/out/Marrow/standardized.h5ad \
 
 `standardize --llm` 使用同一后端配置;其模型通过 `ECA_PP_AGENT_MODEL`
 设置,standardize 没有 `--model` 参数。
-单次 agent run 默认有 2 分钟墙钟上限; `AGENT_WALL_MIN` 可覆盖。
+单次 agent run 默认有 6 分钟墙钟上限(medium reasoning 需要); `AGENT_WALL_MIN` 可覆盖。
 超时不重复消耗同样的等待预算,identify-columns 会记录 warning 并
 切换到确定性策略继续完成。
 

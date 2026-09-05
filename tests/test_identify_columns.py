@@ -532,3 +532,54 @@ def test_dataset_below_probe_minimum_skips_trials(tmp_path):
                    if w["code"] == "dataset_too_small_to_probe")
     assert str(MIN_CELLS) in warning["message"]
     assert res["columns"]["cell_type"]["value"] == "cell_type"
+
+
+def test_agent_can_promote_unnamed_text_column_to_cell_type(tmp_path):
+    """A column the name heuristic cannot place (class "other") but whose
+    values are cell-type names may be chosen by the policy; it is then used
+    as the cLISI label column and reported as the cell type."""
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
+        "ann0608": np.array(["proB", "CDP", "ILC2P.4"] * (n // 3))})
+    import anndata as ad
+    A = ad.read_h5ad(src)
+    del A.obs["cell_type"]  # no name-recognized annotation at all
+    A.write_h5ad(src)
+    policy = ScriptedPolicy([
+        {"action": "probe", "candidate": "batch", "cell_type": "ann0608",
+         "reason": "values proB, CDP, ILC2P.4 are lineage names"},
+        {"action": "adopt", "candidate": "batch", "cell_type": "ann0608",
+         "reason": "gain confirmed"},
+    ])
+    code, res, _ = run(tmp_path, src, policy, "--n-cells", 600)
+    assert code == 0
+    listed = next(c for c in policy.seen_states[0]["candidates"]["cell_type"]
+                  if c["label"] == "ann0608")
+    assert listed["class"] == "other" and not listed["output_eligible"]
+    assert policy.seen_states[0]["best_cell_type"] is None
+    assert policy.seen_states[1]["best_cell_type"] == "ann0608"
+    (trial,) = res["trials"]
+    assert trial["cell_type_col"] == "ann0608"
+    assert trial["metrics"]["clisi_labels"] == "annotated"
+    assert res["columns"]["cell_type"]["value"] == "ann0608"
+    assert any(w["code"] == "cell_type_identified_from_values"
+               for w in res["warnings"])
+    assert not any(w["code"] == "cell_type_not_found" for w in res["warnings"])
+
+
+def test_batch_candidates_expose_nesting_parents(tmp_path):
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    import anndata as ad
+    A = ad.read_h5ad(src)
+    A.obs["batch-ann"] = (A.obs["batch"].astype(str) + "-"
+                          + A.obs["cell_type"].astype(str)).to_numpy()
+    candidates = build_candidates(obsprofile_profile(A))["batch"]
+    composite = next(c for c in candidates if c["label"] == "batch-ann")
+    parents = {p["column"]: p["class"] for p in composite["nested_within"]}
+    assert parents == {"batch": "technical", "cell_type": "annotation"}
+    assert "nested_within" not in next(c for c in candidates if c["label"] == "batch")
+
+
+def obsprofile_profile(adata):
+    from eca_pp.identify_columns import obsprofile
+    return obsprofile.profile_obs(adata)

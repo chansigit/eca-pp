@@ -353,3 +353,34 @@ def test_claude_model_on_other_backend_is_refused(monkeypatch):
         anyio.run(lambda: harness.run_agent(
             tools=[], submit_tool="s", prompt="p", system_prompt=None,
             cwd=".", model="claude-sonnet-5"))
+
+
+def test_policy_validation_allows_other_text_columns_but_not_clusters(monkeypatch, tmp_path):
+    from eca_pp.identify_columns.policies import AgentPolicy
+
+    monkeypatch.setattr(agent, "check_available", lambda: None)
+    captured = {}
+
+    def fake_ask_json(**kwargs):
+        captured["validate"] = kwargs["validate"]
+        return {"action": "give_up", "candidate": None, "cell_type": None,
+                "reason": "x"}, None, [], {}
+
+    monkeypatch.setattr(agent, "ask_json", fake_ask_json)
+    policy = AgentPolicy(str(tmp_path))
+    state = {
+        "profile": {}, "trials": [], "thresholds": {}, "best_cell_type": None,
+        "candidates": {"batch": [], "cell_type": [
+            {"label": "ann0608", "class": "other"},
+            {"label": "leiden", "class": "cluster"}]},
+        "active_batch_tier": None, "eligible_batch_candidates": [],
+        "probes_left": 2,
+    }
+    policy.decide(state)
+    validate = captured["validate"]
+    ok = validate({"action": "give_up", "candidate": None,
+                   "cell_type": "ann0608", "reason": "values are lineages"})
+    assert ok["cell_type"] == "ann0608"
+    with pytest.raises(ValueError, match="cell_type must be"):
+        validate({"action": "give_up", "candidate": None,
+                  "cell_type": "leiden", "reason": "clusters"})
