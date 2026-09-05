@@ -130,7 +130,7 @@ an interactive version with search, zoom, and guided views.
 Use Python 3.10 or newer, preferably in a dedicated environment. ECA-PP runs on CPUs.
 
 ```bash
-pip install "eca-pp[probe,openai]==0.4.0"
+pip install "eca-pp[probe,openai]==0.5.0"
 ```
 
 This also installs `stancounts` and `stangene`, the counts-recovery and gene-mapping
