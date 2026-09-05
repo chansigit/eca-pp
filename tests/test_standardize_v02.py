@@ -298,16 +298,13 @@ def _hvg_object(tmp_path, *, raw_from_same_counts=True, raw_subset=False):
     return path
 
 
-def test_raw_with_more_genes_is_preferred_and_cross_checked(tmp_path):
+def test_raw_with_more_genes_is_preferred(tmp_path):
     src = _hvg_object(tmp_path)
     code, res = run_cli(tmp_path, src)
     assert code == EXIT_OK and res["status"] == "ok", res["reasons"]
     exp = res["metrics"]["raw_expansion"]
     assert exp["applied"] and exp["n_vars_x"] == 2000 and exp["n_vars_raw"] == G
     assert exp["dropped_layers"] == ["counts"]
-    assert exp["reference_source"] == "layer:counts"
-    assert exp["counts_check"]["n_shared_genes"] == 2000
-    assert exp["counts_check"]["match_frac"] >= 0.99
     assert res["metrics"]["counts_source"].startswith("recovered")
     out = ad.read_h5ad(res["output"])
     assert out.n_vars >= G - 10 and out.raw is None
@@ -315,12 +312,13 @@ def test_raw_with_more_genes_is_preferred_and_cross_checked(tmp_path):
     assert out.uns["eca_pp_standardize"]["raw_expanded"] == "true"
 
 
-def test_raw_from_different_counts_is_flagged(tmp_path):
+def test_raw_is_trusted_over_the_hvg_counts_layer(tmp_path):
+    """raw built from other counts is still taken as-is: no cross-check."""
     src = _hvg_object(tmp_path, raw_from_same_counts=False)
     code, res = run_cli(tmp_path, src)
-    assert code == EXIT_OK and res["status"] == "needs_review"
-    assert res["metrics"]["raw_expansion"]["counts_check"]["match_frac"] < 0.99
-    assert any("--no-raw-expand" in r for r in res["reasons"])
+    assert code == EXIT_OK and res["status"] == "ok"
+    assert res["metrics"]["raw_expansion"]["applied"]
+    assert "counts_check" not in res["metrics"]["raw_expansion"]
 
 
 def test_raw_expansion_can_be_disabled(tmp_path):

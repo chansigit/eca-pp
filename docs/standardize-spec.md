@@ -89,11 +89,10 @@ scanpy 流程常把全基因空间只留在 `adata.raw`(log 归一化),而把 X 
 几千个 HVG。直接标准化 HVG 子集会丢掉大部分转录组,通常也过不了基因门。
 因此加载后若 `raw.var_names ⊇ var_names` 且 raw 基因更多,则在 raw 的基因空间
 重建对象:X ← raw.X(counts 由 F2 照常定位或逆推),obs/obsm/uns 保留,HVG
-空间的 layers 丢弃;HVG 空间若有整数 counts 则保留为**参照**,与恢复出的 counts
-在共有基因上逐值比对(抽样 200 细胞),一致率 < 99% → `needs_review`(raw 可能
-来自不同的 counts 或归一化)。`metrics.raw_expansion` 记录是否切换、基因数、
-丢弃的层与比对结果;`uns` 溯源记 `raw_expanded`。`--no-raw-expand` 关闭。
-raw 不覆盖 X 的基因名时不切换,仅记录原因。
+空间的 layers(含其整数 counts)丢弃——raw 被视为同一实验更完整的记录,
+**不**与 HVG 空间的 counts 做交叉比对(2026-09-04 决定)。`metrics.raw_expansion`
+记录是否切换、基因数与丢弃的层;`uns` 溯源记 `raw_expanded`。`--no-raw-expand`
+关闭。raw 不覆盖 X 的基因名时不切换,仅记录原因。
 
 ### 5.1 F2 · counts 定位:三层防线(步骤内零 LLM)
 

@@ -7,8 +7,7 @@ Flow (spec §4):
     ②  F3-pre   no load: n_cells peeked from HDF5 metadata (millisecond fast-reject)
     ③  load     anndata.read_h5ad
     ③b F1b      prefer .raw when it holds MORE genes than X (scanpy HVG subsets):
-                rebuild on raw's gene space; the HVG-space counts, if any, become
-                a reference that the recovered counts are checked against
+                rebuild on raw's gene space, drop the HVG-space layers
     ④  F3-pre   provisional genes gate on X's nonzero structure (skipped when
                 untrustworthy: scaled X, missing X)
     ⑤  F2       counts location & recovery (countsloc: stancounts + 3-layer defence)
@@ -106,8 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "instead of dropping them (default: drop)")
     p.add_argument("--no-raw-expand", action="store_true",
                    help="do not switch to .raw's gene space when raw carries more "
-                        "genes than X (default: switch, keep the HVG counts as a "
-                        "cross-check)")
+                        "genes than X (default: switch; raw is trusted)")
     return p
 
 
@@ -200,8 +198,8 @@ def _run(args, res: dict) -> int:
     res["metrics"]["raw_expansion"] = expansion.as_dict()
     if expansion.applied:
         res["metrics"]["n_vars"] = int(adata.n_vars)
-        log.info("raw expansion: %s (dropped HVG-space layers %s; reference counts %s)",
-                 expansion.reason, expansion.dropped_layers, expansion.reference_source)
+        log.info("raw expansion: %s (dropped HVG-space layers %s)",
+                 expansion.reason, expansion.dropped_layers)
 
     # ④ F3-pre — provisional genes gate.
     pm, trusted, exact = _pre_gate_matrix(adata, args.counts_layer)
@@ -251,20 +249,7 @@ def _run(args, res: dict) -> int:
     # only the success path copied over.
     review = res["reasons"]
     review.extend(loc.needs_review)
-    check = rawspace.verify_against_reference(loc.counts, adata.var_names, expansion)
-    if check is not None:
-        res["metrics"]["raw_expansion"] = expansion.as_dict()
-        if check["match_frac"] is not None and check["match_frac"] < rawspace.MATCH_FRAC_REVIEW:
-            review.append(
-                f"counts taken from .raw ({loc.source}) agree with the HVG-space "
-                f"{check['reference']} on only {check['match_frac']:.1%} of "
-                f"{check['n_values_compared']} sampled values across "
-                f"{check['n_shared_genes']} shared genes — raw may derive from "
-                f"different counts or normalization; verify, or re-run with "
-                f"--no-raw-expand")
-        else:
-            log.info("raw counts check: %s of sampled values match the HVG-space %s",
-                     check["match_frac"], check["reference"])
+
     if loc.ignored_layers:
         res["metrics"]["ignored_counts_layers"] = list(loc.ignored_layers)
         for name in loc.ignored_layers:  # never carry a misleading "counts" along
