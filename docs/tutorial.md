@@ -178,7 +178,7 @@ export DSH_BIN=$SCRATCH/tools/deepseek-harness-src/apps/cli/lib/bin.js
 
 OpenAI 直接注册 Python submit tool,不启动 DSH CLI 或 MCP server。
 三个后端都只开放经过校验的 submit tool;画像、候选与 trial 指标已包含在
-每轮 prompt 中。OpenAI 使用串行工具调用、服务端会话续接;未提交时最多
+prompt 中。OpenAI 使用串行工具调用、服务端会话续接;未提交时最多
 同会话提醒两次。有效 submit 结束 runner,无效 submit 返回校验错误供模型修正。
 可用 `OPENAI_AGENTS_REASONING_EFFORT`、`OPENAI_AGENTS_SERVER_STATE=0`、
 `OPENAI_AGENTS_MAX_NUDGES` 调整对应设置。OpenAI tracing 默认关闭。
@@ -197,8 +197,8 @@ pip install ".[claude]"
 
 **选择模型**:`--model MODEL_ID`(或环境变量 `ECA_PP_AGENT_MODEL`)。
 不指定时两个 Doubao 后端都使用 `doubao-seed-2-1-turbo-260628`,
-Claude 后端使用 `claude-sonnet-5`。每轮实际模型记录在
-`decisions[].usage.model`。
+Claude 后端使用 `claude-sonnet-5`。实际模型记录在
+`classification.usage.model`。
 例如对照 Pro(输出目录同时区分后端和模型):
 
 ```bash
@@ -231,13 +231,13 @@ columns.batch     = channel   correction=unnecessary
 columns.cell_type = cell_ontology_class
 ```
 
-查证据:`result.json` 的 `decisions`(每轮决策 + agent 回复全文)和
+查证据:`result.json` 的 `classification`(模型的分类、理由与回复全文)和
 `trials`(指标)。指标明显通过时由本地快速通道直接结束;临界、缺失或
 fallback 情形仍会回到 agent 复核。下游消费:
 `--batch-col channel`;`correction=unnecessary` 时 integration 应跳过校正。
 
-**费用可见**:每轮成功决策的 token 用量与费用记录在
-`decisions[].usage`,汇总在 `metrics.llm`。`calls` 也包含失败和超时尝试;
+**费用可见**:分类调用的 token 用量与费用记录在
+`classification.usage`,汇总在 `metrics.llm`。`calls` 也包含失败和超时尝试;
 `failed_calls` / `timeout_calls` / `failed_seconds` / `failures` 保留失败审计。
 DSH/OpenAI Agents SDK 均在 Ark 控制台查询账户级消费;
 Claude 在其自身控制台查询;

@@ -1,12 +1,12 @@
-"""identify-columns — the project's first declared agent-implemented step
-(identify-columns spec). To its caller it is a plain CLI (h5ad in →
-result.json out); internally an agent chooses which batch
-candidate to probe next and when to conclude, while every tool invocation —
-profiling and integration-probe trials — is a deterministic CLI, recorded
-round by round in ``trials``.
+"""identify-columns — name the batch column and the cell-type column of a
+standardized h5ad (identify-columns spec).
 
-No selected harness/credential: deterministic policy takes over. --no-probe leaves
-batch null. Both finish successfully with structured warnings.
+Flow: profile obs (deterministic) → ONE classification call in which the
+model reads every column's value-count table and ranks up to three batch
+candidates plus the author's cell-type column → integration probes verify
+the ranked batch candidates in order (at most ``--max-probes``) → result.json.
+Name heuristics only feed the prompt, the fallback when no model is
+available, and the "probeable" allow-list.
 """
 
 from __future__ import annotations
@@ -30,15 +30,15 @@ from eca_pp.core.result import (
 )
 from eca_pp.identify_columns import obsprofile
 from eca_pp.identify_columns.policies import (
-    AgentPolicy,
-    HeuristicPolicy,
+    AgentClassifier,
+    HeuristicClassifier,
     PolicyUnavailable,
 )
 from eca_pp.probe import cli as probe
 
 log = logging.getLogger("eca_pp.identify_columns")
 
-# --- decision thresholds (v0.4 defaults; all recorded in result.json) --------
+# --- decision thresholds (recorded in result.json) ---------------------------
 PATHOLOGICAL_TINY_GROUP_FRAC = 0.5   # majority of groups tiny -> column is out
 TINY_NOTE_CELL_FRAC = 0.05           # below this, tiny groups only get a note
 PRE_MIXED_ILISI = 0.8                # pre-iLISI at/above -> correction unnecessary
@@ -46,12 +46,9 @@ PRE_MIXED_PCR = 0.05                 # ...together with PC-regression R2 below
 ILISI_GAIN_MIN = 0.05                # normalized iLISI gain required to adopt
 CLISI_DROP_TOL = 0.05                # annotated cLISI drop tolerance
 PSEUDO_CLISI_DROP_TOL = 0.15         # pseudo-labels are weaker evidence
-CLEAR_GAIN_FACTOR = 1.5               # fast path requires metric headroom
-CLEAR_CLISI_TOL_FACTOR = 0.5          # preserve half the cLISI budget
-PRE_MIXED_ILISI_HEADROOM = 0.05       # fast path likewise for pre-mixed data
 CELLS_PER_BATCH = 50                 # adaptive sampling: expected cells/batch
 N_CELLS_FLOOR, N_CELLS_CAP = 5000, 30000
-MAX_PROBES = 6
+MAX_PROBES = 2                       # the classifier ranks; probes verify in order
 
 TECH_TOKENS = ("lane", "channel", "library", "batch", "run", "pool", "hash",
                "chip", "well", "plate", "flowcell", "kit", "10x", "lib",
@@ -65,11 +62,11 @@ ANNOTATION_TOKENS = ("celltype", "annotation", "ontology", "class",
                      "lineage", "subtype", "celllabel")
 ANNOTATION_EXACT = frozenset({"ct", "celltype", "celltypes", "celllabel",
                               "celllabels"})
-# "ann" is a common annotation shorthand but only as a whole affix — as a
-# bare substring it would swallow e.g. "channel".
-ANNOTATION_AFFIX = re.compile(r"(?i)(^|[_.\s])ann([_.\s]|$)")
-# Algorithmic cluster IDs: a valid cLISI label set only as a LAST resort —
-# never mistaken for the author's cell-type annotation when one exists.
+# "ann" is a common annotation shorthand as a whole affix, optionally followed
+# by a date/version tag (ann0608, ann_v2) — as a bare substring it would
+# swallow e.g. "channel".
+ANNOTATION_AFFIX = re.compile(r"(?i)(^|[_.\s])ann(?:\d+|_?v?\d+)?([_.\s]|$)")
+# Algorithmic cluster IDs: never the author's cell-type annotation.
 CLUSTER_TOKENS = ("cluster", "louvain", "leiden")
 
 
@@ -77,17 +74,20 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="eca-pp-identify-columns",
         description="Identify the batch column and cell-type column of a "
-                    "standardized h5ad, verified by small-scale integration "
-                    "trials; writes OUTDIR/result.json (+ batch.tsv for a "
-                    "derived batch column).")
+                    "standardized h5ad: one model classification over the "
+                    "obs profile, verified by small integration trials; "
+                    "writes OUTDIR/result.json (+ batch.tsv for a derived "
+                    "batch column).")
     p.add_argument("src", help="standardized .h5ad")
     p.add_argument("-o", "--outdir", required=True)
-    p.add_argument("--max-probes", type=int, default=MAX_PROBES)
+    p.add_argument("--max-probes", type=int, default=MAX_PROBES,
+                   help=f"verify at most this many ranked batch candidates "
+                        f"(default {MAX_PROBES})")
     p.add_argument("--n-cells", type=int, default=None,
                    help="probe subsample size (default: adaptive, "
                         "clamp(50×max_batches, 5000, 30000))")
     p.add_argument("--no-probe", action="store_true",
-                   help="profile + ranking only; batch=null with warning")
+                   help="profile + classification only; batch=null with warning")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--model", default=None,
                    help="agent model ID; default: $ECA_PP_AGENT_MODEL, else "
@@ -102,20 +102,13 @@ def _norm(name: str) -> str:
 
 
 def classify_column(entry: dict) -> str:
-    """technical | donor | condition | annotation | cluster | qc_numeric |
-    identifier | constant | other — doctrine §4.1. A recognized annotation
-    name wins over constant structure because a single-cell-type dataset still
-    has valid author metadata. Annotation is also checked before cluster so
-    "cluster_annotation" is an annotation, while "seurat_clusters" and
-    "leiden" are clusters."""
+    """Name heuristic: technical | donor | condition | annotation | cluster |
+    qc_numeric | identifier | constant | other. A hint for the model and the
+    deterministic fallback, never a hard filter on the model's answer."""
     n = _norm(entry["column"])
-    # Integer-valued QC measurements remain measurements, even if their
-    # storage dtype also permits discrete group IDs.
     if (n.startswith(("pctcounts", "percent", "nfeature", "ncount", "ngenes"))
             or n in {"totalcounts", "doubletscore", "scrubletscore", "pctmt", "pcthb"}):
         return "qc_numeric"
-    # A named author annotation remains useful metadata even when a dataset
-    # contains only one cell type.  It simply cannot serve as a cLISI label.
     if (n in ANNOTATION_EXACT or ANNOTATION_AFFIX.search(entry["column"])
             or any(t in n for t in ANNOTATION_TOKENS)):
         return "annotation"
@@ -153,64 +146,53 @@ def _numeric_labels(entry: dict) -> bool:
 CELL_TYPE_CLASS_ORDER = {"annotation": 0, "other": 1, "cluster": 2}
 
 
-def _batch_tier(cls: str) -> str:
-    """Primary technical evidence first; biological/unknown labels later."""
-    return "primary" if cls in ("technical", "donor") else "fallback"
-
-
 def build_candidates(profile: dict) -> dict:
-    """{'batch': [...], 'cell_type': [...]} — classified, pre-checked.
-    batch: bottom-up ordered (finest viable technical level first).
-    cell_type: ranked — named annotation columns first, algorithmic cluster
-    columns last, numeric-ID columns after text-labelled ones within a
-    class, obs order as the final tiebreak. ``cell_type[0]`` is the
-    default the deterministic spine uses; the agent may pick any other."""
+    """{'batch': [...], 'cell_type': [...]} from name heuristics + group health.
+
+    batch: every grouping column / derived candidate with its heuristic class,
+    pathology exclusion, nesting parents and equivalence collapse — the
+    probeable allow-list and the fallback ranking (technical → donor → derived
+    → condition → other, more groups first).
+    cell_type: annotation-named columns, unplaced text columns (class
+    "other"), and cluster columns (probe support only)."""
     batch, cell_type = [], []
     class_of = {e["column"]: classify_column(e) for e in profile["columns"]}
     for e in profile["columns"]:
         cls = class_of[e["column"]]
-        cell_type_eligible = (
-            cls == "annotation"
-            and not e["is_per_cell_unique"]
-            and 1 <= e["n_unique"] <= obsprofile.MAX_GROUPING_CARD)
-        cluster_probe_only = (
-            cls == "cluster" and obsprofile.is_grouping_candidate(e))
-        # Text-labelled columns the name heuristic could not place (class
-        # "other"/"condition") are listed too, NOT output-eligible by default:
-        # the agent may promote one after reading its value-count table (an
-        # "ann0608" holding "ILC2P.4"/"proB" IS an author annotation).
-        reviewable_text = (
-            cls in ("other", "condition")
-            and e["dtype"] in ("categorical", "string")
-            and not e["is_per_cell_unique"]
-            and 1 <= e["n_unique"] <= obsprofile.MAX_GROUPING_CARD
-            and not _numeric_labels(e))
-        if cell_type_eligible or cluster_probe_only or reviewable_text:
+        text_like = (e["dtype"] in ("categorical", "string")
+                     and not e["is_per_cell_unique"]
+                     and 1 <= e["n_unique"] <= obsprofile.MAX_GROUPING_CARD)
+        if cls == "annotation" and not e["is_per_cell_unique"] \
+                and 1 <= e["n_unique"] <= obsprofile.MAX_GROUPING_CARD:
+            ct_cls = "annotation"
+        elif cls == "cluster" and obsprofile.is_grouping_candidate(e):
+            ct_cls = "cluster"
+        elif cls in ("other", "condition") and text_like and not _numeric_labels(e):
+            ct_cls = "other"
+        else:
+            ct_cls = None
+        if ct_cls:
             numeric = _numeric_labels(e)
-            usable_for_clisi = e["n_unique"] >= 2
-            note = ("algorithmic cluster IDs — probe support only; never "
-                    "reported as the author's cell type" if cls == "cluster" else "")
-            if reviewable_text:
-                cls = "other"
-                note = ("text labels not recognized as an annotation by name; "
-                        "decide from the sampled values in profile.columns")
-            if numeric and cls == "annotation":
+            usable = e["n_unique"] >= 2
+            note = {"cluster": "algorithmic cluster IDs — probe support only; "
+                               "never reported as the author's cell type",
+                    "other": "text labels not recognized as an annotation by "
+                             "name; judged from the sampled values",
+                    "annotation": ""}[ct_cls]
+            if numeric and ct_cls == "annotation":
                 note = "annotation-named but values are bare integers"
-            if not usable_for_clisi:
+            if not usable:
                 note = ((note + "; ") if note else "") + \
                     "constant annotation — valid metadata, unavailable for cLISI"
             cell_type.append({"label": e["column"], "kind": "existing",
-                              "class": cls, "n_groups": e["n_unique"],
+                              "class": ct_cls, "n_groups": e["n_unique"],
                               "numeric_labels": numeric,
-                              "output_eligible": cls == "annotation",
-                              "usable_for_clisi": usable_for_clisi,
-                              "note": note})
+                              "usable_for_clisi": usable, "note": note})
         if cls in ("technical", "donor", "condition", "other") \
                 and obsprofile.is_grouping_candidate(e):
             note = _pathology(e)
             gs = e["group_sizes"]
             cand = {"label": e["column"], "kind": "existing", "class": cls,
-                    "tier": _batch_tier(cls),
                     "n_groups": gs["n_groups"],
                     "missing_frac": e["missing_frac"],
                     "tiny_cell_frac": gs["tiny_cell_frac"],
@@ -220,33 +202,24 @@ def build_candidates(profile: dict) -> dict:
                                 f"({gs['tiny_cell_frac']:.1%} of cells)")
             batch.append(cand)
     for d in profile["derived"]:
-        # Combining columns cannot make an ineligible QC/annotation/ID column
-        # into a batch factor (doctrine §4.3).
         if d["kind"] == "composite":
+            # Combining columns cannot turn a QC/annotation/ID column into a
+            # batch factor.
             parts = d["label"].split(":", 1)[1].split("+")
             if any(class_of.get(p) not in ("technical", "donor", "condition", "other")
                    for p in parts):
                 continue
-        tier = "primary" if d["kind"] == "barcode" else "fallback"
-        if d["kind"] == "composite":
-            parts = d["label"].split(":", 1)[1].split("+")
-            if all(class_of.get(p) in ("technical", "donor") for p in parts):
-                tier = "primary"
         note = _pathology(d)
         batch.append({"label": d["label"], "kind": d["kind"], "class": "derived",
-                      "tier": tier, "n_groups": d["n_groups"],
+                      "n_groups": d["n_groups"],
                       "missing_frac": d.get("missing_frac", 0.0),
                       "tiny_cell_frac": d["group_sizes"]["tiny_cell_frac"],
                       "_equivalent_with": d.get("equivalent_with", []),
                       "excluded": bool(note), "note": note or ""})
-    order = {"technical": 0, "donor": 1, "derived": 2,
-             "condition": 3, "other": 4}
-    batch.sort(key=lambda c: (c["excluded"], c["tier"] != "primary",
-                              order[c["class"]], -c["n_groups"]))
+    order = {"technical": 0, "donor": 1, "derived": 2, "condition": 3, "other": 4}
+    batch.sort(key=lambda c: (c["excluded"], order[c["class"]], -c["n_groups"]))
 
-    # Collapse equivalent partitions before any expensive probe. Existing
-    # columns use the profile relation graph; derived candidates additionally
-    # carry exact partition matches computed while their values are available.
+    # Equivalent partitions collapse onto the first-listed representative.
     parent = {c["label"]: c["label"] for c in batch}
 
     def find(label):
@@ -268,6 +241,15 @@ def build_candidates(profile: dict) -> dict:
     for candidate in batch:
         for existing in candidate.pop("_equivalent_with", []):
             union(candidate["label"], existing)
+    representative = {}
+    for candidate in batch:
+        if candidate["excluded"]:
+            continue
+        root = find(candidate["label"])
+        if root in representative:
+            candidate["equivalent_to"] = representative[root]
+        else:
+            representative[root] = candidate["label"]
 
     nested_within: dict[str, list[str]] = {}
     for relation in profile.get("relations", []):
@@ -279,19 +261,53 @@ def build_candidates(profile: dict) -> dict:
             candidate["nested_within"] = [
                 {"column": parent, "class": class_of.get(parent, "derived")}
                 for parent in parents]
-
-    representative = {}
-    for candidate in batch:
-        if candidate["excluded"]:
-            continue
-        root = find(candidate["label"])
-        if root in representative:
-            candidate["equivalent_to"] = representative[root]
-        else:
-            representative[root] = candidate["label"]
     cell_type.sort(key=lambda c: (CELL_TYPE_CLASS_ORDER[c["class"]],
                                   c["numeric_labels"]))  # stable: obs order
     return {"batch": batch, "cell_type": cell_type}
+
+
+def build_evidence(profile: dict, candidates: dict) -> dict:
+    """The compact table the classifier reads: one row per column with its
+    value-count table, plus relations, derived candidates and pathologies."""
+    heuristic = {e["column"]: classify_column(e) for e in profile["columns"]}
+    probeable = {c["label"]: c for c in candidates["batch"]}
+    rows = []
+    for e in profile["columns"]:
+        row = {"column": e["column"], "dtype": e["dtype"],
+               "n_unique": e["n_unique"], "missing_frac": e["missing_frac"],
+               "heuristic_class": heuristic[e["column"]],
+               "value_counts": e["examples"]}
+        if e["is_per_cell_unique"]:
+            row["per_cell_unique"] = True
+        if e["is_constant"]:
+            row["constant"] = True
+        gs = e.get("group_sizes")
+        if gs:
+            row["group_sizes"] = {k: gs[k] for k in ("n_groups", "min", "median",
+                                                     "max", "n_tiny")}
+        cand = probeable.get(e["column"])
+        if cand:
+            row["probeable_as_batch"] = not cand["excluded"]
+            if cand["note"]:
+                row["note"] = cand["note"]
+            if cand.get("nested_within"):
+                row["nested_within"] = cand["nested_within"]
+            if cand.get("equivalent_to"):
+                row["equivalent_to"] = cand["equivalent_to"]
+        rows.append(row)
+    derived = []
+    for c in candidates["batch"]:
+        if c["kind"] != "existing":
+            derived.append({"label": c["label"], "kind": c["kind"],
+                            "n_groups": c["n_groups"],
+                            "probeable_as_batch": not c["excluded"],
+                            "note": c["note"],
+                            "equivalent_to": c.get("equivalent_to")})
+    return {"n_obs": profile["n_obs"], "columns": rows,
+            "relations": profile.get("relations", []),
+            "derived_candidates": derived,
+            "probeable_batch_columns": sorted(
+                c["label"] for c in candidates["batch"] if not c["excluded"])}
 
 
 # ------------------------------------------------------- trial verdict rules
@@ -308,52 +324,6 @@ def qualifies(m: dict) -> bool:
 def correction_unnecessary(m: dict) -> bool:
     return bool(m["ilisi_norm_pre"] >= PRE_MIXED_ILISI
                 and m.get("pc_regression_r2", 1.0) <= PRE_MIXED_PCR)
-
-
-def clear_metric_decision(trial: dict, candidate: dict) -> dict | None:
-    """Conclude locally only when a primary trial has ample metric headroom.
-
-    The first agent round still supplies the semantic column choice. Fallback
-    candidates, missing batch labels, rejected probes, and borderline metrics
-    continue to a second agent round.
-    """
-    if candidate.get("tier") != "primary" or candidate.get("missing_frac", 0):
-        return None
-    m = trial["metrics"]
-    verdict = trial.get("verdict")
-    if verdict == "adopted":
-        gain = m["ilisi_norm_post"] - m["ilisi_norm_pre"]
-        drop = m["clisi_norm_pre"] - m["clisi_norm_post"]
-        tolerance = (PSEUDO_CLISI_DROP_TOL
-                     if m.get("clisi_labels") == "pseudo" else CLISI_DROP_TOL)
-        if gain < ILISI_GAIN_MIN * CLEAR_GAIN_FACTOR \
-                or drop > tolerance * CLEAR_CLISI_TOL_FACTOR:
-            return None
-        return {
-            "action": "adopt", "candidate": trial["batch_col"],
-            "cell_type": trial.get("cell_type_col"),
-            "reason": (
-                f"{trial.get('reason', '').rstrip('.')} — metric fast path: "
-                "primary candidate, Harmony converged, "
-                f"normalized iLISI gain={gain:.4f} and cLISI drop={drop:.4f} "
-                "clear the guarded thresholds"
-            ),
-        }
-    if verdict == "correction_unnecessary":
-        if m["ilisi_norm_pre"] < PRE_MIXED_ILISI + PRE_MIXED_ILISI_HEADROOM \
-                or m.get("pc_regression_r2", 1.0) > PRE_MIXED_PCR / 2:
-            return None
-        return {
-            "action": "conclude_unnecessary", "candidate": trial["batch_col"],
-            "cell_type": trial.get("cell_type_col"),
-            "reason": (
-                f"{trial.get('reason', '').rstrip('.')} — metric fast path: "
-                "primary candidate is already well mixed "
-                f"(normalized pre-iLISI={m['ilisi_norm_pre']:.4f}, "
-                f"PC regression R2={m.get('pc_regression_r2', 0):.4f})"
-            ),
-        }
-    return None
 
 
 # ------------------------------------------------------------------- flow
@@ -417,39 +387,9 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
                          "cell_type_coverage_sampled", "n_cells_clisi",
                          "harmony_converged", "n_batches",
                          "n_batches_sampled", "pc_regression_r2", "timings")},
-            "verdict": verdict, "reason": ""}
-
-
-def _best_cell_type(candidates: dict) -> str | None:
-    """Top-ranked author annotation; clusters are probe support only."""
-    ct = [c for c in candidates["cell_type"] if c["output_eligible"]]
-    return ct[0]["label"] if ct else None
-
-
-def _policy_cell_type(decision: dict, candidates: dict,
-                      current: str | None, res: dict) -> str | None:
-    """The agent's cell-type choice if it names a listed candidate, else
-    ``current``. Applied to EVERY decision (probe included) so the trials'
-    cLISI labels follow the agent's choice rather than the heuristic default.
-    A reviewable text column (class "other") named by the agent is promoted
-    to an annotation: the name heuristic proposed, the values decided."""
-    choice = decision.get("cell_type")
-    cand = next((c for c in candidates["cell_type"] if c["label"] == choice), None)
-    if cand is not None and cand["class"] == "other":
-        cand["class"] = "annotation"
-        cand["output_eligible"] = True
-        cand["note"] = "identified as an author annotation by the agent from sampled values"
-        _warn(res, "cell_type_identified_from_values",
-              "cell-type column was not recognized by name; the agent identified it "
-              "from its sampled values",
-              candidate=choice, reason=decision.get("reason", ""))
-    if cand is not None and cand["output_eligible"]:
-        return choice
-    if choice:
-        _warn(res, "invalid_cell_type_choice",
-              "policy proposed a missing or non-author-annotation cell-type column; ignored",
-              candidate=choice)
-    return current
+            "verdict": verdict,
+            "probe_reasons": pr.get("reasons") or [],
+            "reason": ""}
 
 
 def _warn(res: dict, code: str, message: str, **details) -> None:
@@ -460,21 +400,6 @@ def _warn(res: dict, code: str, message: str, **details) -> None:
     if not any(w.get("code") == code and w.get("details") == warning.get("details")
                for w in res.setdefault("warnings", [])):
         res["warnings"].append(warning)
-
-
-def _active_batch_tier(candidates: dict, trials: list) -> str | None:
-    if any(t["verdict"] in ("adopted", "correction_unnecessary")
-           for t in trials):
-        return None
-    tried = {t["batch_col"] for t in trials}
-    viable = [c for c in candidates["batch"]
-              if not c["excluded"] and not c.get("equivalent_to")
-              and c["label"] not in tried]
-    if any(c["tier"] == "primary" for c in viable):
-        return "primary"
-    if any(c["tier"] == "fallback" for c in viable):
-        return "fallback"
-    return None
 
 
 def _billing_url() -> str:
@@ -489,18 +414,13 @@ def _billing_url() -> str:
 
 
 def _llm_metrics(res: dict) -> dict:
-    llm = res["metrics"].setdefault("llm", {
+    return res["metrics"].setdefault("llm", {
         "calls": 0, "models": [], "input_tokens": 0, "output_tokens": 0,
         "reasoning_tokens": 0,
         "cache_creation_tokens": 0, "cache_read_tokens": 0,
         "cost_usd": 0.0, "cost_complete": True, "billing_url": _billing_url(),
         "successful_calls": 0, "failed_calls": 0, "timeout_calls": 0,
         "failed_seconds": 0.0, "failures": []})
-    for key, default in (("successful_calls", 0), ("failed_calls", 0),
-                         ("timeout_calls", 0), ("failed_seconds", 0.0),
-                         ("failures", [])):
-        llm.setdefault(key, default)
-    return llm
 
 
 def _tally_llm(res: dict, usage: dict | None) -> None:
@@ -525,9 +445,8 @@ def _tally_llm(res: dict, usage: dict | None) -> None:
 
 def _tally_llm_failure(res: dict, *, error: Exception, elapsed: float,
                        model: str, backend: str) -> None:
-    """Record a failed attempt even though it produced no decision/usage."""
+    """Record a failed attempt even though it produced no answer/usage."""
     llm = _llm_metrics(res)
-    message = str(error)
     timed_out = getattr(error, "kind", "error") == "timeout"
     llm["calls"] += 1
     llm["failed_calls"] += 1
@@ -539,11 +458,93 @@ def _tally_llm_failure(res: dict, *, error: Exception, elapsed: float,
     llm["failures"].append({
         "backend": backend, "model": model,
         "kind": "timeout" if timed_out else "error",
-        "elapsed_seconds": round(elapsed, 3), "error": message,
+        "elapsed_seconds": round(elapsed, 3), "error": str(error),
     })
 
 
-def _run(args, res: dict, policy) -> int:
+def _classify(args, res: dict, classifier, state: dict) -> tuple[dict, str]:
+    """One classification; a failing agent degrades to the name heuristics."""
+    source = "agent" if isinstance(classifier, AgentClassifier) else "deterministic"
+    t0 = time.perf_counter()
+    try:
+        answer = classifier.classify(state)
+    except PolicyUnavailable as exc:
+        elapsed = time.perf_counter() - t0
+        if source == "agent":
+            from eca_pp import agent
+            _tally_llm_failure(res, error=exc, elapsed=elapsed,
+                               model=agent.model_name(args.model),
+                               backend=agent.backend_name())
+        _warn(res, "agent_failed",
+              "agent classification failed; continued with name heuristics",
+              error=str(exc))
+        answer = HeuristicClassifier().classify(state)
+        source = "deterministic_fallback"
+    res["metrics"]["timings"]["classification"] = round(time.perf_counter() - t0, 3)
+    _tally_llm(res, answer.get("usage"))
+    return answer, source
+
+
+def _cell_type_entry(label: str | None, profile: dict, candidates: dict) -> dict | None:
+    """Per-column facts for the chosen cell type (None when label is None or
+    not an obs column)."""
+    if label is None:
+        return None
+    entry = next((e for e in profile["columns"] if e["column"] == label), None)
+    if entry is None or entry["is_per_cell_unique"]:
+        return None
+    cand = next((c for c in candidates["cell_type"] if c["label"] == label), None)
+    return {"label": label, "n_groups": entry["n_unique"],
+            "usable_for_clisi": entry["n_unique"] >= 2,
+            "numeric_labels": _numeric_labels(entry),
+            "heuristic_class": cand["class"] if cand else classify_column(entry)}
+
+
+def _ct_block(ct: dict | None, classification: dict, source: str,
+              candidates: dict, trials: list) -> dict | None:
+    if ct is None:
+        return None
+    evidence = classification.get("cell_type_reason") or ""
+    if ct["numeric_labels"]:
+        evidence += "; values are bare integers"
+    if not ct["usable_for_clisi"]:
+        evidence += "; constant annotation, not used for cLISI"
+    others = [c["label"] for c in candidates["cell_type"]
+              if c["label"] != ct["label"] and c["class"] != "cluster"]
+    if others:
+        evidence += f"; other candidates: {', '.join(others)}"
+    if any(t.get("cell_type_col") == ct["label"]
+           and t.get("metrics", {}).get("clisi_labels") == "annotated"
+           for t in trials):
+        evidence += "; used as cLISI labels in the trials"
+    return {"value": ct["label"], "kind": "existing",
+            "confidence": 0.8 if source == "agent" else 0.6,
+            "evidence": evidence.strip("; ")}
+
+
+def _warn_if_null_cell_type(res: dict, ct: dict | None, candidates: dict) -> None:
+    if ct is not None:
+        return
+    clusters = [c["label"] for c in candidates["cell_type"] if c["class"] == "cluster"]
+    if clusters:
+        _warn(res, "cell_type_not_found",
+              "no author cell-type annotation found; cluster columns are not reported as cell type",
+              cluster_columns=clusters)
+    else:
+        _warn(res, "cell_type_not_found",
+              "no author cell-type annotation found; cell_type is null")
+
+
+def _finish(res: dict, batch_block: dict | None, ct_block: dict | None,
+            batch_evidence: str | None = None) -> int:
+    res["columns"] = {"batch": batch_block, "cell_type": ct_block}
+    if batch_block is None and batch_evidence:
+        res["columns"]["batch_evidence"] = batch_evidence
+    res["status"] = "ok"
+    return EXIT_OK
+
+
+def _run(args, res: dict, classifier) -> int:
     import anndata as ad
 
     timings = res["metrics"].setdefault("timings", {})
@@ -560,278 +561,134 @@ def _run(args, res: dict, policy) -> int:
         "pathological_tiny_group_frac": PATHOLOGICAL_TINY_GROUP_FRAC}
     timings["profile"] = round(time.perf_counter() - t0, 3)
 
-    best_ct = _best_cell_type(candidates)
-    if args.no_probe:
-        res["columns"] = {"batch": None,
-                          "cell_type": _ct_block(best_ct, candidates)}
-        res["status"] = "ok"
-        _warn(res, "probe_disabled",
-              "probe disabled: batch left null; profile and cell-type inference produced")
-        _warn_if_null_cell_type(res, best_ct, candidates)
-        return EXIT_OK
-    if policy is None:
-        policy = HeuristicPolicy()
+    # ① one classification over the whole profile
+    if classifier is None:
+        classifier = HeuristicClassifier()
         _warn(res, "agent_unavailable",
-              "agent unavailable: continued with deterministic policy")
+              "agent unavailable: continued with name heuristics")
+    state = {"profile": profile, "candidates": candidates,
+             "evidence": build_evidence(profile, candidates),
+             "heuristic_class": {e["column"]: classify_column(e)
+                                 for e in profile["columns"]}}
+    answer, source = _classify(args, res, classifier, state)
+    classification = {
+        "source": source,
+        "batch_ranked": answer.get("batch_ranked") or [],
+        "cell_type": answer.get("cell_type"),
+        "cell_type_reason": answer.get("cell_type_reason", ""),
+        "columns": answer.get("columns") or {},
+        "notes": answer.get("notes", ""),
+        "tools_used": answer.get("tools_used", []),
+        "raw_reply": answer.get("raw_reply", ""),
+        "usage": answer.get("usage", {}),
+    }
+    res["classification"] = classification
+    # Audit-trail shape kept for downstream summaries (one entry per call).
+    res["decisions"] = [{
+        "action": "classify",
+        "candidate": (classification["batch_ranked"][0]["column"]
+                      if classification["batch_ranked"] else None),
+        "cell_type": classification["cell_type"], "source": source,
+        "reason": classification["notes"] or classification["cell_type_reason"],
+        "tools_used": classification["tools_used"],
+        "raw_reply": classification["raw_reply"], "usage": classification["usage"]}]
+    log.info("classification (%s): batch ranked %s; cell_type %r", source,
+             [b["column"] for b in classification["batch_ranked"]],
+             classification["cell_type"])
+
+    # ② cell type: the classifier's column, sanity-checked against the profile
+    ct = _cell_type_entry(classification["cell_type"], profile, candidates)
+    if classification["cell_type"] is not None and ct is None:
+        _warn(res, "invalid_cell_type_choice",
+              "classifier named a column that is missing or per-cell unique; ignored",
+              candidate=classification["cell_type"])
+    if ct is not None and ct["heuristic_class"] != "annotation":
+        _warn(res, "cell_type_identified_from_values",
+              "cell-type column was not recognized by name; identified from its values",
+              candidate=ct["label"], reason=classification["cell_type_reason"])
+    _warn_if_null_cell_type(res, ct, candidates)
+    ct_spec = ct["label"] if ct and ct["usable_for_clisi"] else None
+
+    # ③ verify the ranked batch candidates in order
+    trials = res["trials"] = []
+    by_label = {c["label"]: c for c in candidates["batch"]}
+    ranked = [b for b in classification["batch_ranked"]
+              if b.get("column") in by_label and not by_label[b["column"]]["excluded"]]
+    dropped = [b.get("column") for b in classification["batch_ranked"]
+               if b not in ranked]
+    if dropped:
+        _warn(res, "invalid_batch_choice",
+              "classifier ranked columns that are not probeable; skipped",
+              candidates=dropped)
+    if args.no_probe:
+        _warn(res, "probe_disabled",
+              "probe disabled: batch left null; profile and classification produced")
+        return _finish(res, None, _ct_block(ct, classification, source, candidates, trials),
+                       "; ".join(f"{b['column']}: {b['reason']}" for b in ranked) or None)
+    if not ranked:
+        _warn(res, "no_batch_candidate",
+              "classifier found no plausible batch structure in obs")
+        return _finish(res, None, _ct_block(ct, classification, source, candidates, trials),
+                       classification["notes"] or "no plausible batch column")
+    if adata.n_obs < probe.MIN_CELLS:
+        reason = (f"dataset has {adata.n_obs} cells (< {probe.MIN_CELLS}); too small "
+                  f"for integration trials, so the ranked batch candidates "
+                  f"{[b['column'] for b in ranked]} were not probed")
+        _warn(res, "dataset_too_small_to_probe", reason)
+        return _finish(res, None, _ct_block(ct, classification, source, candidates, trials), reason)
 
     n_cells = _adaptive_n_cells(candidates, args.n_cells)
     res["metrics"]["probe_n_cells"] = n_cells
-    trials = res["trials"] = []
-    decisions = res["decisions"] = []  # full audit trail, incl. agent tool use
-    by_label = {c["label"]: c for c in candidates["batch"]}
-
-    # The probe needs probe.MIN_CELLS cells (standardize accepts fewer). Say so
-    # once, up front, instead of re-reading the h5ad for every candidate only
-    # to have each trial rejected with the same dataset-level reason.
-    if adata.n_obs < probe.MIN_CELLS:
-        return _null_batch_ok(
-            res, best_ct, candidates,
-            f"dataset has {adata.n_obs} cells (< {probe.MIN_CELLS}); too small "
-            f"for integration trials, so no batch column was probed",
-            code="dataset_too_small_to_probe",
-        )
-
-    pending_decision = None
-    while True:
-        if len(trials) >= args.max_probes and not any(
-            trial["verdict"] in ("adopted", "correction_unnecessary")
-            for trial in trials
-        ):
-            return _null_batch_ok(
-                res, best_ct, candidates,
-                "probe budget exhausted without a qualifying batch",
-                code="batch_evidence_insufficient",
-            )
-        active_tier = _active_batch_tier(candidates, trials)
-        state = {"profile": profile, "candidates": candidates, "trials": trials,
-                 "thresholds": res["thresholds"], "best_cell_type": best_ct,
-                 "active_batch_tier": active_tier,
-                 "eligible_batch_candidates": [
-                     c["label"] for c in candidates["batch"]
-                     if not c["excluded"] and not c.get("equivalent_to")
-                     and c["tier"] == active_tier
-                     and c["label"] not in {t["batch_col"] for t in trials}],
-                 "probes_left": args.max_probes - len(trials)}
-        if pending_decision is not None:
-            decision = pending_decision
-            pending_decision = None
-            source = "metric_fast_path"
-            res["metrics"]["metric_fast_path"] = True
-        else:
-            source = "agent" if isinstance(policy, AgentPolicy) else "deterministic"
-            decision_no = len(decisions) + 1
-            t0 = time.perf_counter()
-            try:
-                decision = policy.decide(state)
-            except PolicyUnavailable as exc:
-                failed_elapsed = time.perf_counter() - t0
-                if source == "agent":
-                    from eca_pp import agent
-                    _tally_llm_failure(
-                        res, error=exc, elapsed=failed_elapsed,
-                        model=agent.model_name(args.model),
-                        backend=agent.backend_name(),
-                    )
-                _warn(res, "agent_failed",
-                      "agent failed during the decision loop; continued deterministically",
-                      error=str(exc))
-                policy = HeuristicPolicy()
-                source = "deterministic_fallback"
-                decision = policy.decide(state)
-            timings[f"decision_{decision_no}"] = round(
-                time.perf_counter() - t0, 3)
-        action = decision.get("action")
-        decisions.append({"action": action,
-                          "candidate": decision.get("candidate"),
-                          "cell_type": decision.get("cell_type"),
-                          "reason": decision.get("reason", ""),
-                          "source": source,
-                          "tools_used": decision.get("tools_used", []),
-                          "raw_reply": decision.get("raw_reply", ""),
-                          "usage": decision.get("usage", {})})
-        _tally_llm(res, decision.get("usage"))
-        log.info("policy: %s %s — %s", action, decision.get("candidate"),
-                 decision.get("reason"))
-        chosen_ct = _policy_cell_type(decision, candidates, best_ct, res)
-        if chosen_ct != best_ct:
-            log.info("policy: cell_type %r -> %r", best_ct, chosen_ct)
-            best_ct = chosen_ct
-
-        if action == "probe":
-            cand = by_label.get(decision.get("candidate"))
-            if (cand is None or cand["excluded"] or cand.get("equivalent_to")
-                    or cand["tier"] != active_tier
-                    or len(trials) >= args.max_probes):
-                reason = ("policy proposed an invalid, out-of-tier, or "
-                          "exhausted probe")
-                _warn(res, "invalid_policy_decision",
-                      reason + "; continued deterministically when budget allowed",
-                      candidate=decision.get("candidate"), active_tier=active_tier)
-                if len(trials) >= args.max_probes:
-                    return _null_batch_ok(res, best_ct, candidates,
-                                          "probe budget exhausted without a qualifying batch",
-                                          code="batch_evidence_insufficient")
-                policy = HeuristicPolicy()
-                continue
-            t0 = time.perf_counter()
-            trial = _run_trial(args, adata, cand, n_cells, len(trials) + 1,
-                               _ct_spec(best_ct, candidates), args.outdir)
-            trial["reason"] = decision.get("reason", "")
-            trials.append(trial)
-            timings[f"trial_{len(trials)}"] = round(time.perf_counter() - t0, 3)
-            if isinstance(policy, AgentPolicy):
-                pending_decision = clear_metric_decision(trial, cand)
+    verdicts = []
+    for b in ranked[:max(args.max_probes, 0)]:
+        cand = by_label[b["column"]]
+        t1 = time.perf_counter()
+        trial = _run_trial(args, adata, cand, n_cells, len(trials) + 1,
+                           ct_spec, args.outdir)
+        trial["reason"] = b.get("reason", "")
+        trial["class"] = b.get("class") or cand["class"]
+        trials.append(trial)
+        timings[f"trial_{len(trials)}"] = round(time.perf_counter() - t1, 3)
+        log.info("trial %d: %s -> %s", len(trials), cand["label"], trial["verdict"])
+        verdicts.append(f"{cand['label']}: {trial['verdict']}")
+        if trial["verdict"] not in ("adopted", "correction_unnecessary"):
             continue
-
-        chosen = decision.get("candidate")
-        if action in ("adopt", "conclude_unnecessary"):
-            if chosen is None:  # tolerate an omitted candidate when unambiguous
-                want = ("correction_unnecessary" if action == "conclude_unnecessary"
-                        else "adopted")
-                matching = [t for t in trials if t["verdict"] == want]
-                if len(matching) == 1:
-                    chosen = matching[0]["batch_col"]
-            trial = next((t for t in trials if t["batch_col"] == chosen), None)
-            cand = by_label.get(chosen)
-            expected = ("adopted" if action == "adopt"
-                        else "correction_unnecessary")
-            if trial is None or cand is None or trial["verdict"] != expected:
-                reason = (f"policy concluded on unknown, unprobed, or "
-                          f"non-qualifying candidate {chosen!r}")
-                _warn(res, "invalid_policy_decision", reason,
-                      candidate=chosen, action=action)
-                policy = HeuristicPolicy()
-                if any(t["verdict"] in ("adopted", "correction_unnecessary")
-                       for t in trials):
-                    continue
-                if len(trials) < args.max_probes and active_tier is not None:
-                    continue
-                return _null_batch_ok(res, best_ct, candidates, reason,
-                                      code="batch_evidence_insufficient")
-            value, kind = chosen, "existing"
-            if cand["kind"] != "existing":
-                value = os.path.join(args.outdir, "batch.tsv")
-                copyfile_atomic(trial["spec"], value)
-                kind = "derived"
-            res["columns"] = {
-                "batch": {"value": value, "kind": kind,
-                          "correction": ("recommended" if action == "adopt"
-                                         else "unnecessary"),
-                          "confidence": 0.9,
-                          "evidence": decision.get("reason", "")},
-                "cell_type": _ct_block(best_ct, candidates, trials)}
-            res["status"] = "ok"
-            if cand["tier"] == "fallback":
-                _warn(res, "biological_batch_fallback",
-                      "no technical/donor candidate qualified; selected a fallback batch",
-                      candidate=chosen, candidate_class=cand["class"])
-            if cand.get("missing_frac", 0):
-                _warn(res, "selected_batch_has_missing_values",
-                      "selected batch column contains missing values",
-                      candidate=chosen, missing_frac=cand["missing_frac"])
-            _warn_if_null_cell_type(res, best_ct, candidates)
-            return EXIT_OK
-        qualifying_trials = [t for t in trials if t["verdict"] in
-                             ("adopted", "correction_unnecessary")]
-        if action in ("conclude_no_batch", "give_up") and qualifying_trials:
-            _warn(res, "invalid_policy_decision",
-                  "policy ignored a qualifying trial; continued deterministically",
-                  qualifying=[t["batch_col"] for t in qualifying_trials])
-            policy = HeuristicPolicy()
-            continue
-        if action == "conclude_no_batch":
-            if active_tier is not None and len(trials) < args.max_probes:
-                _warn(res, "invalid_policy_decision",
-                      "policy concluded no batch before viable candidates were exhausted",
-                      active_tier=active_tier)
-                policy = HeuristicPolicy()
-                continue
-            if active_tier is not None:
-                return _null_batch_ok(
-                    res, best_ct, candidates,
-                    "probe budget exhausted before viable candidates were exhausted",
-                    code="batch_evidence_insufficient")
-            res["columns"] = {"batch": None,
-                              "cell_type": _ct_block(best_ct, candidates)}
-            res["columns"]["batch_evidence"] = decision.get("reason", "")
-            res["status"] = "ok"
-            _warn_if_null_cell_type(res, best_ct, candidates)
-            return EXIT_OK
-        # give_up or anything else
-        if active_tier is not None and len(trials) < args.max_probes:
-            _warn(res, "invalid_policy_decision",
-                  "policy gave up before viable candidates were exhausted; continued deterministically",
-                  active_tier=active_tier)
-            policy = HeuristicPolicy()
-            continue
-        reason = decision.get("reason", "no qualifying candidate")
-        return _null_batch_ok(res, best_ct, candidates, reason,
-                              code="batch_evidence_insufficient")
+        value, kind = cand["label"], "existing"
+        if cand["kind"] != "existing":
+            value = os.path.join(args.outdir, "batch.tsv")
+            copyfile_atomic(trial["spec"], value)
+            kind = "derived"
+        m = trial["metrics"]
+        evidence = (f"{b.get('reason', '')}".rstrip(".") + " — probe: " + (
+            f"normalized iLISI {m['ilisi_norm_pre']} → {m['ilisi_norm_post']}, "
+            f"cLISI {m['clisi_norm_pre']} → {m['clisi_norm_post']} ({m['clisi_labels']} labels)"
+            if trial["verdict"] == "adopted" else
+            f"already mixed (normalized pre-iLISI {m['ilisi_norm_pre']}, "
+            f"PC regression R2 {m.get('pc_regression_r2')})"))
+        batch_block = {"value": value, "kind": kind,
+                       "correction": ("recommended" if trial["verdict"] == "adopted"
+                                      else "unnecessary"),
+                       "confidence": 0.9, "evidence": evidence}
+        if trial["class"] in ("condition", "other"):
+            _warn(res, "biological_batch_fallback",
+                  "selected batch is an experimental condition or unclassified grouping, "
+                  "not a technical/donor factor",
+                  candidate=cand["label"], candidate_class=trial["class"])
+        if cand.get("missing_frac", 0):
+            _warn(res, "selected_batch_has_missing_values",
+                  "selected batch column contains missing values",
+                  candidate=cand["label"], missing_frac=cand["missing_frac"])
+        return _finish(res, batch_block,
+                       _ct_block(ct, classification, source, candidates, trials))
+    untried = [b["column"] for b in ranked[len(trials):]]
+    reason = "no ranked batch candidate qualified in the probes (" + "; ".join(verdicts) + ")"
+    if untried:
+        reason += f"; not probed within --max-probes: {untried}"
+    _warn(res, "batch_evidence_insufficient", reason)
+    return _finish(res, None, _ct_block(ct, classification, source, candidates, trials), reason)
 
 
-def _ct_spec(label: str | None, candidates: dict) -> str | None:
-    cand = next((c for c in candidates["cell_type"] if c["label"] == label), None)
-    return label if cand and cand["usable_for_clisi"] else None
-
-
-CELL_TYPE_CONFIDENCE = {"annotation": 0.7, "cluster": 0.4}
-
-
-def _ct_block(label: str | None, candidates: dict,
-              trials: list | None = None) -> dict | None:
-    if label is None:
-        return None
-    cand = next((c for c in candidates["cell_type"] if c["label"] == label),
-                None)
-    cls = cand["class"] if cand else "annotation"
-    evidence = (f"{cls}-classified column (name/value heuristics)"
-                if cls == "annotation" else
-                "algorithmic cluster IDs — no author annotation column found")
-    if cand and cand["numeric_labels"]:
-        evidence += "; values are bare integers"
-    if cand and not cand["usable_for_clisi"]:
-        evidence += "; constant annotation, not used for cLISI"
-    others = [c["label"] for c in candidates["cell_type"] if c["label"] != label]
-    if others:
-        evidence += f"; other candidates: {', '.join(others)}"
-    if trials and any(
-        t.get("cell_type_col") == label
-        and t.get("metrics", {}).get("clisi_labels") == "annotated"
-        for t in trials
-    ):
-        evidence += "; used as cLISI labels in the trials"
-    return {"value": label, "kind": "existing",
-            "confidence": CELL_TYPE_CONFIDENCE.get(cls, 0.5),
-            "evidence": evidence}
-
-
-def _warn_if_null_cell_type(res: dict, best_ct: str | None,
-                            candidates: dict) -> None:
-    if best_ct is not None:
-        return
-    clusters = [c["label"] for c in candidates["cell_type"]
-                if c["class"] == "cluster"]
-    if clusters:
-        _warn(res, "cell_type_not_found",
-              "no author cell-type annotation found; cluster columns are not reported as cell type",
-              cluster_columns=clusters)
-    else:
-        _warn(res, "cell_type_not_found",
-              "no author cell-type annotation found; cell_type is null")
-
-
-def _null_batch_ok(res: dict, best_ct: str | None, candidates: dict,
-                   reason: str, *, code: str) -> int:
-    res["columns"] = {"batch": None,
-                      "cell_type": _ct_block(best_ct, candidates)}
-    res["columns"]["batch_evidence"] = reason
-    res["status"] = "ok"
-    _warn(res, code, reason)
-    _warn_if_null_cell_type(res, best_ct, candidates)
-    return EXIT_OK
-
-
-def main(argv=None, *, policy="auto") -> int:
+def main(argv=None, *, classifier="auto") -> int:
     args = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, stream=sys.stderr,
                         format="%(levelname)s %(name)s: %(message)s")
@@ -841,32 +698,22 @@ def main(argv=None, *, policy="auto") -> int:
     res = new_result("identify_columns", os.path.abspath(args.src), params)
     res["warnings"] = []
 
-    if policy == "auto" and args.no_probe:
-        policy = None
-    elif policy == "auto":
+    if classifier == "auto":
         try:
-            policy = AgentPolicy(args.outdir, model=args.model)
+            classifier = AgentClassifier(args.outdir, model=args.model)
         except PolicyUnavailable as exc:
-            log.warning("agent unavailable (%s) — deterministic fallback", exc)
+            log.warning("agent unavailable (%s) — name heuristics", exc)
             _warn(res, "agent_unavailable",
-                  "agent unavailable: continued with deterministic policy",
+                  "agent unavailable: continued with name heuristics",
                   error=str(exc))
-            policy = HeuristicPolicy()
+            classifier = HeuristicClassifier()
 
     t0 = time.perf_counter()
     try:
         from eca_pp.core.run_outputs import archive_outputs
 
         archive_outputs(args.outdir, "identify_columns", args.src)
-        code = _run(args, res, policy)
-    except PolicyUnavailable as exc:
-        # Defensive guard: normal mid-loop failures are already converted to
-        # deterministic decisions inside _run.
-        res["status"] = "ok"
-        _warn(res, "agent_failed", "agent failed; output degraded to null columns",
-              error=str(exc))
-        res.setdefault("columns", {"batch": None, "cell_type": None})
-        code = EXIT_OK
+        code = _run(args, res, classifier)
     except Exception as exc:
         log.exception("unexpected error")
         res["status"] = "error"

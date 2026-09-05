@@ -1,14 +1,24 @@
-"""Decision policies for identify-columns: who chooses the next candidate and
-when to conclude. Everything agent-related lives HERE and nowhere else —
-``AgentPolicy`` (with ``ClaudeAgentPolicy`` retained as a compatibility alias)
-with ``HeuristicPolicy`` as the
-deterministic baseline and test double. Any policy failure raises
-:class:`PolicyUnavailable`; the caller degrades deterministically.
+"""Column classifiers for identify-columns: ONE call that reads every obs
+column's value-count table and names the batch column(s) and the cell-type
+column. The host then verifies the batch choice with integration probes.
+
+``AgentClassifier`` asks the configured harness once and validates the
+submission; ``HeuristicClassifier`` is the deterministic fallback (name
+heuristics) used when no model is available or the call fails. Both return
+the same ``classification`` dict::
+
+    {"batch_ranked": [{"column": label, "class": cls, "reason": str}, ...],
+     "cell_type": label | None, "cell_type_reason": str,
+     "columns": {column: cls, ...}, "notes": str}
 """
 
 from __future__ import annotations
 
 import json
+
+CLASSES = ("technical", "donor", "condition", "annotation", "cluster",
+           "qc_numeric", "identifier", "constant", "other")
+MAX_BATCH_RANKED = 3
 
 
 class PolicyUnavailable(Exception):
@@ -17,50 +27,32 @@ class PolicyUnavailable(Exception):
         self.kind = kind
 
 
-class HeuristicPolicy:
-    """Deterministic bottom-up walker — the audit baseline and test double."""
+class HeuristicClassifier:
+    """Deterministic fallback: the host's name-heuristic candidate ranking."""
 
-    def decide(self, state: dict) -> dict:
-        tried = {t["batch_col"] for t in state["trials"]}
-        for t in state["trials"]:
-            if t["verdict"] == "correction_unnecessary":
-                return {"action": "conclude_unnecessary", "candidate": t["batch_col"],
-                        "reason": "pre-integration iLISI already high",
-                        "cell_type": state["best_cell_type"]}
-            if t["verdict"] == "adopted":
-                return {"action": "adopt", "candidate": t["batch_col"],
-                        "reason": "converged with iLISI gain and cLISI preserved",
-                        "cell_type": state["best_cell_type"]}
-        active_tier = state.get("active_batch_tier")
-        if state.get("probes_left", 0) <= 0:
-            return {"action": "give_up", "candidate": None,
-                    "reason": "probe budget exhausted without a qualifying batch",
-                    "cell_type": state["best_cell_type"]}
+    def classify(self, state: dict) -> dict:
+        ranked = []
         for c in state["candidates"]["batch"]:
-            if (not c["excluded"] and not c.get("equivalent_to")
-                    and c["label"] not in tried):
-                if active_tier and c.get("tier") != active_tier:
-                    continue
-                return {"action": "probe", "candidate": c["label"],
-                        "cell_type": state["best_cell_type"],
-                        "reason": f"next viable candidate ({c['class']}, "
-                                  f"{c['n_groups']} groups, {c.get('tier', 'primary')} tier)"}
-        if not any(not c["excluded"] for c in state["candidates"]["batch"]):
-            return {"action": "conclude_no_batch",
-                    "reason": "no viable grouping column exists",
-                    "cell_type": state["best_cell_type"]}
-        return {"action": "give_up", "candidate": None,
-                "reason": "all viable candidates probed, none qualified",
-                "cell_type": state["best_cell_type"]}
+            if c["excluded"] or c.get("equivalent_to"):
+                continue
+            ranked.append({"column": c["label"], "class": c["class"],
+                           "reason": f"name heuristic: {c['class']} grouping "
+                                     f"with {c['n_groups']} groups"})
+            if len(ranked) >= MAX_BATCH_RANKED:
+                break
+        annotations = [c for c in state["candidates"]["cell_type"]
+                       if c["class"] == "annotation"]
+        cell_type = annotations[0]["label"] if annotations else None
+        return {"batch_ranked": ranked, "cell_type": cell_type,
+                "cell_type_reason": ("name heuristic: annotation-named column"
+                                     if cell_type else "no annotation-named column"),
+                "columns": {c["label"]: c["class"]
+                            for c in state["candidates"]["batch"]},
+                "notes": "deterministic name heuristics (no model)"}
 
 
-class AgentPolicy:
-    """Harness-backed policy (OpenAI by default, DSH/Claude when selected).
-
-    The historical ``ClaudeAgentPolicy`` name remains an alias for source
-    compatibility. Construction or any exchange failure raises
-    PolicyUnavailable and the caller degrades deterministically.
-    """
+class AgentClassifier:
+    """One harness call over the obs profile; validated submit tool only."""
 
     def __init__(self, outdir: str, model: str | None = None):
         from eca_pp import agent
@@ -72,72 +64,74 @@ class AgentPolicy:
             kind = "timeout" if isinstance(exc.__cause__, agent.AgentTimeout) else "error"
             raise PolicyUnavailable(str(exc), kind=kind) from exc
 
-    def _ask(self, state: dict, message: str) -> tuple[dict, str | None, list, dict]:
-        """One decision = one self-contained agent session (the full state is
-        resent every round, so no cross-round session memory is needed — and
-        every decision stays independently reproducible). Returns the reply
-        text, the tool calls the agent made, and the session's token/cost
-        usage."""
+    def classify(self, state: dict) -> dict:
         from eca_pp import agent
 
-        def validate(decision: dict) -> dict:
-            missing = [key for key in ("action", "candidate", "cell_type", "reason")
-                       if key not in decision]
+        allowed_batch = {c["label"]: c for c in state["candidates"]["batch"]
+                         if not c["excluded"]}
+        excluded_batch = {c["label"]: c["note"] for c in state["candidates"]["batch"]
+                          if c["excluded"]}
+        columns = {e["column"]: e for e in state["profile"]["columns"]}
+        heuristic_class = state["heuristic_class"]
+
+        def validate(answer: dict) -> dict:
+            missing = [k for k in ("batch_ranked", "cell_type", "cell_type_reason")
+                       if k not in answer]
             if missing:
                 raise ValueError(f"missing field(s): {missing}")
-            action = decision["action"]
-            if action not in ACTIONS:
-                raise ValueError(f"unknown action {action!r}")
-            if not isinstance(decision["reason"], str) or not decision["reason"].strip():
-                raise ValueError("reason must be a non-empty sentence")
-            cell_type = decision["cell_type"]
-            # annotation: recognized by name; other: text labels the agent may
-            # promote after reading their values. Cluster IDs stay forbidden.
-            valid_cell_types = {
-                item["label"] for item in state["candidates"]["cell_type"]
-                if item.get("class") in ("annotation", "other")
-            }
-            if cell_type is not None and cell_type not in valid_cell_types:
-                raise ValueError(
-                    f"cell_type must be an author annotation (a candidates.cell_type "
-                    f"entry of class annotation or other) or null; got {cell_type!r}"
-                )
-            candidate = decision["candidate"]
-            eligible = set(state.get("eligible_batch_candidates", []))
-            if action == "probe":
-                if state.get("probes_left", 0) <= 0:
-                    raise ValueError("probe budget is exhausted")
-                if candidate not in eligible:
+            ranked = answer["batch_ranked"]
+            if not isinstance(ranked, list) or len(ranked) > MAX_BATCH_RANKED:
+                raise ValueError(f"batch_ranked must be a list of at most "
+                                 f"{MAX_BATCH_RANKED} entries")
+            seen = set()
+            for item in ranked:
+                if not isinstance(item, dict) or "column" not in item:
+                    raise ValueError("each batch_ranked entry needs a column")
+                col = item["column"]
+                if col in seen:
+                    raise ValueError(f"batch_ranked repeats {col!r}")
+                seen.add(col)
+                if col in excluded_batch:
                     raise ValueError(
-                        f"probe candidate must be currently eligible: {sorted(eligible)}"
-                    )
-            elif action in ("adopt", "conclude_unnecessary"):
-                expected = "adopted" if action == "adopt" else "correction_unnecessary"
-                accepted = {trial["batch_col"] for trial in state["trials"]
-                            if trial["verdict"] == expected}
-                if candidate not in accepted:
+                        f"{col!r} was excluded before probing: {excluded_batch[col]}")
+                if col not in allowed_batch:
                     raise ValueError(
-                        f"{action} candidate must have verdict {expected!r}: {sorted(accepted)}"
-                    )
-            elif candidate is not None:
-                raise ValueError(f"candidate must be null for {action}")
-            if action in ("conclude_no_batch", "give_up") and eligible \
-                    and state.get("probes_left", 0) > 0:
-                raise ValueError(
-                    f"eligible candidates remain and must be probed first: {sorted(eligible)}"
-                )
-            return decision
+                        f"{col!r} is not a probeable grouping column; choose from "
+                        f"{sorted(allowed_batch)}")
+                if item.get("class") not in CLASSES:
+                    item["class"] = allowed_batch[col]["class"]
+                if not str(item.get("reason", "")).strip():
+                    raise ValueError(f"give a reason for {col!r}")
+            ct = answer["cell_type"]
+            if ct is not None:
+                entry = columns.get(ct)
+                if entry is None:
+                    raise ValueError(f"cell_type {ct!r} is not an obs column")
+                if entry["is_per_cell_unique"] or entry["n_unique"] < 1:
+                    raise ValueError(f"cell_type {ct!r} is a per-cell identifier")
+                if heuristic_class.get(ct) == "cluster":
+                    raise ValueError(
+                        f"{ct!r} holds algorithmic cluster IDs, not the author's "
+                        "annotation; pick a column with cell-type names or null")
+                if not str(answer["cell_type_reason"]).strip():
+                    raise ValueError("cell_type_reason must quote the values")
+            cols = answer.get("columns") or {}
+            answer["columns"] = {k: v for k, v in cols.items()
+                                 if k in columns and v in CLASSES}
+            answer.setdefault("notes", "")
+            return answer
 
+        message = ("Dataset obs profile (JSON):\n```json\n"
+                   + json.dumps(state["evidence"], ensure_ascii=False, default=str)
+                   + "\n```")
         try:
-            return agent.ask_json(
+            answer, transcript, tools_used, usage = agent.ask_json(
                 system_prompt=PROMPT,
                 message=message,
                 cwd=self._outdir,
-                submit_tool="submit_column_decision",
-                schema=DECISION_SCHEMA,
+                submit_tool="submit_column_classification",
+                schema=SCHEMA,
                 validate=validate,
-                # The complete decision state is embedded above. Keep the
-                # model-facing surface to the validated submit tool only.
                 allowed_builtin=(),
                 max_turns=6,
                 model=self._model,
@@ -146,132 +140,66 @@ class AgentPolicy:
         except agent.AgentUnavailable as exc:
             kind = "timeout" if isinstance(exc.__cause__, agent.AgentTimeout) else "error"
             raise PolicyUnavailable(str(exc), kind=kind) from exc
-
-    def decide(self, state: dict) -> dict:
-        message = (
-            "Current state (JSON):\n```json\n"
-            + json.dumps(state, ensure_ascii=False, default=str)
-            + "\n```\n"
-              "Set \"cell_type\" in EVERY reply (probe included): it is the "
-              "author annotation to report. candidates.cell_type is ranked; "
-              "best_cell_type is the current default. A constant annotation "
-              "is valid output but the program will omit it from cLISI.\n"
-              "Only propose a batch candidate whose tier equals "
-              "active_batch_tier; primary technical/donor candidates must be "
-              "exhausted before fallback biological/unknown candidates. "
-              "A clear primary probe may be finalized locally by the metric "
-              "fast path, so do not promise later probes in your reason; "
-              "equivalent groupings need not all be probed.")
-        decision, transcript, tools_used, usage = self._ask(state, message)
-        decision["tools_used"] = tools_used
-        decision["raw_reply"] = transcript or json.dumps(decision, ensure_ascii=False)
-        decision["usage"] = usage
-        return decision
+        answer["tools_used"] = tools_used
+        answer["raw_reply"] = transcript or json.dumps(answer, ensure_ascii=False)
+        answer["usage"] = usage
+        return answer
 
 
-ACTIONS = ("probe", "adopt", "conclude_unnecessary", "conclude_no_batch",
-           "give_up")
-
-DECISION_SCHEMA = {
+SCHEMA = {
     "type": "object",
     "properties": {
-        "action": {"enum": list(ACTIONS)},
-        "candidate": {"type": ["string", "null"]},
+        "batch_ranked": {
+            "type": "array", "maxItems": MAX_BATCH_RANKED,
+            "items": {"type": "object",
+                      "properties": {"column": {"type": "string"},
+                                     "class": {"enum": list(CLASSES)},
+                                     "reason": {"type": "string"}},
+                      "required": ["column", "reason"]}},
         "cell_type": {"type": ["string", "null"]},
-        "reason": {"type": "string"},
+        "cell_type_reason": {"type": "string"},
+        "columns": {"type": "object",
+                    "additionalProperties": {"enum": list(CLASSES)}},
+        "notes": {"type": "string"},
     },
-    "required": ["action", "candidate", "cell_type", "reason"],
+    "required": ["batch_ranked", "cell_type", "cell_type_reason"],
 }
 
 
 PROMPT = """\
-You identify two roles among the obs columns of a standardized scRNA-seq
-dataset: the BATCH column (for integration) and the CELL TYPE column. You
-work for an atlas-building pipeline: the purpose of integration is to align
-cell identities across experiments.
+You are given the obs (cell metadata) profile of a standardized scRNA-seq
+dataset: for every column its name, dtype, number of distinct values,
+missing fraction, and a value -> cell-count table (all values when there are
+at most 50, else the 50 most frequent), plus nesting/equivalence relations
+between grouping columns and derived candidates (barcode prefix/suffix,
+two-column composites). Read the VALUES of every column — names are hints,
+values are the truth — and answer two questions in one submission.
 
-Evidence provided each round: a three-layer profile (per-column stats with
-sampled values and per-value cell counts; group-size health; a nesting/
-equivalence graph among grouping columns), candidate lists with pre-check
-results, and the metrics of every probe trial so far.
+1. BATCH column(s), ranked, at most 3. The program will run a small Harmony
+   integration trial on each in order and keep the first one that qualifies
+   (clear iLISI gain with cell-type structure preserved, or "already mixed").
+   - Prefer technical factors (lane/channel/library/run/pool/10x well),
+     then donor/sample/animal, then experimental condition. Among nested
+     technical levels prefer the finest one whose groups are not mostly tiny.
+   - A column nested inside a cell-type-like column, or whose values look like
+     "<batch>-<cell type>" (e.g. "ABM2-ILC2P.4"), is batch x annotation:
+     use the coarser technical column instead.
+   - Never a batch: annotation columns, QC numbers, per-cell identifiers,
+     constants, cluster IDs. Only columns listed as probeable are allowed.
+   - An empty list means no plausible batch structure exists in obs.
+2. CELL TYPE column: the AUTHOR'S cell-type annotation, judged from values
+   (lineage names, ontology terms, abbreviations such as proB, CDP, ILC2P,
+   "1:CDP-like"), whatever the column is called (ann0608, ImmGen_refine,
+   labels_v2 ...). Never an algorithmic clustering (leiden/louvain/
+   seurat_clusters/bare integers). When several exist prefer the one with
+   recognizable names at usable granularity and mention the others. null if
+   none exists.
 
-USE THE EVIDENCE — do not answer from the candidate lists alone:
-- profile.columns[].examples is a value -> cell-count table for EVERY column.
-  Read it for every grouping column before deciding. The program's "class"
-  is a NAME heuristic and can be wrong; the values are the truth.
-- profile.relations and each batch candidate's nested_within tell you which
-  columns refine which. A "technical" candidate nested within an annotation-
-  like text column, or whose values look like "<batch>-<label>" (e.g.
-  "ABM2-ILC2P.4"), is batch x cell type, NOT a technical factor: probe the
-  coarser technical column instead and say why.
-- candidates.cell_type includes class "other" columns: text labels the name
-  heuristic could not place. If their sampled values are cell-type names
-  (lineages, ontology terms, abbreviations such as proB, CDP, ILC2P, NKP,
-  "1:CDP-like"), that column IS the author annotation: choose it and quote
-  two or three of its values in the reason. An uninformative or date-suffixed
-  name (ann0608, ImmGen_refine, labels_v2) never disqualifies a column.
+Also classify each grouping column (technical/donor/condition/annotation/
+cluster/qc_numeric/identifier/constant/other) in "columns".
 
-Doctrine:
-1. Classify grouping columns first: technical (lane/channel/library/run/
-   pool/hash), donor, experimental condition (disease/treatment/timepoint/
-   genotype), annotation, QC numeric, identifier.
-2. Batch candidates have two strict tiers. PRIMARY = technical and donor/
-   sample factors, including technical structure derived from barcodes. Probe
-   every viable primary candidate before considering FALLBACK = experimental
-   condition or unknown grouping. Never jump to fallback while an untried
-   primary candidate remains. A fallback is acceptable only when no primary
-   candidate qualifies and its probe preserves biological structure; state
-   this biological-risk consequence in the reason.
-3. Never batch: annotation columns, QC numeric columns, per-cell-unique
-   identifiers, constant columns.
-4. Nested groupings: prefer the finest viable technical level (correcting
-   at library level already aligns across conditions when libraries nest
-   within conditions). If a level is pathological or probes poorly, move
-   one level up.
-5. Orthogonal groupings: choose ONE column - the one that probes better;
-   record the other's existence in your reason.
-6. Decide from probe metrics (iLISI gain, cLISI preservation and convergence;
-   thresholds are provided).
-   If pre-integration iLISI is already high, conclude
-   "conclude_unnecessary". If no viable grouping exists at all, conclude
-   "conclude_no_batch". If nothing qualifies after the probe budget,
-   "give_up" rather than guessing.
-   The program may finalize a clear primary trial locally with a conservative
-   metric fast path. Do not promise that equivalent candidates will be probed
-   later; equivalent groupings need not all be probed.
-7. Cell type column = the AUTHOR'S cell-type annotation (biological names
-   such as "T cell", "hepatocyte", ontology terms), NOT an algorithmic
-   clustering (leiden / louvain / seurat_clusters / numeric cluster IDs).
-   candidates.cell_type is pre-ranked (class "annotation", then "other"
-   text columns awaiting your judgement, then "cluster"; text labels
-   before bare integers) and best_cell_type is the current default.
-   Override it when the sampled values show the default is wrong (e.g. the
-   "annotation" column holds integers while another column holds cell-type
-   names), and promote a class "other" column when its values are
-   cell-type names. Only class "cluster" columns can never be the answer.
-   A constant author annotation is still a valid output, although it cannot
-   be used for cLISI. If only clusters exist, report null; the probe will make
-   its own pseudo-labels. When several annotation columns exist (e.g. coarse and fine), prefer
-   the one with recognizable cell-type names at a usable granularity and
-   mention the other in your reason. If no author annotation exists, set null;
-   that is a successful unattended outcome, not an error.
-8. Exhausted or ambiguous batch evidence is also a successful unattended
-   outcome: use give_up and let the pipeline report batch=null with warnings.
-
-Finish by submitting this JSON object through the provided submit tool:
-{"action": "probe|adopt|conclude_unnecessary|conclude_no_batch|give_up",
- "candidate": "<batch candidate label>",
- "cell_type": "<cell-type column label or null>",
- "reason": "<one sentence naming the evidence>"}
-"candidate" is REQUIRED for probe, adopt, and conclude_unnecessary — it names
-the batch candidate the action applies to (for conclude_unnecessary: the
-identified batch column whose correction is unnecessary). Use null only for
-conclude_no_batch / give_up.
-"cell_type" is REQUIRED in every reply, probe included: the trials use it
-as the cLISI label column, so a wrong choice corrupts the probe metrics.
+Submit exactly this JSON through the provided tool:
+{"batch_ranked": [{"column": "<name>", "class": "<class>", "reason": "<why, citing values>"}],
+ "cell_type": "<column or null>", "cell_type_reason": "<quote 2-3 values>",
+ "columns": {"<column>": "<class>"}, "notes": "<anything else worth recording>"}
 """
-
-
-# Public compatibility for callers written before the harness became
-# backend-neutral. New code should use AgentPolicy.
-ClaudeAgentPolicy = AgentPolicy

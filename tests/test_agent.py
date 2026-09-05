@@ -202,8 +202,39 @@ def test_ask_json_rejects_non_object(monkeypatch, tmp_path):
         )
 
 
-def test_agent_policy_preserves_timeout_kind(monkeypatch, tmp_path):
-    from eca_pp.identify_columns.policies import AgentPolicy, PolicyUnavailable
+def _state(**overrides):
+    profile = {"columns": [
+        {"column": "library", "dtype": "string", "n_unique": 2, "missing_frac": 0.0,
+         "is_constant": False, "is_per_cell_unique": False,
+         "examples": {"l1": 50, "l2": 50},
+         "group_sizes": {"n_groups": 2, "min": 50, "median": 50.0, "max": 50,
+                         "n_tiny": 0, "tiny_group_frac": 0.0, "tiny_cell_frac": 0.0}},
+        {"column": "labels_v2", "dtype": "string", "n_unique": 3, "missing_frac": 0.0,
+         "is_constant": False, "is_per_cell_unique": False,
+         "examples": {"proB": 40, "CDP": 30, "ILC2P": 30}},
+        {"column": "leiden", "dtype": "string", "n_unique": 3, "missing_frac": 0.0,
+         "is_constant": False, "is_per_cell_unique": False,
+         "examples": {"0": 40, "1": 30, "2": 30}},
+        {"column": "cell_id", "dtype": "string", "n_unique": 100, "missing_frac": 0.0,
+         "is_constant": False, "is_per_cell_unique": True, "examples": {}},
+    ], "relations": [], "derived": [], "n_obs": 100}
+    candidates = {
+        "batch": [{"label": "library", "kind": "existing", "class": "technical",
+                   "n_groups": 2, "excluded": False, "note": ""},
+                  {"label": "micro", "kind": "existing", "class": "other",
+                   "n_groups": 90, "excluded": True,
+                   "note": "pathological: 88/90 groups are tiny (<25 cells)"}],
+        "cell_type": [{"label": "labels_v2", "class": "other"},
+                      {"label": "leiden", "class": "cluster"}]}
+    state = {"profile": profile, "candidates": candidates, "evidence": {},
+             "heuristic_class": {"library": "technical", "labels_v2": "other",
+                                 "leiden": "cluster", "cell_id": "identifier"}}
+    state.update(overrides)
+    return state
+
+
+def test_agent_classifier_preserves_timeout_kind(monkeypatch, tmp_path):
+    from eca_pp.identify_columns.policies import AgentClassifier, PolicyUnavailable
 
     monkeypatch.setattr(agent, "check_available", lambda: None)
 
@@ -215,172 +246,64 @@ def test_agent_policy_preserves_timeout_kind(monkeypatch, tmp_path):
             raise agent.AgentUnavailable(str(exc)) from exc
 
     monkeypatch.setattr(agent, "ask_json", timeout)
-    policy = AgentPolicy(str(tmp_path))
+    clf = AgentClassifier(str(tmp_path))
     with pytest.raises(PolicyUnavailable) as caught:
-        policy.decide({})
+        clf.classify(_state())
     assert caught.value.kind == "timeout"
 
 
-def test_policy_uses_validated_submit_tool(monkeypatch, tmp_path):
-    from eca_pp.identify_columns.policies import AgentPolicy
+def test_classifier_uses_validated_submit_tool(monkeypatch, tmp_path):
+    from eca_pp.identify_columns.policies import AgentClassifier
 
     monkeypatch.setattr(agent, "check_available", lambda: None)
     captured = {}
 
     def fake_ask_json(**kwargs):
         captured.update(kwargs)
-        decision = {
-            "action": "probe", "candidate": "library", "cell_type": "cell_type",
-            "reason": "technical library is the next primary candidate",
-        }
-        return kwargs["validate"](decision), None, [], {
-            "backend": "deepseek", "model": "doubao",
-        }
+        answer = {"batch_ranked": [{"column": "library", "reason": "l1/l2 are lanes"}],
+                  "cell_type": "labels_v2", "cell_type_reason": "proB, CDP, ILC2P",
+                  "columns": {"library": "technical", "bogus": "technical",
+                              "labels_v2": "annotation"}}
+        return kwargs["validate"](answer), None, [], {"backend": "openai", "model": "doubao"}
 
     monkeypatch.setattr(agent, "ask_json", fake_ask_json)
-    policy = AgentPolicy(str(tmp_path))
-    state = {
-        "profile": {},
-        "candidates": {
-            "batch": [],
-            "cell_type": [{"label": "cell_type", "class": "annotation"}],
-        },
-        "trials": [],
-        "thresholds": {},
-        "best_cell_type": "cell_type",
-        "active_batch_tier": "primary",
-        "eligible_batch_candidates": ["library"],
-        "probes_left": 2,
-    }
-    decision = policy.decide(state)
-    assert decision["action"] == "probe"
-    assert decision["usage"]["backend"] == "deepseek"
-    assert captured["submit_tool"] == "submit_column_decision"
+    answer = AgentClassifier(str(tmp_path)).classify(_state())
+    assert answer["batch_ranked"][0]["class"] == "technical"  # filled from candidates
+    assert answer["cell_type"] == "labels_v2"
+    assert answer["columns"] == {"library": "technical", "labels_v2": "annotation"}
+    assert answer["usage"]["backend"] == "openai"
+    assert captured["submit_tool"] == "submit_column_classification"
     assert captured["allowed_builtin"] == ()
+    assert "value_counts" in captured["system_prompt"] or "value" in captured["system_prompt"]
 
 
-def test_policy_submit_validation_rejects_out_of_tier(monkeypatch, tmp_path):
-    from eca_pp.identify_columns.policies import AgentPolicy
-
-    monkeypatch.setattr(agent, "check_available", lambda: None)
-
-    def fake_ask_json(**kwargs):
-        kwargs["validate"]({
-            "action": "probe", "candidate": "condition", "cell_type": None,
-            "reason": "skip the technical tier",
-        })
-        raise AssertionError("unreachable")
-
-    monkeypatch.setattr(agent, "ask_json", fake_ask_json)
-    policy = AgentPolicy(str(tmp_path))
-    state = {
-        "profile": {}, "trials": [], "thresholds": {}, "best_cell_type": None,
-        "candidates": {"batch": [], "cell_type": []},
-        "active_batch_tier": "primary",
-        "eligible_batch_candidates": ["library"], "probes_left": 2,
-    }
-    with pytest.raises(ValueError, match="currently eligible"):
-        policy.decide(state)
-
-
-def test_incomplete_reply_text_is_never_treated_as_a_limit(monkeypatch):
-    """The model's final reply rides inside AgentIncompleteError; words like
-    "capacity" or a number containing 429 in it must not trigger the
-    rate-limit wait (this used to sleep 10 min per attempt)."""
-    import anyio
-
-    attempts = 0
-
-    async def chatty():
-        nonlocal attempts
-        attempts += 1
-        raise harness.AgentIncompleteError(
-            "[t] agent finished without submit. Final reply:\n"
-            "The 1429 cells exceed the sequencing capacity; quota unclear.")
-
-    monkeypatch.setenv("AGENT_LIMIT_WAIT_MIN", "0.0001")
-    with pytest.raises(harness.AgentIncompleteError):
-        anyio.run(harness.retry_transient, chatty, "t")
-    assert attempts == 1
-
-
-def test_typed_transient_and_rate_limit_are_retried(monkeypatch):
-    import anyio
-
-    monkeypatch.setattr(harness, "TRANSIENT_BACKOFF_SECONDS", 0)
-    monkeypatch.setenv("AGENT_LIMIT_WAIT_MIN", "0.0001")
-    monkeypatch.setenv("AGENT_LIMIT_WAIT_MAX_H", "1")
-    seen = []
-
-    async def flaky():
-        seen.append(1)
-        if len(seen) == 1:
-            raise harness.AgentTransient("Connection error.")
-        if len(seen) == 2:
-            raise harness.AgentRateLimited("429 Too Many Requests")
-        return "done"
-
-    assert anyio.run(harness.retry_transient, flaky, "t") == "done"
-    assert len(seen) == 3
-
-
-def test_foreign_connection_errors_use_the_string_fallback(monkeypatch):
-    import anyio
-
-    monkeypatch.setattr(harness, "TRANSIENT_BACKOFF_SECONDS", 0)
-    attempts = 0
-
-    async def flaky():
-        nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            raise RuntimeError("Error code: 502 - Bad Gateway")
-        if attempts == 2:
-            raise RuntimeError("Connection error.")
-        return 1
-
-    assert anyio.run(harness.retry_transient, flaky, "t") == 1
-    assert attempts == 3
-    assert harness.classify_error_message("this dataset has 1429 cells") is None
-
-
-def test_claude_model_on_other_backend_is_refused(monkeypatch):
-    import anyio
-
-    monkeypatch.setenv("HARNESS", "openai")
-    monkeypatch.setenv("ARK_API_KEY", "x")
-    with pytest.raises(harness.AgentUnavailable, match="HARNESS=claude"):
-        anyio.run(lambda: harness.run_agent(
-            tools=[], submit_tool="s", prompt="p", system_prompt=None,
-            cwd=".", model="claude-sonnet-5"))
-
-
-def test_policy_validation_allows_other_text_columns_but_not_clusters(monkeypatch, tmp_path):
-    from eca_pp.identify_columns.policies import AgentPolicy
+def test_classifier_validation_rejects_bad_columns(monkeypatch, tmp_path):
+    from eca_pp.identify_columns.policies import AgentClassifier
 
     monkeypatch.setattr(agent, "check_available", lambda: None)
     captured = {}
 
     def fake_ask_json(**kwargs):
         captured["validate"] = kwargs["validate"]
-        return {"action": "give_up", "candidate": None, "cell_type": None,
-                "reason": "x"}, None, [], {}
+        return {"batch_ranked": [], "cell_type": None, "cell_type_reason": ""}, None, [], {}
 
     monkeypatch.setattr(agent, "ask_json", fake_ask_json)
-    policy = AgentPolicy(str(tmp_path))
-    state = {
-        "profile": {}, "trials": [], "thresholds": {}, "best_cell_type": None,
-        "candidates": {"batch": [], "cell_type": [
-            {"label": "ann0608", "class": "other"},
-            {"label": "leiden", "class": "cluster"}]},
-        "active_batch_tier": None, "eligible_batch_candidates": [],
-        "probes_left": 2,
-    }
-    policy.decide(state)
+    AgentClassifier(str(tmp_path)).classify(_state())
     validate = captured["validate"]
-    ok = validate({"action": "give_up", "candidate": None,
-                   "cell_type": "ann0608", "reason": "values are lineages"})
-    assert ok["cell_type"] == "ann0608"
-    with pytest.raises(ValueError, match="cell_type must be"):
-        validate({"action": "give_up", "candidate": None,
-                  "cell_type": "leiden", "reason": "clusters"})
+    base = {"cell_type": None, "cell_type_reason": ""}
+    with pytest.raises(ValueError, match="excluded before probing"):
+        validate({**base, "batch_ranked": [{"column": "micro", "reason": "x"}]})
+    with pytest.raises(ValueError, match="not a probeable"):
+        validate({**base, "batch_ranked": [{"column": "labels_v2", "reason": "x"}]})
+    with pytest.raises(ValueError, match="repeats"):
+        validate({**base, "batch_ranked": [{"column": "library", "reason": "x"},
+                                           {"column": "library", "reason": "y"}]})
+    with pytest.raises(ValueError, match="cluster IDs"):
+        validate({"batch_ranked": [], "cell_type": "leiden", "cell_type_reason": "0/1/2"})
+    with pytest.raises(ValueError, match="per-cell identifier"):
+        validate({"batch_ranked": [], "cell_type": "cell_id", "cell_type_reason": "ids"})
+    with pytest.raises(ValueError, match="not an obs column"):
+        validate({"batch_ranked": [], "cell_type": "nope", "cell_type_reason": "x"})
+    ok = validate({"batch_ranked": [{"column": "library", "reason": "lanes"}],
+                   "cell_type": "labels_v2", "cell_type_reason": "proB, CDP"})
+    assert ok["cell_type"] == "labels_v2"

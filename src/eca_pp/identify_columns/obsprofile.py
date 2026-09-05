@@ -17,7 +17,7 @@ from eca_pp.core.values import normalize_missing
 
 TINY_GROUP_CELLS = 25     # groups below this are "tiny" (spec §6)
 MAX_GROUPING_CARD = 1000  # above this a column is not a plausible grouping
-MAX_EXAMPLES = 20
+MAX_EXAMPLES = 50     # value-count rows shown per column (all values when n_unique <= 50)
 BARCODE_DELIMS = ("-", "_", ".", ":")
 MAX_COMPOSITE_BASE = 50   # composite parts must each have <= this many groups
 MAX_COMPOSITES = 10

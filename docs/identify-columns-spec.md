@@ -1,6 +1,6 @@
 # identify-columns 环节 · 需求规格
 
-> eca-pp · 2026-09-03 · v0.4 · 状态:✅ clean-container 回归验证通过
+> eca-pp · 2026-09-04 · v0.5 · 状态:✅ 回归验证通过(122 项)
 > 前置:standardize 已交付;本环节从其范围中移出(原 F6),独立实现,不依赖 stanmetacols。
 
 ## 1. 目标与定位
@@ -14,12 +14,15 @@
 推出与差异分析场景不同的判定准则(§4)。
 
 **这是本项目第一个 agent 型环节。** 对调用方它是普通 CLI(h5ad 输入 →
-result.json 输出 → 退出码汇报);内部由可切换 harness 驱动"提出候选 → 试验 →
-评估 → 更换候选"的循环。架构约束:
+result.json 输出 → 退出码汇报);内部只有**一次**模型调用:模型通读每列的
+取值计数表,一次给出批次列排序(≤3)与细胞类型列;随后程序按序用整合试验
+验证批次候选。v0.5 起不再有"多轮决策循环"——v0.4 的名字分类器 + 梯队门禁 +
+逐轮 agent 选择被证明是过度设计:模型只能在规则预筛后的列表里选,看到了
+`ann0608` 的取值是细胞类型名也提交不了(abm-ilcp 测试,2026-09-04)。架构约束:
 
 > **确定性环节内不引入 agent loop。agent 型环节须显式声明(本环节是第一个),
-> 其所有工具调用必须是确定性 CLI——每轮试验可复现、可比较、可审计;
-> agent 仅承担候选选择与终止判断,每次选择连同理由记入审计记录。**
+> 其所有工具调用必须是确定性 CLI——试验可复现、可比较、可审计;
+> 模型只负责"读证据、做分类",试验与判定阈值由程序执行,分类连同理由记入审计记录。**
 
 ## 2. 判定空间
 
@@ -39,7 +42,7 @@ result.json 输出 → 退出码汇报);内部由可切换 harness 驱动"提出
 三层证据,整体写入 result.json;agent 与人工复核使用同一份证据:
 
 1. **逐列统计与抽样值**:列名、dtype、基数、缺失率、是否常量、是否每细胞
-   唯一、去重取值样本(≤20 个,附各取值的细胞数)。取值内容是主要信号;
+   唯一、取值计数表(基数 ≤50 时全量,否则最高频 50 个,附各取值的细胞数)。取值内容是主要信号;
    列名可能与内容不符,不能单独作为依据。空串、纯空白及明确的 NA 拼写
    在画像前统一归一为缺失值,不计为真实分组。
 2. **分组规模统计**(候选分组列):组数、每组细胞数 min/median/max、
@@ -53,22 +56,26 @@ result.json 输出 → 退出码汇报);内部由可切换 harness 驱动"提出
 
 ## 4. 判定准则(写入 agent prompt,全文见附录 A)
 
-1. **先归类,后选择**。分组列归类为:技术分组(lane/channel/library/run/
-   pool/hash)、供体分组(donor/mouse/patient)、实验条件(disease/
-   treatment/timepoint/genotype)、注释列、QC 数值列、标识符。
-2. **候选分层**:PRIMARY = 技术分组与供体/样本分组,包括 barcode 派生的
-   技术结构;FALLBACK = 实验条件及语义不明的分组。所有可行 primary 候选
-   必须先试完,只有它们均不合格时才允许试验 fallback。采纳 fallback 时
-   `warnings` 必须注明可能合并生物学差异的风险。
-3. **结构性不合格**(不得作为批次):注释列、QC 数值列、每细胞唯一
-   标识符、常量列。
-4. **嵌套分组自底向上**:批次 = 最细的可行技术层。典型实验设计中 library
-   嵌套于 condition,在最细技术层校正即同时实现跨条件对齐;细层病态
-   (§5 预检)时上移一层。条件列直接作为批次,主要发生在数据未记录任何
-   技术分组的情况下。
-5. **正交分组**:v0.4 仅选择一列——取试验指标更优者,另一列的存在记录于
-   证据中。多协变量校正为后续工作。
-6. **无法判定时不猜测,以 `batch: null`、exit 0 和结构化 warning 完成。**
+
+模型在一次调用里读完整个画像后回答两个问题;程序只做存在性与可探测性校验,
+不再按列名硬性过滤模型的答案。
+
+1. **看值不看名**。程序给出的 `heuristic_class` 只是名字启发式的提示;列的
+   取值计数表才是依据。
+2. **批次列排序(≤3)**:技术因素(lane/channel/library/run/pool/well)优先,
+   其次供体/样本/动物,再次实验条件;嵌套的技术层级取"组不以微组为主"的最细
+   一层。嵌套在细胞类型样文本列之内、或取值形如 `<batch>-<celltype>` 的列是
+   批次×注释的复合列,应改用较粗的技术列。注释列、QC 数值、每细胞标识符、
+   常量、cluster ID 不能做批次;只允许排入程序标为可探测的列。空列表 = obs
+   中不存在合理的批次结构。
+3. **细胞类型列**:作者注释,由取值判断(谱系名、本体术语、proB/CDP/ILC2P 一类
+   缩写),列名无关紧要(ann0608、ImmGen_refine、labels_v2 皆可);绝不是算法
+   聚类(leiden/louvain/seurat_clusters/纯整数)。多列并存时取命名可辨且粒度
+   可用者,其余在理由中提及;不存在则 null。
+4. **程序验证**:按排序依次 probe(≤ `--max-probes`,默认 2),第一个满足
+   "收敛 + iLISI 提升 ≥0.05 + cLISI 不劣化"或"整合前已混合"的候选即为结论;
+   全部不合格 → `batch: null` + 结构化 warning,不猜测。
+5. 采纳实验条件或语义不明的分组做批次时记 `biological_batch_fallback`。
 
 ## 5. integration-probe · CLI 契约(确定性工具)
 
@@ -122,42 +129,45 @@ scVI / MrVI),批次列的身份判定与层级选择与整合方法无关。已�
    近似标识符的列);
 2. **试验验证**:预检未能排除者将在 probe 中暴露(不收敛或 iLISI 异常),
    如实记录;
-3. **层级回退**:自底向上搜索在细层失败后自然上移一层。
+3. **排序回退**:模型给出的排序中前一候选不合格时试验下一个(≤ max-probes)。
 
 ## 7. identify-columns · 环节契约
 
+
 ```bash
 eca-pp-identify-columns SRC.h5ad -o OUTDIR \
-    [--max-probes 6] [--n-cells 5000] [--no-probe] [--seed 0] [--model ID]
+    [--max-probes 2] [--n-cells 5000] [--no-probe] [--seed 0] [--model ID]
 ```
 
 流程:
 
 ```
-① obs 画像(确定性,§3)
-② 候选生成:host 按画像枚举并分类;agent 从合法候选中选择(§4)
-③ 确定性预检:结构性不合格与病态候选排除(§4.3、§6.1)
-④ 试验循环(≤ max-probes):agent 按自底向上顺序选择候选 → probe →
-   评估指标 → 安全余量充足时由 metric fast path 采纳 /
-   判定"无需校正";否则回到 agent 试验下一候选或复核
-⑤ 细胞类型列:只把作者 annotation 作为正式输出;常量 annotation 仍是
-   有效元数据,但不用于 cLISI。cluster 仅作为画像证据,不存在作者注释时
-   输出 null,probe 自行生成 pseudo-label。
+① obs 画像(确定性,§3)→ 候选与可探测集(名字启发式 + 病态预检,§6.1)
+② 证据表:逐列 取值计数表 / dtype / 基数 / 缺失率 / heuristic_class /
+   组规模 / 嵌套父列 / 等价列,加派生候选与关系图
+③ 一次分类调用(§4):batch_ranked(≤3)+ cell_type + 逐列类别 + 理由;
+   校验:批次列须在可探测集内且不重复,cell_type 须是 obs 列、非每细胞唯一、
+   非 cluster;不合法的提交连同原因退回模型在同一会话内改正
+④ 细胞类型列:直接采用分类结果;名字启发式未识别为 annotation 的列被选中时
+   记 `cell_type_identified_from_values`;常量注释仍是有效输出但不用于 cLISI
+⑤ 按 batch_ranked 顺序 probe(≤ max-probes),首个合格者即结论;
+   cell_type 作为 cLISI 标签列
 ⑥ 判定写入 result.json;选中派生列时另写值文件(§8)
 ```
 
-- **终止条件**:出现"收敛 + iLISI 提升显著 + cLISI 不劣化"的候选 →
-  判定 ①;整合前 iLISI 已高 → 判定 ②;候选集为空且证据充分 → 判定 ③;
-  候选耗尽或达 max-probes 上限而无合格者 → 判定 ④(exit 0 + warning)。
-- `--no-probe`:仅输出画像、候选排名与细胞类型推断;batch=null、exit 0,
-  并记录 `probe_disabled` warning。
-- `--model ID`(或环境变量 `ECA_PP_AGENT_MODEL`):指定 agent 模型;
-  缺省值随 `HARNESS` 后端选择。每轮实际使用的模型记录在
-  `decisions[].usage.model`,汇总于 `metrics.llm.models`。
-- `AGENT_WALL_MIN`:单次 agent run 墙钟上限,默认 6 分钟(medium reasoning 需要)。超时后
-  不重试同一请求,改用确定性策略继续,以保证无人值守流程有界。
-- **无 API 凭据 / harness 不可用或中途失败**:自动切换确定性 policy
-  继续试验,并记录 `agent_unavailable` / `agent_failed` warning。
+- **终止条件**:某候选"收敛 + iLISI 提升显著 + cLISI 不劣化" → 判定 ①;
+  整合前 iLISI 已高 → 判定 ②;batch_ranked 为空 → 判定 ③(`no_batch_candidate`);
+  排序内候选均不合格或超出 max-probes → 判定 ④(`batch_evidence_insufficient`)。
+- 细胞数 < probe 下限(300)时不做试验,记 `dataset_too_small_to_probe`,
+  cell_type 照常产出。
+- `--no-probe`:仅输出画像、分类与细胞类型;batch=null、exit 0,
+  记录 `probe_disabled` warning。
+- `--model ID`(或环境变量 `ECA_PP_AGENT_MODEL`):指定模型;缺省随 `HARNESS`。
+  实际模型记录在 `classification.usage.model`,汇总于 `metrics.llm.models`。
+- `AGENT_WALL_MIN`:单次 agent run 墙钟上限,默认 6 分钟(medium reasoning 需要)。
+  超时不重试同一请求,改用名字启发式(`HeuristicClassifier`)继续。
+- **无 API 凭据 / harness 不可用或调用失败**:名字启发式给出排序与 cell_type,
+  记 `agent_unavailable` / `agent_failed` warning。
 - 退出码沿用全项目契约:0 / 3 / 2 / 1。
 
 ## 8. 产物
@@ -177,7 +187,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
   "status": "ok | error",
   "exit_code": 0,
   "src": "…/standardized.h5ad",
-  "params": { "max_probes": 6, "n_cells": 5000, "no_probe": false, "seed": 0 },
+  "params": { "max_probes": 2, "n_cells": 5000, "no_probe": false, "seed": 0 },
   "profile": {
     "columns": [ { "column": "", "dtype": "", "n_unique": 0, "entropy": 0.0,
                    "missing_frac": 0.0, "examples": { "<取值>": 0 },
@@ -186,24 +196,28 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
     "relations": [ { "finer": "", "coarser": "", "kind": "nested | equivalent" } ],
     "derived": [ { "label": "", "kind": "barcode | composite", "n_groups": 0 } ]
   },
-  "candidates": {
-    "batch": [ { "label": "", "tier": "primary | fallback",
+  "candidates": {   // 名字启发式 + 病态预检:可探测集与兜底排序
+    "batch": [ { "label": "", "class": "technical | donor | condition | other | derived",
+                   "excluded": false, "note": "",
+                   "nested_within": [ { "column": "", "class": "" } ],
                    "equivalent_to": "先出现的 canonical 候选或缺省" } ],
-    "cell_type": [ { "label": "", "output_eligible": true,
-                     "usable_for_clisi": true } ]
+    "cell_type": [ { "label": "", "class": "annotation | other | cluster",
+                     "usable_for_clisi": true, "note": "" } ]
   },
   "warnings": [ { "code": "cell_type_not_found",
                    "message": "...", "details": {} } ],
-  // 决策审计:每轮 action/候选/理由 + agent 实际工具调用
-  // + raw_reply:agent 该轮回复全文(含结构化决策块之外的分析叙述)
-  "decisions": [ { "action": "", "candidate": "", "cell_type": null,
-                   "source": "agent | metric_fast_path | deterministic | deterministic_fallback",
-                   "reason": "",
-                   "tools_used": [],
-                   "raw_reply": "",
-                   "usage": { "model": "", "cost_usd": 0.0, "input_tokens": 0,
-                              "output_tokens": 0, "cache_creation_tokens": 0,
-                              "cache_read_tokens": 0, "num_turns": 0 } } ],
+  // 一次分类调用的完整记录(raw_reply = 模型回复全文)
+  "classification": { "source": "agent | deterministic | deterministic_fallback",
+                      "batch_ranked": [ { "column": "", "class": "", "reason": "" } ],
+                      "cell_type": null, "cell_type_reason": "",
+                      "columns": { "<列名>": "<class>" }, "notes": "",
+                      "tools_used": [], "raw_reply": "",
+                      "usage": { "model": "", "cost_usd": 0.0, "input_tokens": 0,
+                                 "output_tokens": 0, "reasoning_tokens": 0 } },
+  // 兼容旧汇总脚本的审计形态:恒为一条 action=classify
+  "decisions": [ { "action": "classify", "candidate": "", "cell_type": null,
+                   "source": "", "reason": "", "tools_used": [], "raw_reply": "",
+                   "usage": {} } ],
   "trials": [ { "batch_col": "",
                 "metrics": { "ilisi_pre": 0.0, "ilisi_post": 0.0,
                              "ilisi_norm_pre": 0.0, "ilisi_norm_post": 0.0,
@@ -218,7 +232,8 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
                                           "labels": 0.0, "harmony": 0.0,
                                           "lisi": 0.0, "total": 0.0 } },
                 "verdict": "adopted | rejected | correction_unnecessary",
-                "reason": "" } ],
+                "class": "模型给该候选的类别", "reason": "模型的排序理由",
+                "probe_reasons": [] } ],
   "columns": {
     "batch": { "value": "obs 列名 或 batch.tsv 路径 或 null",
                "kind": "existing | derived | null",
@@ -240,12 +255,11 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 
 ## 9. 非功能要求
 
-- **逐轮审计**:agent 的每次选择与理由记入 decisions/trials;同输入同 seed
-  下 probe 指标完全可复现(agent 的选择顺序可能不同,但每条证据可独立
-  复算验证)。
-- **调用开销有界且可见**:agent 调用次数受 max-probes 与流程结构约束,
-  不存在无上界的循环;每轮成功决策的 token 用量与费用记入
-  `decisions[].usage`(OpenAI Responses 另记 reasoning token)。
+- **审计**:分类结果与理由记入 classification/trials;同输入同 seed
+  下 probe 指标完全可复现(模型的排序可能不同,但每条证据可独立复算验证)。
+- **调用开销有界且可见**:每次运行恰好一次模型调用(失败则零次 + 兜底);
+  token 用量与费用记入 `classification.usage`(OpenAI Responses 另记
+  reasoning token)。
   `metrics.llm` 中 `calls` 包含失败/超时尝试,
   并分列 `successful_calls` / `failed_calls` / `timeout_calls` /
   `failed_seconds` / `failures`(附账户级账单查询 URL)。
@@ -257,7 +271,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
   `ECA_PP_AGENT_MODEL` 独立选择模型。模型故障时使用确定性策略,不自动换后端。
 - OpenAI 直接注册 Python submit tool,不经过 MCP;默认服务端会话续接、
   `parallel_tool_calls=False`,未提交时最多同会话 nudge 两次。
-  三个后端在本步骤都只开放校验后的 submit tool,完整 state 放入每轮 prompt。
+  三个后端在本步骤都只开放校验后的 submit tool,完整证据表放入 prompt。
 - probe exit 2 是候选拒绝;exit 1 或异常退出会使主流程 exit 1、status=error。
   Harmony 不收敛仍作为试验观测记录。cLISI 排除缺失作者标签,不足时用
   pseudo labels;只有实际使用 annotated labels 才在输出 evidence 声明使用作者标签。
@@ -274,7 +288,9 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 | 用例 | 期望 |
 |---|---|
 | 画像:常量列 / 每细胞唯一列 / 均衡分组列 | 字段正确;前两类被预检排除 |
-| 嵌套列对(donor ⊃ lane,合成数据) | relations 正确;搜索先试验 lane |
+| 嵌套列对(donor ⊃ lane,合成数据) | relations 正确;候选带 nested_within |
+| 排序验证(合成数据,首选不合格) | 依序 probe,第二候选被采纳;`--max-probes 0` 不试验 |
+| 未按名识别的文本列被模型选为 cell_type | 采纳并用于 cLISI,记 `cell_type_identified_from_values` |
 | barcode 前缀批次(合成数据) | 派生候选被枚举,选中时物化为 TSV |
 | probe:两批次合成数据,真实批次列 vs 打乱标签 | 真实列的 iLISI 提升显著高于打乱标签 |
 | probe:注入批次效应 vs 无效应数据 | 后者整合前 iLISI 已高 → correction_unnecessary |
@@ -284,7 +300,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 | `--no-probe` | batch=null,cell type 尽力识别,exit 0,`probe_disabled` warning |
 | 仅有 cluster、没有作者 annotation | cell_type=null,exit 0,warning 说明原因 |
 | 常量作者 annotation | 正常输出该列,但 probe 改用 pseudo-label |
-| agent 流程(mock SDK) | 审计记录完整,终止条件逻辑正确 |
+| 分类校验(mock SDK) | 排除列 / 不可探测列 / cluster 列 / 标识符被退回;合法答案通过 |
 | Tabula Muris 实际数据 | 正确识别 channel/mouse.id 类批次列与细胞类型列 |
 
 ## 11. 范围之外(non-goals)
@@ -299,51 +315,39 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 ## 附录 A · agent prompt(与实现同步)
 
 ```
-You identify two roles among the obs columns of a standardized scRNA-seq
-dataset: the BATCH column (for integration) and the CELL TYPE column. You
-work for an atlas-building pipeline: the purpose of integration is to align
-cell identities across experiments.
+You are given the obs (cell metadata) profile of a standardized scRNA-seq
+dataset: for every column its name, dtype, number of distinct values,
+missing fraction, and a value -> cell-count table (all values when there are
+at most 50, else the 50 most frequent), plus nesting/equivalence relations
+between grouping columns and derived candidates (barcode prefix/suffix,
+two-column composites). Read the VALUES of every column — names are hints,
+values are the truth — and answer two questions in one submission.
 
-Evidence provided: a three-layer profile (per-column stats with sampled
-values and per-value cell counts; group-size health for grouping columns;
-a nesting/equivalence graph among grouping columns), plus the metrics of every
-probe trial run so far.
+1. BATCH column(s), ranked, at most 3. The program will run a small Harmony
+   integration trial on each in order and keep the first one that qualifies
+   (clear iLISI gain with cell-type structure preserved, or "already mixed").
+   - Prefer technical factors (lane/channel/library/run/pool/10x well),
+     then donor/sample/animal, then experimental condition. Among nested
+     technical levels prefer the finest one whose groups are not mostly tiny.
+   - A column nested inside a cell-type-like column, or whose values look like
+     "<batch>-<cell type>" (e.g. "ABM2-ILC2P.4"), is batch x annotation:
+     use the coarser technical column instead.
+   - Never a batch: annotation columns, QC numbers, per-cell identifiers,
+     constants, cluster IDs. Only columns listed as probeable are allowed.
+   - An empty list means no plausible batch structure exists in obs.
+2. CELL TYPE column: the AUTHOR'S cell-type annotation, judged from values
+   (lineage names, ontology terms, abbreviations such as proB, CDP, ILC2P,
+   "1:CDP-like"), whatever the column is called (ann0608, ImmGen_refine,
+   labels_v2 ...). Never an algorithmic clustering (leiden/louvain/
+   seurat_clusters/bare integers). When several exist prefer the one with
+   recognizable names at usable granularity and mention the others. null if
+   none exists.
 
-Doctrine:
-1. Classify grouping columns first: technical (lane/channel/library/run/
-   pool/hash), donor, experimental condition (disease/treatment/timepoint/
-   genotype), annotation, QC numeric, identifier.
-2. Batch candidates have two strict tiers. PRIMARY = technical and donor/
-   sample factors, including technical structure derived from barcodes. Probe
-   every viable primary candidate before considering FALLBACK = experimental
-   condition or unknown grouping. Never jump to fallback while an untried
-   primary candidate remains. A fallback is acceptable only when no primary
-   candidate qualifies and its probe preserves biological structure; state
-   this biological-risk consequence in the reason.
-3. Never batch: annotation columns, QC numeric columns, per-cell-unique
-   identifiers, constant columns.
-4. Nested groupings: prefer the finest viable technical level (correcting
-   at library level already aligns across conditions when libraries nest
-   within conditions). If a level is pathological (mostly tiny groups, or
-   a probe shows non-convergence / poor iLISI), move one level up.
-5. Orthogonal groupings: choose ONE column - the one that probes better;
-   record the other's existence.
-6. Decide from probe metrics (iLISI gain, cLISI preservation and convergence).
-   If pre-integration iLISI is already
-   high, conclude "correction unnecessary". If nothing qualifies, stop and
-   report undecidable rather than guessing.
-7. Cell type column = the AUTHOR'S cell-type annotation (biological names
-   such as "T cell", "hepatocyte", ontology terms), NOT an algorithmic
-   clustering (leiden / louvain / seurat_clusters / numeric cluster IDs).
-   candidates.cell_type is pre-ranked (class "annotation" before
-   "cluster"; text labels before bare integers) and best_cell_type is
-   the current default. Override it when the sampled values show the
-   default is wrong. A constant author annotation is valid output but is not
-   used for cLISI. If only cluster columns exist, set null; the probe creates
-   its own pseudo-labels. Missing cell type is a successful unattended
-   outcome. Set cell_type in EVERY reply, probe included.
-8. Exhausted or ambiguous batch evidence is also a successful unattended
-   outcome: use give_up so the pipeline reports batch=null with warnings.
-Every action you take must name the candidate, the reason, and the
-expected signal, in structured form.
+Also classify each grouping column (technical/donor/condition/annotation/
+cluster/qc_numeric/identifier/constant/other) in "columns".
+
+Submit exactly this JSON through the provided tool:
+{"batch_ranked": [{"column": "<name>", "class": "<class>", "reason": "<why, citing values>"}],
+ "cell_type": "<column or null>", "cell_type_reason": "<quote 2-3 values>",
+ "columns": {"<column>": "<class>"}, "notes": "<anything else worth recording>"}
 ```
