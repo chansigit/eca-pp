@@ -1,0 +1,1100 @@
+{
+  "harness": "claude",
+  "model": "claude-opus-5",
+  "summary": {
+    "passed": 73,
+    "total": 73,
+    "rate": 1.0,
+    "by_kind": {
+      "hard": "27/27",
+      "control": "46/46"
+    }
+  },
+  "records": [
+    {
+      "id": "mouse-pansci/BAT",
+      "kind": "hard",
+      "elapsed_s": 29.1,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are library/run identifiers of the form '20230501_EXP111_084', '20230501_EXP111_042', ... (215 groups, min 1032 / median 3225 cells, no tiny groups). They match the run field embedded in Cell_name ('20230501_EXP111_001_AACCGATTGC_Plate_1_...'), i.e. sequencing run / sample library \u2014 the finest purely technical level available."
+          },
+          {
+            "column": "composite:Age_group+Genotype",
+            "class": "condition",
+            "reason": "Fallback experimental-design grouping (9 groups: 03/06/12/16/23_months x WT/Rag/Prkdc); balanced sizes and captures sample-group structure if the run-level 'batch' trial fails."
+          },
+          {
+            "column": "Genotype",
+            "class": "condition",
+            "reason": "WT (448k) / Rag (117k) / Prkdc (103k) \u2014 mouse strain/genotype groups, a plausible coarse donor-like grouping though it is an experimental variable, hence ranked last."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Author lineage names at usable granularity: 'Brown adipocytes', 'Vascular endothelial cells', 'Adipoce stem and progenitor cells', 'Mural cells', 'Lymphoid cells_T cells'.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "condition",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse brown adipose tissue (Organ_name constant 'BAT') aging atlas, 667,692 cells. 'batch' is the only true technical column and is clearly the right first probe: run/library IDs '20230501_EXP111_0NN' matching the Cell_name prefix, 215 well-populated groups. Derived barcode candidates are not useful: 'barcode:prefix:_' collapses to only 3 groups (date-level) and 'barcode:suffix:_' (381 groups) is the terminal cell barcode segment, essentially random per-cell sequence, not a batch. Annotation hierarchy: Lineage (7, e.g. Adipose/Endothelial/Immune) > Main_cell_type (12) > Sub_cell_type (199, e.g. 'Brown adipocytes-0'), the last being cell type x cluster index and therefore too fine/cluster-contaminated; Lineage is too coarse \u2014 hence Main_cell_type. 'louvain' (40 numeric clusters) is algorithmic and excluded from both answers. Gender is a subject attribute, not a batch; UMI_count/Gene_count duplicate n_counts/nGenes/total_counts/n_genes_by_counts as QC numerics.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are library/run identifiers of the form '20230501_EXP111_084', '20230501_EXP111_042', ... (215 groups, min 1032 / median 3"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch (ranked):** `batch` (technical run/library IDs `20230501_EXP111_0NN`, 215 balanced groups) \u2192 `composite:Age_group+Genotype` \u2192 `Genotype`.\n- **Cell type:** `Main_cell_type` (\"Brown adipocytes\", \"Vascular endothelial cells\", \"Adipoce stem and progenitor cells\"); `Sub_cell_type` is annotation\u00d7cluster-index and `Lineage` too coarse; `louvain` excluded as algorithmic.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.33020950000000004,
+          "input_tokens": 6,
+          "output_tokens": 1960,
+          "cache_creation_tokens": 25740,
+          "cache_read_tokens": 47559,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/gWAT",
+      "kind": "hard",
+      "elapsed_s": 31.3,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are library/run identifiers of the form '20230522_EXP114_089', '20230522_EXP114_070', '20230522_EXP114_124' - a run date plus experiment plus sequential library index; 351 groups with median 1090 cells (min 16, only 1 tiny group), i.e. the finest well-populated technical unit. It is also the prefix of Cell_name ('20230522_EXP114_001_AACCGCGGCC_Plate_1_...'), confirming it is the per-library/sample sequencing unit, not annotation."
+          },
+          {
+            "column": "barcode:suffix:_",
+            "class": "technical",
+            "reason": "Derived from the last underscore field of Cell_name (e.g. '_AGCTCTCCTC', '_ACTACTGAAG'), i.e. the plate well/index barcode of this combinatorial-indexing protocol (Plate_1/Plate_2 appear in the name). 368 groups of technical index origin; usable as a coarser/orthogonal technical factor if 'batch' fails, though it is index- rather than library-defined."
+          },
+          {
+            "column": "Genotype",
+            "class": "condition",
+            "reason": "WT (297077) / Rag (70970) / Prkdc (19087) are experimental mouse genotypes; not technical, but different genotype cohorts were almost certainly processed as separate sample sets, so it is the best remaining sample-level grouping if the technical columns do not qualify. Correcting on it does remove genuine immune-deficiency biology, hence lowest rank."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Recognizable author lineage labels: 'Adipocytes', 'Vascular endothelial cells', 'Adipoce stem and progenitor cells', 'Mural cells', 'Myeloid cells_Dendritic cells', 'Mesothelial cells' - 15 named types, no bare integers.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse gonadal white adipose tissue (Organ_name constant 'gWAT') aging atlas, 387k cells, combinatorial-index/plate protocol (Cell_name = date_EXP114_<lib>_<barcode>_Plate_<n>_<idx>_<idx>). Cell-type hierarchy: Lineage (7: Adipose/Immune/Endothelial/Stromal/Epithelial/Muscle/Neural) > Main_cell_type (15) > Sub_cell_type (259). Sub_cell_type is Main_cell_type plus a cluster index ('Adipocytes-1', 'Myeloid cells-0'), i.e. annotation x cluster, too fine (16 tiny groups, median 412) - Main_cell_type is the usable author annotation; Lineage is a coarser alternative. 'louvain' is an algorithmic clustering (bare integers, wildly unbalanced: cluster '10' has 198338 cells) - never a batch or cell type. UMI_count/n_counts/nCounts/total_counts and Gene_count/nGenes/n_genes_by_counts are duplicated QC numerics. No donor/mouse ID column exists; 'batch' (351 libraries) is the de-facto sample/library key. Age_group (03-23 months) and Gender are biological covariates of the aging design, not batches; the composite Age_group+Gender / Age_group+Genotype candidates are pure design cells and were excluded.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are library/run identifiers of the form '20230522_EXP114_089', '20230522_EXP114_070', '20230522_EXP114_124' - a run date p"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch ranking:** `batch` (351 run/library IDs like `20230522_EXP114_089`, median 1090 cells, matches the Cell_name prefix) \u2192 `barcode:suffix:_` (plate index barcode, 368 groups) \u2192 `Genotype` (WT/Rag/Prkdc cohorts, condition-level fallback).\n- **Cell type:** `Main_cell_type` \u2014 \"Adipocytes\", \"Vascular endothelial cells\", \"Myeloid cells_Dendritic cells\"; `Sub_cell_type` is annotation\u00d7cluster (\"Adipocytes-1\") and `Lineage` is the coarser alternative; `louvain` is algorithmic and excluded.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.24443700000000002,
+          "input_tokens": 6,
+          "output_tokens": 2167,
+          "cache_creation_tokens": 16186,
+          "cache_read_tokens": 56744,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/iWAT",
+      "kind": "hard",
+      "elapsed_s": 29.1,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "133 groups of the form '20230514_EXP113_001' ... '20230514_EXP113_114' = run date + experiment + library/well index; sizes 644-2638 cells, no tiny groups, and this prefix is literally the leading field of every Cell_name barcode (e.g. '20230514_EXP113_001_AACCGATTGC_Plate_2_...'), so it is the sequencing library/sample unit."
+          },
+          {
+            "column": "barcode:suffix:_",
+            "class": "technical",
+            "reason": "Derived from the terminal barcode field of Cell_name (the second cell-barcode segment, e.g. '..._TGCCTAACTT_GTTCCGCTAA'); 359 groups reflecting combinatorial-indexing wells/plates, a finer technical split than 'batch' but likely partly random-barcode, so ranked below 'batch'."
+          },
+          {
+            "column": "composite:Age_group+Genotype",
+            "class": "condition",
+            "reason": "Fallback only: 9 groups combining biological design factors (03/06/12/16/23_months x WT/Prkdc/Rag). Purely experimental condition, not technical; use only if 'batch' fails."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Values are author lineage names: 'Adipocytes' (101712), 'Lymphoid cells_T cells' (25151), 'Adipoce stem and progenitor cells' (17091), 'Vascular endothelial cells', 'Mural cells' - recognizable cell types at usable granularity, not cluster IDs.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Single-organ (iWAT) mouse aging atlas, 199588 cells, plate/combinatorial-index chemistry (Cell_name = date_EXP113_libraryID_barcode_Plate_N_bc1_bc2). 'batch' is the clean technical library factor and is the recommended first probe; a Plate_1..4 field also exists inside Cell_name but is not exposed as its own obs column. Cell-type columns: Lineage (6 coarse: Adipose/Immune/Endothelial/Stromal/Neural/Muscle) and Sub_cell_type (214 values like 'Adipocytes-0', 'Myeloid cells-3' = per-lineage cluster numbers, i.e. annotation x cluster, too fine/uninformative); Main_cell_type is the best-named intermediate annotation. louvain is algorithmic clustering (33 bare integers, one cluster holding 102446 cells) and must not be used. Gender/Genotype/Age_group are design/biology, not technical; Genotype (WT/Prkdc/Rag) strongly changes lymphoid composition so correcting on it would erase real biology.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"133 groups of the form '20230514_EXP113_001' ... '20230514_EXP113_114' = run date + experiment + library/well index; sizes 644-26"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch ranking**: `batch` (133 libraries like `20230514_EXP113_001`, matching the Cell_name prefix, all groups 644\u20132638 cells) \u2192 `barcode:suffix:_` (359 barcode-derived groups) \u2192 `composite:Age_group+Genotype` as a last-resort design fallback.\n- **Cell type**: `Main_cell_type` (\"Adipocytes\", \"Lymphoid cells_T cells\", \"Adipoce stem and progenitor cells\"); `Lineage` is coarser, `Sub_cell_type` is annotation\u00d7cluster, and `louvain` is algorithmic.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.24157,
+          "input_tokens": 6,
+          "output_tokens": 2090,
+          "cache_creation_tokens": 16088,
+          "cache_read_tokens": 56820,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/liver",
+      "kind": "hard",
+      "elapsed_s": 29.7,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "452 groups with values like '20230322_EXP101_006', '20230208_EXP101_43', '20230323_EXP101_110' = sequencing run date + experiment id + library/run number; this is the finest technical library unit, groups are healthy (min 25, median ~2343, max 4347, no tiny groups) and it also forms the prefix of Cell_name."
+          },
+          {
+            "column": "barcode:prefix:_",
+            "class": "technical",
+            "reason": "Only 4 groups derived from the first field of Cell_name (run dates such as 20230208 / 20230322 / 20230323): a coarse sequencing-run/experiment-batch factor, a safe fallback if the 452-level 'batch' is too fine for Harmony."
+          },
+          {
+            "column": "Genotype",
+            "class": "condition",
+            "reason": "WT / Prkdc / Rag (621816 / 192117 / 175089) are mouse strain groups, i.e. distinct animal cohorts processed as separate sample sets; donor/condition-like fallback only, since correcting it removes real immune-deficiency biology."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Recognizable liver lineage names at usable granularity: 'Hepatocytes' (917297), 'Vascular endothelial cells' (16867), 'Hepatic stellate cells' (9547), 'Cholangiocytes', 'Myeloid cells', 'Lymphoid cells_T cells'.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse liver aging/genotype atlas (Organ_name constant = 'Liver', 989k cells). Cell type hierarchy: Lineage (Epithelial/Immune/Endothelial/Stromal/Adipose) > Main_cell_type (10 labels, chosen) > Sub_cell_type (197 labels of form '<Main_cell_type>-<number>', e.g. 'Hepatocytes-0', 'Myeloid cells-2') which is annotation x subcluster index, too granular/cluster-like and with 18 tiny groups, so not preferred; 'louvain' (35 bare integer clusters) is algorithmic and excluded. Cell_name encodes run/library + plate + well barcodes ('20230208_EXP101_03_AACCGATTGC_Plate_3_...'), consistent with 'batch' being the library/run. 'barcode:suffix:_' (381 groups) is the trailing well barcode and is not a meaningful batch. Gender, Age_group and the Age/Gender/Genotype composites are biological design variables, not technical batches; UMI_count/n_counts/nCounts/total_counts and Gene_count/nGenes/n_genes_by_counts are duplicated QC metrics.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"452 groups with values like '20230322_EXP101_006', '20230208_EXP101_43', '20230323_EXP101_110' = sequencing run date + experiment"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch ranking:** `batch` (452 run/library IDs like `20230322_EXP101_006`, well-sized groups) \u2192 `barcode:prefix:_` (4 run dates, coarse fallback) \u2192 `Genotype` (WT/Prkdc/Rag cohorts, condition-level fallback).\n- **Cell type:** `Main_cell_type` (Hepatocytes, Vascular endothelial cells, Hepatic stellate cells, Cholangiocytes\u2026); `Sub_cell_type` is annotation\u00d7subcluster (`Hepatocytes-0`) and `louvain` is algorithmic, so both were rejected.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.2484505,
+          "input_tokens": 6,
+          "output_tokens": 2244,
+          "cache_creation_tokens": 16370,
+          "cache_read_tokens": 57241,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/brain",
+      "kind": "control",
+      "elapsed_s": 23.1,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "192 evenly sized groups named 'EasySci_090', 'EasySci_074', 'EasySci_058' ... (min 2655, median 4146, max 6088 cells, no tiny groups) \u2014 these are EasySci combinatorial-indexing library/plate runs, i.e. the finest technical processing unit; it is exactly equivalent to the per-cell barcode prefix (e.g. '20211101_SciNext_001.AACCGATTGCACTCCGCCAA' -> '20211101_SciNext_001'), confirming it is the sequencing/library run rather than any biological grouping."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Author lineage labels such as 'Cortical projection neurons 1', 'Cerebellum granule neurons', 'Astrocytes', 'Oligodendrocyte progenitor cells', 'Microglia' \u2014 recognizable brain cell identities at usable granularity (31 groups, none tiny).",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "donor",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse brain aging/AD atlas (EasySci): 795,429 cells, one organ (Organ_name constant 'Brain'). Only one true technical column exists, so only 'batch' is ranked; the derived 'barcode:prefix:.' candidate is flagged equivalent_to batch and would be redundant. Genotype (WT/APOE/5xFAD), Age_group (03/06/21 months) and Gender are the experimental design axes \u2014 correcting on them would erase the disease/aging biology this dataset is about, so they are deliberately excluded, as are the Age_group+Genotype/Gender composites. No explicit donor/animal ID column is present; individual mice are presumably confounded with (or pooled within) the EasySci library batches. Alternative annotation columns: 'Lineage' (Neural/Immune/Endothelial/Epithelial/Stromal) is too coarse, and 'Sub_cell_type' (359 values like 'Cerebellum granule neurons_5') is the same annotation with numeric subcluster suffixes \u2014 Main_cell_type is the usable granularity. 'louvain' is an algorithmic clustering (bare integers, 13 singleton-ish groups, one cluster holding 512k cells) and never a batch or cell type.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"192 evenly sized groups named 'EasySci_090', 'EasySci_074', 'EasySci_058' ... (min 2655, median 4146, max 6088 cells, no tiny gro"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch:** `batch` (192 `EasySci_###` library runs, evenly sized 2.6k\u20136.1k cells, identical to the cell-barcode prefix `20211101_SciNext_001.\u2026`) \u2014 the only genuine technical factor. Genotype/Age_group/Gender are design variables (WT/APOE/5xFAD, 3/6/21 months) and were excluded to avoid erasing the aging/AD biology; no donor/animal column exists.\n- **Cell type:** `Main_cell_type` (\"Cerebellum granule neurons\", \"Astrocytes\", \"Microglia\"), with `Lineage` too coarse and `Sub_cell_type` being the same labels plus numeric subcluster suffixes; `louvain` is algorithmic.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.21859899999999996,
+          "input_tokens": 6,
+          "output_tokens": 1726,
+          "cache_creation_tokens": 14801,
+          "cache_read_tokens": 54818,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/colon",
+      "kind": "control",
+      "elapsed_s": 31.7,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "527 groups with values like '20230606_EXP116_263', '20230606_EXP116_003' \u2014 run date + experiment id + sub-library/plate index, i.e. the sequencing library/run unit. Group sizes are healthy (median 995, max 1960, only 4 tiny), and it matches the middle field of Cell_name (20230606_EXP116_003_...), so it is the finest genuine technical unit."
+          },
+          {
+            "column": "barcode:prefix:_",
+            "class": "technical",
+            "reason": "Prefix of the cell barcode before the first '_' is the run date (e.g. '20230606'), only 3 groups \u2014 a coarse experiment/run-date factor that is technical and a safe fallback if the 527-level 'batch' over-corrects."
+          },
+          {
+            "column": "Age_group",
+            "class": "condition",
+            "reason": "Values '03_months','06_months','12_months','16_months','23_months' are the aging design groups; also a proxy for the animal cohorts that were processed together, so usable as a last-resort batch-like factor, though it is biological condition and correcting on it removes aging signal."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Recognizable author lineage/cell-type names: 'Colonic epithelial cells', 'Goblet cells', 'Enteroendocrine cells', 'Tuft cells', 'Enteric glia', 'Lymphoid cells_T cells' \u2014 real ontology-style labels, not cluster integers.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "constant",
+          "Gender": "donor",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse colon aging atlas (Organ_name='Colon', Genotype='WT' constant), Microwell/plate-based chemistry: Cell_name = <date>_<EXP id>_<sublibrary>_<barcode>_Plate_N_<bc1>_<bc2>. Alternative annotation columns: 'Lineage' (6 coarse values: Epithelial, Stromal, Immune, Neural, Adipose, Endothelial) is too coarse; 'Sub_cell_type' (301 values like 'Goblet cells-0', 'Colonic epithelial cells-7') is cell-type x cluster-index, i.e. subclusters of Main_cell_type \u2014 usable for fine granularity but the labels are annotation+cluster hybrids, so Main_cell_type is the clean author annotation. 'louvain' (38 bare integers, 14 tiny groups) is algorithmic clustering \u2014 never a batch or cell type. 'Gender' (2 near-equal groups) and 'composite:Age_group+Gender' are donor/condition design factors, not technical, and were not ranked above the true library-level 'batch'. 'barcode:suffix:_' (383 groups) is the terminal 10-bp well/plate barcode, plate-position-like rather than a library unit, and is confounded across all libraries, so it was not ranked.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"527 groups with values like '20230606_EXP116_263', '20230606_EXP116_003' \u2014 run date + experiment id + sub-library/plate index, i."
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch (ranked):** `batch` (527 sequencing sub-libraries, `20230606_EXP116_###`, median 995 cells) \u2192 `barcode:prefix:_` (3 run dates) \u2192 `Age_group` (design cohorts, last resort).\n- **Cell type:** `Main_cell_type` \u2014 \"Colonic epithelial cells\", \"Goblet cells\", \"Tuft cells\", \"Enteric glia\". `Sub_cell_type` is an annotation\u00d7subcluster hybrid; `Lineage` too coarse; `louvain` is clustering.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.248266,
+          "input_tokens": 6,
+          "output_tokens": 2262,
+          "cache_creation_tokens": 16316,
+          "cache_read_tokens": 57052,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/duodenum",
+      "kind": "control",
+      "elapsed_s": 28.3,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values like '20230626_EXP119_001', '20230714_EXP121_009' are date_experiment_library-index labels (run date + experiment ID + library/well number) = the finest technical unit; 452 groups, median 369 cells, only 2 tiny groups, so group sizes are usable."
+          },
+          {
+            "column": "barcode:prefix:_",
+            "class": "technical",
+            "reason": "Prefix of Cell_name before the first '_' is the sequencing run date ('20230626' vs '20230714'), i.e. the two experiment batches EXP119/EXP121 collapsed to 2 large groups - a coarse technical fallback if the 452-level 'batch' is too fine for Harmony."
+          },
+          {
+            "column": "Genotype",
+            "class": "condition",
+            "reason": "WT / Prkdc / Rag (143992 / 18206 / 11348) - an experimental (immunodeficiency) condition that also tracks separate mouse cohorts/processing groups; last-resort coarse factor only, since correcting it removes real immune-compartment biology."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Recognizable author lineage names: 'Intestinal epithelial cells', 'Muc2-producing goblet cells', 'Paneth cells', 'Tuft cells', 'Enteroendocrine cells', 'Lymphoid cells_T cells'.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "condition",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse aging duodenum atlas (plate/microwell-based: Cell_name encodes run_experiment_index_Plate_N_barcode_barcode). 'batch' is the natural library-level technical factor and is not confounded with annotation. Sub_cell_type is Main_cell_type x subcluster number ('Intestinal epithelial cells-0', 'Fibroblasts-11'), i.e. annotation-derived clustering at 314 levels with 59 tiny groups - usable as fine annotation but not as the primary cell-type call and never as batch. 'louvain' is a bare-integer clustering (excluded). 'barcode:suffix:_' (382 groups) is the last well/index barcode of the plate, not a coherent library, so it was not ranked. Age_group (03/06/12/16/23 months) and Gender are biological/design variables, not batches; composites of them were skipped for the same reason. All -count columns (UMI_count/nCounts/n_counts/total_counts, Gene_count/nGenes/n_genes_by_counts) are duplicated QC metrics.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values like '20230626_EXP119_001', '20230714_EXP121_009' are date_experiment_library-index labels (run date + experiment ID + lib"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch ranking:** `batch` (452 library-level labels like `20230626_EXP119_001`, median 369 cells) \u2192 `barcode:prefix:_` (2 run dates / experiments EXP119 vs EXP121, coarse fallback) \u2192 `Genotype` (WT/Prkdc/Rag cohorts, last resort).\n- **Cell type:** `Main_cell_type` \u2014 \"Paneth cells\", \"Tuft cells\", \"Muc2-producing goblet cells\". `Lineage` is coarser (6 values), `Sub_cell_type` is Main_cell_type \u00d7 subcluster index (314 levels, 59 tiny) and `louvain` is bare-integer clustering.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.241798,
+          "input_tokens": 6,
+          "output_tokens": 2033,
+          "cache_creation_tokens": 16231,
+          "cache_read_tokens": 57266,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/heart",
+      "kind": "control",
+      "elapsed_s": 26.0,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "331 groups with values like '20230309_EXP102_44', '20230207_EXP102_60', '20230305_EXP102_27' = run date + experiment ID + library/well number; this is the finest technical library/run unit, group sizes 298-5461 (median 3224) with no tiny groups, and it matches the first fields of Cell_name."
+          },
+          {
+            "column": "barcode:prefix:_",
+            "class": "technical",
+            "reason": "First underscore field of Cell_name is the sequencing/processing date (20230207 / 20230305 / 20230309 ...), only 4 large groups - a coarser technical run-date grouping to fall back on if the 331-level 'batch' over-corrects."
+          },
+          {
+            "column": "Genotype",
+            "class": "condition",
+            "reason": "WT / Rag / Prkdc are experimental mouse genotypes (immunodeficiency models); only an experimental-condition fallback, correcting on it would remove real immune-compartment biology."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Values are author lineage/cell-type names: 'Ventricular cardiomyocytes', 'Endocardial endothelial cells', 'Lymphatic endothelial cells', 'Myeloid cells_Mast cells' - 19 recognizable heart cell types at usable granularity.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse heart aging atlas (Organ_name constant='Heart', 959k cells). Annotation hierarchy: Sub_cell_type (294 levels, e.g. 'Vascular endothelial cells-0') nested in Main_cell_type (19) nested in Lineage (7). Sub_cell_type is annotation+subcluster index (too fine, numeric suffixes); Lineage is too coarse; Main_cell_type is the best author annotation. 'louvain' (44 groups, bare integers, 14 tiny) is an algorithmic clustering, never a batch or cell type. Age_group and Gender are biological design variables, not batches; the composite Age_group+Gender / Age_group+Genotype / Gender+Genotype candidates are condition combinations and were excluded. barcode:suffix:_ (383 groups) is the last cell-barcode segment of Cell_name (random well/UMI barcode), not a meaningful batch. Note the 'Plate_1..4' field inside Cell_name suggests a plate-level factor nested inside 'batch' but it is not exposed as a probeable column.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"331 groups with values like '20230309_EXP102_44', '20230207_EXP102_60', '20230305_EXP102_27' = run date + experiment ID + library"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch ranking:** `batch` (331 run/library IDs like `20230309_EXP102_44`) \u2192 `barcode:prefix:_` (4 run dates) \u2192 `Genotype` (WT/Rag/Prkdc, condition fallback only).\n- **Cell type:** `Main_cell_type` \u2014 \"Ventricular cardiomyocytes\", \"Endocardial endothelial cells\", \"Myeloid cells_Mast cells\"; `Sub_cell_type` is the same labels with subcluster indices, `Lineage` is coarser, `louvain` is algorithmic.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.239318,
+          "input_tokens": 6,
+          "output_tokens": 1899,
+          "cache_creation_tokens": 16305,
+          "cache_read_tokens": 57526,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/ileum",
+      "kind": "control",
+      "elapsed_s": 28.2,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are sequencing-library/well IDs of the form '20230523_EXP115_049', '20230523_EXP115_024', '20230523_EXP115_183' (experiment date + run + 3-digit library index); 330 groups, median ~1630 cells, only 2 tiny groups, and it is the prefix of the per-cell Cell_name barcode (e.g. '20230523_EXP115_001_AACCGATTGC_Plate_1_...'), i.e. the finest genuine technical/library unit."
+          },
+          {
+            "column": "Age_group",
+            "class": "condition",
+            "reason": "Values '03_months','06_months','12_months','16_months','23_months' are the aging design's experimental groups; large balanced groups (73k-134k cells) that also confound collection time, so a usable fallback if the library-level 'batch' trial fails, though it is biological condition not technical."
+          },
+          {
+            "column": "composite:Age_group+Gender",
+            "class": "condition",
+            "reason": "10 groups formed by crossing '23_months'/'Female' etc.; a coarser design-level grouping, only worth probing if neither library nor age shows structure."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Author lineage names at usable granularity: 'Intestinal epithelial cells', 'Paneth cells', 'Lymphoid cells_T cells', 'Goblet cells', 'Enteroendocrine cells', 'Tuft cells', 'Enteric glia' (21 labels). Sub_cell_type (347 values) is just Main_cell_type + a cluster index ('Paneth cells-0', 'Goblet cells-2'), i.e. annotation x clustering, and Lineage ('Epithelial','Immune','Stromal') is a coarser roll-up; both are noted as alternatives.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "constant",
+          "Gender": "donor",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse ileum aging atlas (Organ_name='Ileum', Genotype='WT' both constant), 520,298 cells across 330 libraries. No explicit donor/animal column; 'batch' (date_EXP_index) is the only true technical grouping and likely maps ~1:1 to animal/sample. Gender (2 groups) is a donor attribute, too coarse and biologically meaningful (sex genes) to correct on, so it was not ranked. Derived barcode candidates are unhelpful: 'barcode:prefix:_' yields only 2 groups (date fragment) and 'barcode:suffix:_' 382 groups of the 10-mer cell barcode / plate index, not a batch. louvain (30 clusters incl. singletons) and QC numerics excluded by rule.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are sequencing-library/well IDs of the form '20230523_EXP115_049', '20230523_EXP115_024', '20230523_EXP115_183' (experimen"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch (ranked):** `batch` (library IDs like `20230523_EXP115_049`, 330 groups, matches Cell_name prefix) \u2192 `Age_group` (aging design, confounds collection) \u2192 `composite:Age_group+Gender`.\n- **Cell type:** `Main_cell_type` (\"Paneth cells\", \"Lymphoid cells_T cells\", \"Enteroendocrine cells\"); `Sub_cell_type` is annotation\u00d7cluster, `Lineage` is coarser, `louvain` excluded.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.23521399999999998,
+          "input_tokens": 6,
+          "output_tokens": 1852,
+          "cache_creation_tokens": 16040,
+          "cache_read_tokens": 56968,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/jejunum",
+      "kind": "control",
+      "elapsed_s": 27.5,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "559 groups with values like '20230607_EXP117_055', '20230627_EXP117_069', '20230607_EXP117_181' = run date + experiment ID + library/well index; this is the finest technical library/lane unit, sizes are healthy (median 642, max 2184, only 6 tiny groups) and it is the prefix of Cell_name (e.g. '20230607_EXP117_001_AACCGATTGC_Plate_1_...')."
+          },
+          {
+            "column": "barcode:prefix:_",
+            "class": "technical",
+            "reason": "2 groups derived from the Cell_name prefix, i.e. the processing/sequencing date '20230607' vs '20230627' seen in batch values; a coarse technical run factor to fall back on if the 559-level library column over-corrects."
+          },
+          {
+            "column": "Genotype",
+            "class": "condition",
+            "reason": "WT (329094) / Rag (51658) / Prkdc (34836) are mouse strains, i.e. animal-group/experimental factor; only a last-resort batch proxy since correcting on it removes real immune-deficiency biology (Rag/Prkdc lack lymphocytes)."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Recognizable author lineage labels: 'Intestinal epithelial cells', 'Paneth cells', 'Goblet cells', 'Enteroendocrine cells', 'Tuft cells', 'Lymphoid cells_T cells' - biological names, not integers.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse jejunum aging atlas (415,588 cells, single organ 'Jejunum', ages 03-23 months, WT/Rag/Prkdc, both sexes). 'batch' is unambiguously the technical library/well unit and should be tried first. 'barcode:suffix:_' (382 groups) is the last 10-bp cell barcode field of Cell_name, essentially a per-cell/plate-well oligo rather than a sample - avoid it as a batch key. Cell-type columns: Lineage (6 coarse: Epithelial/Immune/Stromal/Neural/Endothelial/Adipose), Main_cell_type (21, chosen - best granularity with recognizable names), Sub_cell_type (324 values of the form '<Main_cell_type>-<cluster number>', e.g. 'Intestinal epithelial cells-0', i.e. annotation x cluster, too fine and cluster-derived). 'louvain' is an algorithmic clustering (bare integers) and must not be used for either answer. Age_group/Gender/Genotype and their composites are biological design factors, not technical batches.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"559 groups with values like '20230607_EXP117_055', '20230627_EXP117_069', '20230607_EXP117_181' = run date + experiment ID + libr"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch (ranked):** `batch` (559 libraries, `20230607_EXP117_055`-style run/library IDs, healthy group sizes) \u2192 `barcode:prefix:_` (2 run dates) \u2192 `Genotype` (WT/Rag/Prkdc, last resort only).\n- **Cell type:** `Main_cell_type` \u2014 \"Paneth cells\", \"Tuft cells\", \"Enteroendocrine cells\"; `Lineage` is coarser, `Sub_cell_type` is annotation\u00d7cluster, `louvain` is clustering.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.2449905,
+          "input_tokens": 6,
+          "output_tokens": 2073,
+          "cache_creation_tokens": 16440,
+          "cache_read_tokens": 57471,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/muscle",
+      "kind": "control",
+      "elapsed_s": 25.3,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "94 groups with values like '20230218_EXP103_83', '20230218_EXP103_76' = run date + experiment ID + library/well index; these are exactly the prefix of the per-cell Cell_name ('20230218_EXP103_03_AACCGATTGC_Plate_1_...'), i.e. the sequencing library/sample unit. Group sizes are large and even (min 1, median 2687, max 3576, only 2 tiny), so it is the finest technical level usable for Harmony."
+          },
+          {
+            "column": "composite:Age_group+Genotype",
+            "class": "condition",
+            "reason": "Fallback only: 9 groups combining biological design factors ('03_months'..'23_months' x 'WT'/'Prkdc'/'Rag'). Approximates animal-group/collection batches if the library-level 'batch' trial fails, though it is condition rather than technical."
+          },
+          {
+            "column": "Genotype",
+            "class": "condition",
+            "reason": "Experimental condition with 3 balanced levels (WT 162976, Prkdc 49843, Rag 23525); usable as a last-resort grouping since no donor/animal ID column exists, but correcting on it removes genotype biology."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Author lineage names, e.g. 'Type II myonuclei', 'Fibro\u2013adipogenic progenitors', 'Muscle satellite cells', 'Myelinating Schwann cells' \u2014 21 recognizable skeletal-muscle cell types, not cluster IDs.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Aging mouse muscle snRNA-seq (Organ_name constant 'Muscle', 236344 nuclei). Three annotation columns are nested: Lineage (7 coarse compartments: Muscle/Stromal/Endothelial/Adipose/Immune/Neural/Epithelial) > Main_cell_type (21 types, chosen) > Sub_cell_type (289 values of the form '<cell type>-<cluster index>', e.g. 'Type II myonuclei-1' \u2014 annotation x cluster, too granular and cluster-derived). 'louvain' is algorithmic clustering (bare integers, wildly unbalanced) and must not be used. 'batch' is not confounded with cell type (its values are library prefixes of Cell_name, not '<batch>-<celltype>'). Gender/Age_group/Genotype are design covariates, not technical batches; 'barcode:suffix:_' (381 groups) is just the terminal cell barcode sequence and is meaningless as a batch. UMI_count/n_counts/nCounts/total_counts and Gene_count/nGenes/n_genes_by_counts are duplicated QC metrics.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"94 groups with values like '20230218_EXP103_83', '20230218_EXP103_76' = run date + experiment ID + library/well index; these are "
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch (ranked):** `batch` (94 sequencing libraries like `20230218_EXP103_83`, matching the Cell_name prefix; even group sizes) \u2192 fallback `composite:Age_group+Genotype` \u2192 `Genotype`.\n- **Cell type:** `Main_cell_type` (21 author lineage labels: \"Type II myonuclei\", \"Fibro\u2013adipogenic progenitors\", \"Muscle satellite cells\"). `Sub_cell_type` is annotation\u00d7cluster (`...-1`), `Lineage` too coarse, `louvain` is clustering.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.232228,
+          "input_tokens": 6,
+          "output_tokens": 1791,
+          "cache_creation_tokens": 15905,
+          "cache_read_tokens": 56746,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/stomach",
+      "kind": "control",
+      "elapsed_s": 30.2,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "173 groups of the form '20230226_EXP104_174', '20230226_EXP104_066' \u2014 run-date + experiment + sequential library/well index, i.e. the sequencing library/plate run. Group sizes are all substantial (min 414, median 1391, max 2204, no tiny groups), and the same tokens appear inside Cell_name (e.g. '20230226_EXP104_003_AACCGATTGC_Plate_3_...'), confirming it is the per-library technical unit."
+          },
+          {
+            "column": "Genotype",
+            "class": "condition",
+            "reason": "Fallback if the library-level trial fails: 'WT' (153872), 'Prkdc' (44145), 'Rag' (37696) are distinct mouse strains, i.e. separate animal cohorts processed as separate material \u2014 the closest thing to a donor/sample factor in this obs (there is no explicit mouse/sample ID)."
+          },
+          {
+            "column": "Age_group",
+            "class": "condition",
+            "reason": "'03_months', '06_months', '12_months', '16_months', '23_months' \u2014 the aging design variable; only a last-resort batch proxy since animals of one age were collected together, but correcting on it would remove the study's biological signal."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Values are author lineage/cell names, e.g. 'Gastric mucous cells', 'Chief cells', 'Parietal cells', 'Enteroendocrine cells', 'Interstitial cells of Cajal', 'Tuft cells' \u2014 recognizable stomach cell types, not cluster IDs.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Mouse stomach aging/immunodeficiency atlas (Organ_name constant 'Stomach', n=235713). Annotation hierarchy: Sub_cell_type (314 levels, '<Main type>-<k>' subcluster labels, 38 tiny groups) nested in Main_cell_type (19 levels) nested in Lineage (7 levels: Epithelial/Stromal/Immune/Endothelial/Neural/Adipose/Muscle). Main_cell_type is the usable-granularity author annotation; Lineage is coarser, Sub_cell_type is subcluster-numbered and too fine/tiny. 'louvain' (41 levels, bare integers, extremely unbalanced: 144539 in cluster '20') is algorithmic clustering \u2014 excluded. QC columns are duplicated (UMI_count/n_counts/nCounts/total_counts and Gene_count/nGenes/n_genes_by_counts). 'barcode:suffix:_' (381 groups) is the terminal cell barcode segment of Cell_name, not a batch label; the informative technical token in Cell_name is the EXP104_### library, already captured by 'batch'. Gender is a biological covariate, not a batch. No explicit mouse/donor ID column exists, so composites (Age_group+Genotype etc.) were not ranked above 'batch'.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"173 groups of the form '20230226_EXP104_174', '20230226_EXP104_066' \u2014 run-date + experiment + sequential library/well index, i.e."
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch ranking**: `batch` (173 libraries like `20230226_EXP104_174`, all \u2265414 cells \u2014 the true technical unit, and its tokens reappear inside `Cell_name`), then `Genotype` (WT/Prkdc/Rag mouse cohorts, the nearest donor-like factor), then `Age_group` as a last resort.\n- **Cell type**: `Main_cell_type` \u2014 \"Gastric mucous cells\", \"Chief cells\", \"Interstitial cells of Cajal\". `Sub_cell_type` is subcluster-numbered (`Chief cells-1`), `Lineage` too coarse, `louvain` is algorithmic.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.2410115,
+          "input_tokens": 6,
+          "output_tokens": 2045,
+          "cache_creation_tokens": 16140,
+          "cache_read_tokens": 56913,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "3ca/Aynaud2020_CellLines",
+      "kind": "hard",
+      "elapsed_s": 21.5,
+      "answer": {
+        "batch_ranked": [],
+        "cell_type": null,
+        "cell_type_reason": "No column contains author cell-type/lineage labels. The only categorical grouping column, 'cell_subtype', holds time-course/model labels ('d0_Xeno', 'd7_Xeno', 'd7+4', 'd7+15') \u2014 treatment timepoints in a xenograft experiment, not lineage names; 'cell_cycle_phase' ('G1/S','G2/M','Not cycling') is a per-cell state, not an annotation.",
+        "columns": {
+          "cell_subtype": "condition",
+          "complexity": "qc_numeric",
+          "umap1": "constant",
+          "umap2": "constant",
+          "g1s_score": "qc_numeric",
+          "g2m_score": "qc_numeric",
+          "cell_cycle_phase": "state",
+          "mp_top_score": "constant",
+          "mp_top": "constant",
+          "mp_assignment": "constant",
+          "dataset": "constant",
+          "organ": "constant",
+          "species": "constant",
+          "pct_counts_mt": "constant",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "identifier",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Small dataset (598 cells, Aynaud2020, human 'othermodels'). probeable_batch_columns is empty, so no trial is possible in any case. The only multi-value grouping columns are 'cell_subtype' (9 groups of ~47-109 cells with values d0_Xeno, d7_Xeno, d7, d7+2, d7+3, d7+4, d7+7, d7+10, d7+15 \u2014 a treatment/time course, i.e. experimental condition and likely the biological signal of interest, so correcting on it would erase the time-course biology) and 'cell_cycle_phase' (per-cell state \u2014 explicitly never a batch). dataset/organ/species/pct_counts_mt/umap1/umap2/mp_* are constant or all-missing. total_counts is unique per cell; complexity and n_genes_by_counts are near-unique QC numerics. Hence empty batch list and null cell type. If a batch key were ever needed, 'cell_subtype' would be the only candidate (it plausibly doubles as the sample/library identifier for each timepoint), but it confounds condition with sample and is not probeable here.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [], \"cell_type\": null, \"cell_type_reason\": \"No column contains author cell-type/lineage labels. The only categorical grouping column, 'cell_subtype', holds time-course/model labels ('"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch: empty list.** `probeable_batch_columns` is empty, and obs has no technical/donor structure at all \u2014 everything is constant (`dataset`, `organ`, `species`, `pct_counts_mt`, all-NA `umap1/2`, `mp_*`), per-cell numeric QC (`total_counts`, `complexity`, `n_genes_by_counts`, `g1s_score`, `g2m_score`, `pct_counts_hb`), or biology. The two real grouping columns are `cell_subtype` (a d0/d7/d7+2\u2026d7+15 xenograft time course = experimental condition, the signal of interest) and `cell_cycle_phase` (per-cell state \u2014 never a batch).\n- **Cell type: null.** No lineage/ontology names anywhere; `cell_subtype` despite its name holds timepoints (`d0_Xeno`, `d7_Xeno`, `d7+15`).",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.14965,
+          "input_tokens": 6,
+          "output_tokens": 1506,
+          "cache_creation_tokens": 9009,
+          "cache_read_tokens": 43760,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "class:cell_cycle_phase": true
+      }
+    },
+    {
+      "id": "abm-ilcp/ann0608",
+      "kind": "hard",
+      "elapsed_s": 24.6,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Two values 'abm1' (1939 cells) and 'abm2' (3403 cells) \u2014 sample/library identifiers for two adult bone-marrow runs; balanced, no tiny groups, and it is the coarse technical factor that the composite 'batch-ann0608' (e.g. 'ABM2-ILC2P.4') is nested within. Also exactly equivalent to the barcode suffix split, confirming it is the 10x library of origin."
+          }
+        ],
+        "cell_type": "ann0608",
+        "cell_type_reason": "Values are author lineage abbreviations with subcluster suffixes: 'ILC2P.4', 'ILCP.1', 'cEILP', 'sEILP2.1', 'NKP', '\u03b1LP1.7' \u2014 ILC-progenitor nomenclature, not bare cluster integers.",
+        "columns": {
+          "Clusters": "cluster",
+          "ann0608": "annotation",
+          "ImmGen_refine": "annotation",
+          "batch-ann0608": "other",
+          "leiden": "cluster",
+          "n_counts": "qc_numeric",
+          "batch": "technical",
+          "ann231127_leiden": "annotation",
+          "initial_size_unspliced": "qc_numeric",
+          "initial_size_spliced": "qc_numeric",
+          "initial_size": "qc_numeric",
+          "pct_counts_mt": "constant",
+          "pct_counts_hb": "constant",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "'batch-ann0608' is probeable but is a batch x annotation composite ('ABM1-\u03b1LP1.7', 'ABM2-ILC2P.4'), nested in both 'batch' and 'ann0608' \u2014 correcting on it would erase cell-type structure, so it is excluded. 'barcode:suffix:-' is reported equivalent to 'batch', so it adds nothing as a second candidate. Alternative cell-type columns: 'ann231127_leiden' ('1:CDP-like', '0:proB-like', '4:ILC2P') is an author-labelled but leiden-equivalent coarse annotation (10 groups, good fallback), and 'ImmGen_refine' ('CDP', 'ETP', 'proB', 'ILC2') looks like reference/ImmGen label transfer with 1.6% NA and 16 tiny groups. 'Clusters' (15) and 'leiden' (10) are algorithmic clusterings. pct_counts_mt/pct_counts_hb are constant 0; n_counts is a near-constant normalization scale factor (~568/577).",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Two values 'abm1' (1939 cells) and 'abm2' (3403 cells) \u2014 sample/library identifiers for two adult bone-marrow runs; balanced, no "
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch:** `batch` (abm1/abm2) \u2014 the only genuine technical factor. `batch-ann0608` was rejected as a batch \u00d7 annotation composite, and `barcode:suffix:-` is equivalent to `batch`.\n- **Cell type:** `ann0608` (ILC2P.4, cEILP, sEILP2.1, NKP, \u03b1LP1.x), with `ann231127_leiden` and `ImmGen_refine` noted as alternatives.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.176428,
+          "input_tokens": 6,
+          "output_tokens": 1819,
+          "cache_creation_tokens": 10758,
+          "cache_read_tokens": 46686,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true
+      }
+    },
+    {
+      "id": "tabula-muris-drop/Mammary_Gland",
+      "kind": "hard",
+      "elapsed_s": 17.8,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "channel",
+            "class": "technical",
+            "reason": "Values '10X_P7_13' (2543) and '10X_P7_12' (1938) are 10x droplet run/channel IDs, matching the cell_id barcode prefixes (10X_P7_12_AAACCTGAGTTGAGAT); both groups are large, so it is the finest technical library-level factor available."
+          },
+          {
+            "column": "mouse.id",
+            "class": "donor",
+            "reason": "Values '3-F-57' (2543) and '3-F-56' (1938) are Tabula Muris animal IDs; exactly equivalent to channel (one mouse per 10x channel), so it is the same partition expressed as donor and a valid fallback."
+          }
+        ],
+        "cell_type": "cell_ontology_class",
+        "cell_type_reason": "Author/ontology lineage names such as 'luminal epithelial cell of mammary gland', 'basal cell', 'endothelial cell', 'macrophage' \u2014 recognizable cell types, not cluster integers.",
+        "columns": {
+          "cell_id": "identifier",
+          "channel": "technical",
+          "tissue": "constant",
+          "cell_ontology_class": "annotation",
+          "cell_ontology_id": "annotation",
+          "free_annotation": "annotation",
+          "mouse.id": "donor",
+          "mouse.sex": "constant",
+          "subtissue": "constant",
+          "dataset": "constant",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Tabula Muris droplet mammary gland, 4481 cells, single tissue/sex/dataset (all constants). channel and mouse.id are reported as equivalent partitions (2 groups, 1938/2543), so only one real batch axis exists; channel is ranked first as the technical expression of it. cell_ontology_id is the CL-term twin of cell_ontology_class (CL:0002326 = luminal epithelial cell) and free_annotation is a sparse sub-annotation covering only luminal cells (243 'luminal progenitor cell', 216 'mature luminal cell', 4022 empty), so it is too incomplete to be the main label. pct_counts_mt is constant 0.0 (mito genes likely absent from the matrix). No clustering column present.",
+        "tools_used": [
+          {
+            "tool": "ToolSearch",
+            "target": "select:mcp__eca_pp_tools__submit_column_classification"
+          },
+          {
+            "tool": "mcp__eca_pp_tools__submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"channel\", \"class\": \"technical\", \"reason\": \"Values '10X_P7_13' (2543) and '10X_P7_12' (1938) are 10x droplet run/channel IDs, matching the cell_id barcode prefixes (10X_P7"
+          }
+        ],
+        "raw_reply": "Submitted.\n\n- **Batch ranked:** `channel` (technical \u2014 10x run IDs `10X_P7_12`/`10X_P7_13`, matching barcode prefixes), then `mouse.id` (donor \u2014 `3-F-56`/`3-F-57`, an equivalent partition).\n- **Cell type:** `cell_ontology_class` (\"luminal epithelial cell of mammary gland\", \"basal cell\", \"macrophage\"); `cell_ontology_id` is its CL-ID twin and `free_annotation` covers only luminal subsets (89% empty).\n- Everything else is constant, QC numeric, or the per-cell `cell_id` identifier.",
+        "usage": {
+          "backend": "claude",
+          "model": "claude-opus-5",
+          "cost_usd": 0.12179799999999999,
+          "input_tokens": 6,
+          "output_tokens": 1232,
+          "cache_creation_tokens": 7092,
+          "cache_read_tokens": 40096,
+          "num_turns": 3
+        }
+      },
+      "checks": {
+        "cell_type": true
+      }
+    }
+  ]
+}

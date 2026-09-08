@@ -1,0 +1,1126 @@
+{
+  "harness": "openai",
+  "model": "doubao-seed-2-1-turbo-260628",
+  "summary": {
+    "passed": 73,
+    "total": 73,
+    "rate": 1.0,
+    "by_kind": {
+      "hard": "27/27",
+      "control": "46/46"
+    }
+  },
+  "records": [
+    {
+      "id": "mouse-pansci/BAT",
+      "kind": "hard",
+      "elapsed_s": 210.0,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are technical sample/library batch identifiers (e.g., '20230501_EXP111_084', '20230501_EXP111_042') with 215 groups of reasonable size (min 1032, max 5996 cells, no tiny groups), representing the primary technical batch factor."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains recognizable author-annotated cell types such as 'Brown adipocytes', 'Vascular endothelial cells', and 'Myeloid cells' at a usable granularity (12 groups), with clearer names than the numbered Sub_cell_type and finer resolution than the broad Lineage annotation.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Multiple redundant QC metrics are present: UMI_count, n_counts, nCounts, and total_counts all measure UMI counts per cell; Gene_count, nGenes, and n_genes_by_counts all measure detected gene counts per cell. Sub_cell_type is a finer-grained annotation with 199 groups (numbered subsets of main cell types, e.g., 'Brown adipocytes-0'), 11 of which are tiny (<100 cells). Lineage is a broad 7-group lineage annotation nested above Main_cell_type. Organ_name is constant (only brown adipose tissue, BAT) across all cells.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are technical sample/library batch identifiers (e.g., '20230501_EXP111_084', '20230501_EXP111_042') with 215 groups of rea"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are technical sample/library batch identifiers (e.g., '20230501_EXP111_084', '20230501_EXP111_042') with 215 groups of reasonable size (min 1032, max 5996 cells, no tiny groups), representing the primary technical batch factor.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains recognizable author-annotated cell types such as 'Brown adipocytes', 'Vascular endothelial cells', and 'Myeloid cells' at a usable granularity (12 groups), with clearer names than the numbered Sub_cell_type and finer resolution than the broad Lineage annotation.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Multiple redundant QC metrics are present: UMI_count, n_counts, nCounts, and total_counts all measure UMI counts per cell; Gene_count, nGenes, and n_genes_by_counts all measure detected gene counts per cell. Sub_cell_type is a finer-grained annotation with 199 groups (numbered subsets of main cell types, e.g., 'Brown adipocytes-0'), 11 of which are tiny (<100 cells). Lineage is a broad 7-group lineage annotation nested above Main_cell_type. Organ_name is constant (only brown adipose tissue, BAT) across all cells.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14538,
+          "output_tokens": 13564,
+          "reasoning_tokens": 13055,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 14136,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.066,
+            "agent_run": 202.02,
+            "total": 202.087
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/gWAT",
+      "kind": "hard",
+      "elapsed_s": 164.6,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Column contains explicit technical experiment/run identifiers (e.g., 20230522_EXP114_089, 20230522_EXP114_070) with 351 groups (only 1 tiny group, median ~1090 cells per group), representing library/well-level technical batches \u2014 the clearest and finest technical factor available."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Main_cell_type contains recognizable, named cell types such as Adipocytes, Myeloid cells, Vascular endothelial cells, and Lymphoid cells_B cells across 15 groups at a usable granularity. Additional annotation columns include the coarser Lineage (7 lineage groups: Adipose, Immune, Endothelial, etc.) and finer Sub_cell_type (259 numbered subtypes nested under Main_cell_type, e.g., Adipocytes-1, Myeloid cells-0).",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Multiple QC numeric columns are redundant: UMI_count, n_counts, nCounts, and total_counts all represent total UMI counts per cell; Gene_count, nGenes, and n_genes_by_counts all represent number of detected genes per cell. Organ_name is a constant column with only the value 'gWAT'. The louvain column is algorithmic clustering with integer IDs. Sub_cell_type is a finer, numbered subtype annotation nested under Main_cell_type, while Lineage is a coarser lineage-level annotation.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Column contains explicit technical experiment/run identifiers (e.g., 20230522_EXP114_089, 20230522_EXP114_070) with 351 groups (o"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Column contains explicit technical experiment/run identifiers (e.g., 20230522_EXP114_089, 20230522_EXP114_070) with 351 groups (only 1 tiny group, median ~1090 cells per group), representing library/well-level technical batches \u2014 the clearest and finest technical factor available.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Main_cell_type contains recognizable, named cell types such as Adipocytes, Myeloid cells, Vascular endothelial cells, and Lymphoid cells_B cells across 15 groups at a usable granularity. Additional annotation columns include the coarser Lineage (7 lineage groups: Adipose, Immune, Endothelial, etc.) and finer Sub_cell_type (259 numbered subtypes nested under Main_cell_type, e.g., Adipocytes-1, Myeloid cells-0).\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Multiple QC numeric columns are redundant: UMI_count, n_counts, nCounts, and total_counts all represent total UMI counts per cell; Gene_count, nGenes, and n_genes_by_counts all represent number of detected genes per cell. Organ_name is a constant column with only the value 'gWAT'. The louvain column is algorithmic clustering with integer IDs. Sub_cell_type is a finer, numbered subtype annotation nested under Main_cell_type, while Lineage is a coarser lineage-level annotation.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14356,
+          "output_tokens": 10625,
+          "reasoning_tokens": 10088,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.003,
+            "agent_run": 164.539,
+            "total": 164.541
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/iWAT",
+      "kind": "hard",
+      "elapsed_s": 215.5,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are technical library/run identifiers (e.g. 20230514_EXP113_001) with 133 groups of 644-2638 cells, representing a clear technical batch factor from independent experiment runs."
+          },
+          {
+            "column": "barcode:suffix:_",
+            "class": "technical",
+            "reason": "Derived technical barcode feature with 359 non-tiny groups, corresponding to combinatorial indexing well indices as a finer technical source of variation."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains recognizable standard cell type names such as Adipocytes, Lymphoid cells_T cells, and Myeloid cells at a usable 12-group granularity. Coarser Lineage (6 broad lineages) and finer Sub_cell_type (214 subpopulations) annotations are also present in a hierarchical structure.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Multiple QC numeric columns are redundant: UMI_count, n_counts, nCounts, and total_counts all measure total UMI per cell; Gene_count, nGenes, and n_genes_by_counts all measure detected gene count per cell. Cell type annotations are organized hierarchically (Lineage > Main_cell_type > Sub_cell_type). The dataset consists entirely of inguinal white adipose tissue (iWAT) cells.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\n  \"batch_ranked\": [\n    {\n      \"column\": \"batch\",\n      \"class\": \"technical\",\n      \"reason\": \"Values are technical library/run identifiers (e.g. 20230514_EXP113_001) with 133 groups of 644-2638 ce"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are technical library/run identifiers (e.g. 20230514_EXP113_001) with 133 groups of 644-2638 cells, representing a clear technical batch factor from independent experiment runs.\"}, {\"column\": \"barcode:suffix:_\", \"class\": \"technical\", \"reason\": \"Derived technical barcode feature with 359 non-tiny groups, corresponding to combinatorial indexing well indices as a finer technical source of variation.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains recognizable standard cell type names such as Adipocytes, Lymphoid cells_T cells, and Myeloid cells at a usable 12-group granularity. Coarser Lineage (6 broad lineages) and finer Sub_cell_type (214 subpopulations) annotations are also present in a hierarchical structure.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Multiple QC numeric columns are redundant: UMI_count, n_counts, nCounts, and total_counts all measure total UMI per cell; Gene_count, nGenes, and n_genes_by_counts all measure detected gene count per cell. Cell type annotations are organized hierarchically (Lineage > Main_cell_type > Sub_cell_type). The dataset consists entirely of inguinal white adipose tissue (iWAT) cells.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14343,
+          "output_tokens": 12977,
+          "reasoning_tokens": 12400,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 215.45,
+            "total": 215.452
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/liver",
+      "kind": "hard",
+      "elapsed_s": 151.6,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are date-stamped experiment/library batch IDs (e.g. 20230322_EXP101_006, 20230208_EXP101_03), with 452 groups of reasonable size (min 25 cells, median ~2300 cells, no tiny groups), representing the primary technical run-to-run variation."
+          },
+          {
+            "column": "barcode:suffix:_",
+            "class": "technical",
+            "reason": "Derived barcode suffix with 381 groups, representing well/barcode-level technical variation, a secondary technical factor."
+          },
+          {
+            "column": "barcode:prefix:_",
+            "class": "technical",
+            "reason": "Derived barcode prefix with 4 groups, likely representing plate-level technical variation, a coarser technical factor."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains recognizable author-annotated cell type names such as Hepatocytes, Myeloid cells, Vascular endothelial cells, Lymphoid cells_B cells, and Cholangiocytes at a usable granularity (10 groups). Coarser Lineage and finer numbered Sub_cell_type annotations also exist.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Multiple redundant QC metric columns are present: UMI_count/n_counts/nCounts/total_counts all measure total UMI counts per cell, and Gene_count/nGenes/n_genes_by_counts all measure number of detected genes per cell. Sub_cell_type consists of numbered subsets nested under Main_cell_type (e.g. Hepatocytes-0, Myeloid cells-2), providing finer annotation granularity. Lineage is a broad, coarser annotation (Epithelial, Immune, Endothelial, etc.).",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are date-stamped experiment/library batch IDs (e.g. 20230322_EXP101_006, 20230208_EXP101_03), with 452 groups of reasonabl"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are date-stamped experiment/library batch IDs (e.g. 20230322_EXP101_006, 20230208_EXP101_03), with 452 groups of reasonable size (min 25 cells, median ~2300 cells, no tiny groups), representing the primary technical run-to-run variation.\"}, {\"column\": \"barcode:suffix:_\", \"class\": \"technical\", \"reason\": \"Derived barcode suffix with 381 groups, representing well/barcode-level technical variation, a secondary technical factor.\"}, {\"column\": \"barcode:prefix:_\", \"class\": \"technical\", \"reason\": \"Derived barcode prefix with 4 groups, likely representing plate-level technical variation, a coarser technical factor.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains recognizable author-annotated cell type names such as Hepatocytes, Myeloid cells, Vascular endothelial cells, Lymphoid cells_B cells, and Cholangiocytes at a usable granularity (10 groups). Coarser Lineage and finer numbered Sub_cell_type annotations also exist.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Multiple redundant QC metric columns are present: UMI_count/n_counts/nCounts/total_counts all measure total UMI counts per cell, and Gene_count/nGenes/n_genes_by_counts all measure number of detected genes per cell. Sub_cell_type consists of numbered subsets nested under Main_cell_type (e.g. Hepatocytes-0, Myeloid cells-2), providing finer annotation granularity. Lineage is a broad, coarser annotation (Epithelial, Immune, Endothelial, etc.).\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14544,
+          "output_tokens": 10145,
+          "reasoning_tokens": 9570,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.003,
+            "agent_run": 151.607,
+            "total": 151.61
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/brain",
+      "kind": "control",
+      "elapsed_s": 95.1,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Contains 192 technical EasySci library batches (e.g., EasySci_090, EasySci_074) with group sizes ranging from 2655 to 6088 (no tiny groups), representing the finest technical batch level and the highest priority candidate for integration correction."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains recognizable brain cell type names such as 'Astrocytes', 'Oligodendrocytes', 'Cortical projection neurons 1' at a usable granularity. Finer (Sub_cell_type, 359 subtypes) and broader (Lineage, 5 lineages) annotation columns are also present.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Multiple redundant QC metrics are present: UMI_count/n_counts/nCounts/total_counts (UMI count per cell) and Gene_count/nGenes/n_genes_by_counts (gene count per cell). The 'batch' column is equivalent to the barcode-prefix derived candidate. Sub_cell_type is nested under Main_cell_type, which is nested under the broad Lineage annotation. The louvain column is algorithmic clustering and not a cell-type annotation.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Contains 192 technical EasySci library batches (e.g., EasySci_090, EasySci_074) with group sizes ranging from 2655 to 6088 (no ti"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Contains 192 technical EasySci library batches (e.g., EasySci_090, EasySci_074) with group sizes ranging from 2655 to 6088 (no tiny groups), representing the finest technical batch level and the highest priority candidate for integration correction.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains recognizable brain cell type names such as 'Astrocytes', 'Oligodendrocytes', 'Cortical projection neurons 1' at a usable granularity. Finer (Sub_cell_type, 359 subtypes) and broader (Lineage, 5 lineages) annotation columns are also present.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Multiple redundant QC metrics are present: UMI_count/n_counts/nCounts/total_counts (UMI count per cell) and Gene_count/nGenes/n_genes_by_counts (gene count per cell). The 'batch' column is equivalent to the barcode-prefix derived candidate. Sub_cell_type is nested under Main_cell_type, which is nested under the broad Lineage annotation. The louvain column is algorithmic clustering and not a cell-type annotation.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 13436,
+          "output_tokens": 6167,
+          "reasoning_tokens": 5709,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 95.067,
+            "total": 95.069
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/colon",
+      "kind": "control",
+      "elapsed_s": 221.5,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are technical library/10x well identifiers (e.g. 20230606_EXP116_003, 20230606_EXP116_263) with 527 total groups, median ~1000 cells per group (only 4 tiny groups), representing the primary technical batch factor for the experiment."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains recognizable, named cell type annotations such as 'Colonic epithelial cells', 'Goblet cells', and 'Fibroblasts' at a usable granularity. Coarser lineage annotations exist in Lineage, and finer numbered subpopulations in Sub_cell_type.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "constant",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Main_cell_type is the primary author cell type annotation with 19 named populations. Lineage provides 6 broader lineage groups, while Sub_cell_type has 301 finer numbered subpopulations nested within main cell types. Multiple redundant QC numeric columns are present (UMI_count/n_counts/nCounts/total_counts for total UMI counts; Gene_count/nGenes/n_genes_by_counts for detected gene counts). The 'batch' column is the only clear technical batch factor; Age_group and Gender are biological variables of interest and not included as batch candidates since they represent wanted biological variation.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are technical library/10x well identifiers (e.g. 20230606_EXP116_003, 20230606_EXP116_263) with 527 total groups, median ~"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are technical library/10x well identifiers (e.g. 20230606_EXP116_003, 20230606_EXP116_263) with 527 total groups, median ~1000 cells per group (only 4 tiny groups), representing the primary technical batch factor for the experiment.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains recognizable, named cell type annotations such as 'Colonic epithelial cells', 'Goblet cells', and 'Fibroblasts' at a usable granularity. Coarser lineage annotations exist in Lineage, and finer numbered subpopulations in Sub_cell_type.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"constant\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Main_cell_type is the primary author cell type annotation with 19 named populations. Lineage provides 6 broader lineage groups, while Sub_cell_type has 301 finer numbered subpopulations nested within main cell types. Multiple redundant QC numeric columns are present (UMI_count/n_counts/nCounts/total_counts for total UMI counts; Gene_count/nGenes/n_genes_by_counts for detected gene counts). The 'batch' column is the only clear technical batch factor; Age_group and Gender are biological variables of interest and not included as batch candidates since they represent wanted biological variation.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14468,
+          "output_tokens": 13956,
+          "reasoning_tokens": 13457,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.003,
+            "agent_run": 221.464,
+            "total": 221.466
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/duodenum",
+      "kind": "control",
+      "elapsed_s": 35.9,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "452 groups with experiment-run IDs like '20230714_EXP121_009' and '20230626_EXP119_295', clearly 10x library/well-level technical batches. Median group size 369 cells, only 2 tiny groups \u2014 appropriate granularity for integration."
+          },
+          {
+            "column": "barcode:suffix:_",
+            "class": "technical",
+            "reason": "Derived barcode suffix with 382 groups, alternative fine-grained technical grouping at sample/well level."
+          },
+          {
+            "column": "barcode:prefix:_",
+            "class": "technical",
+            "reason": "Derived barcode prefix with 2 groups, likely corresponding to the two experiment dates (EXP119 vs EXP121), the coarsest technical level."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "23 recognizable author-annotated cell types including 'Intestinal epithelial cells', 'Muc2-producing goblet cells', 'Fibroblasts', 'Myeloid cells', 'Lymphoid cells_T cells', 'Enteroendocrine cells', 'Paneth cells', 'Tuft cells' \u2014 standard intestinal cell type nomenclature. Sub_cell_type (314 subtypes like 'Intestinal epithelial cells-0') is a finer annotation but largely cluster-numbered subtypes of Main_cell_type. Lineage (6 broad lineages: Epithelial, Immune, Stromal, etc.) is coarser.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "donor",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Genotype (WT, Prkdc, Rag), Age_group (03-23 months), and Gender are biological variables of interest, not technical batches \u2014 they should not be used for batch correction as they may drive real biological differences. Multiple redundant QC columns exist (n_counts, nCounts, UMI_count, total_counts are all count-based; nGenes, Gene_count, n_genes_by_counts are all gene-count metrics). Organ_name is constant (all Duodenum).",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"452 groups with experiment-run IDs like '20230714_EXP121_009' and '20230626_EXP119_295', clearly 10x library/well-level technical"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"452 groups with experiment-run IDs like '20230714_EXP121_009' and '20230626_EXP119_295', clearly 10x library/well-level technical batches. Median group size 369 cells, only 2 tiny groups \u2014 appropriate granularity for integration.\"}, {\"column\": \"barcode:suffix:_\", \"class\": \"technical\", \"reason\": \"Derived barcode suffix with 382 groups, alternative fine-grained technical grouping at sample/well level.\"}, {\"column\": \"barcode:prefix:_\", \"class\": \"technical\", \"reason\": \"Derived barcode prefix with 2 groups, likely corresponding to the two experiment dates (EXP119 vs EXP121), the coarsest technical level.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"23 recognizable author-annotated cell types including 'Intestinal epithelial cells', 'Muc2-producing goblet cells', 'Fibroblasts', 'Myeloid cells', 'Lymphoid cells_T cells', 'Enteroendocrine cells', 'Paneth cells', 'Tuft cells' \u2014 standard intestinal cell type nomenclature. Sub_cell_type (314 subtypes like 'Intestinal epithelial cells-0') is a finer annotation but largely cluster-numbered subtypes of Main_cell_type. Lineage (6 broad lineages: Epithelial, Immune, Stromal, etc.) is coarser.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"donor\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Genotype (WT, Prkdc, Rag), Age_group (03-23 months), and Gender are biological variables of interest, not technical batches \u2014 they should not be used for batch correction as they may drive real biological differences. Multiple redundant QC columns exist (n_counts, nCounts, UMI_count, total_counts are all count-based; nGenes, Gene_count, n_genes_by_counts are all gene-count metrics). Organ_name is constant (all Duodenum).\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14432,
+          "output_tokens": 2107,
+          "reasoning_tokens": 1463,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 35.864,
+            "total": 35.866
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/heart",
+      "kind": "control",
+      "elapsed_s": 175.7,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are experiment/run identifiers (e.g., 20230309_EXP102_44, 20230207_EXP102_03) representing distinct technical runs/libraries. 331 groups with non-trivial sizes (min 298 cells, median 3224 cells), consistent with a primary technical batch factor."
+          },
+          {
+            "column": "barcode:suffix:_",
+            "class": "technical",
+            "reason": "Derived barcode-based grouping with 383 groups, classified as technical (barcode kind). Likely represents finer technical variation (e.g., sample indexes or well barcodes) within runs, probeable as a batch factor."
+          },
+          {
+            "column": "barcode:prefix:_",
+            "class": "technical",
+            "reason": "Derived barcode-based grouping with 4 groups, classified as technical (barcode kind). Coarser technical factor (likely sample index barcodes) reused across runs, probeable as a batch factor."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Author-provided cell type annotation with recognizable cardiac and immune cell types, e.g., 'Ventricular cardiomyocytes', 'Vascular endothelial cells', 'Fibroblasts'.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Additional annotation columns include Sub_cell_type (finer 294 sub-type annotation, e.g., 'Vascular endothelial cells-0') and Lineage (coarser 7-lineage annotation, e.g., 'Endothelial', 'Muscle'). Multiple redundant QC metrics are present (UMI_count/n_counts/nCounts/total_counts measure total UMIs; Gene_count/nGenes/n_genes_by_counts measure detected gene counts). Organ_name is constant (all cells originate from Heart). The louvain column is an algorithmic clustering with 44 clusters.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are experiment/run identifiers (e.g., 20230309_EXP102_44, 20230207_EXP102_03) representing distinct technical runs/librari"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are experiment/run identifiers (e.g., 20230309_EXP102_44, 20230207_EXP102_03) representing distinct technical runs/libraries. 331 groups with non-trivial sizes (min 298 cells, median 3224 cells), consistent with a primary technical batch factor.\"}, {\"column\": \"barcode:suffix:_\", \"class\": \"technical\", \"reason\": \"Derived barcode-based grouping with 383 groups, classified as technical (barcode kind). Likely represents finer technical variation (e.g., sample indexes or well barcodes) within runs, probeable as a batch factor.\"}, {\"column\": \"barcode:prefix:_\", \"class\": \"technical\", \"reason\": \"Derived barcode-based grouping with 4 groups, classified as technical (barcode kind). Coarser technical factor (likely sample index barcodes) reused across runs, probeable as a batch factor.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Author-provided cell type annotation with recognizable cardiac and immune cell types, e.g., 'Ventricular cardiomyocytes', 'Vascular endothelial cells', 'Fibroblasts'.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Additional annotation columns include Sub_cell_type (finer 294 sub-type annotation, e.g., 'Vascular endothelial cells-0') and Lineage (coarser 7-lineage annotation, e.g., 'Endothelial', 'Muscle'). Multiple redundant QC metrics are present (UMI_count/n_counts/nCounts/total_counts measure total UMIs; Gene_count/nGenes/n_genes_by_counts measure detected gene counts). Organ_name is constant (all cells originate from Heart). The louvain column is an algorithmic clustering with 44 clusters.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14658,
+          "output_tokens": 11559,
+          "reasoning_tokens": 10954,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 175.665,
+            "total": 175.666
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/ileum",
+      "kind": "control",
+      "elapsed_s": 134.7,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are technical library/experiment identifiers (e.g. '20230523_EXP115_001', '20230523_EXP115_049') with 330 groups of mostly adequate size (median 1629.5 cells, only 2 tiny groups), representing the finest technical batch factor."
+          },
+          {
+            "column": "Gender",
+            "class": "donor",
+            "reason": "Binary donor sex attribute (Female, Male) with large balanced groups (~279k and ~242k cells), a donor-level biological factor that could explain batch-like variation."
+          },
+          {
+            "column": "Age_group",
+            "class": "condition",
+            "reason": "Experimental age groups (03_months, 06_months, 12_months, 16_months, 23_months) with 5 groups of good size (min 73321 cells), representing an experimental condition factor."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains 21 recognizable, named cell types including 'Intestinal epithelial cells', 'Paneth cells', 'Lymphoid cells_Resting B cells' at usable granularity. Broader (Lineage, 6 lineages) and finer (Sub_cell_type, 347 subtypes) author annotations also exist.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "constant",
+          "Gender": "donor",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Multiple redundant QC metrics exist (duplicate count/gene columns: UMI_count/n_counts/nCounts/total_counts, Gene_count/nGenes/n_genes_by_counts). The 'batch' column likely corresponds to individual sample/library units. Sub_cell_type provides finer grained annotations as Main_cell_type + numeric suffix, while Lineage provides broad lineage-level grouping.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\n  \"batch_ranked\": [\n    {\n      \"column\": \"batch\",\n      \"class\": \"technical\",\n      \"reason\": \"Values are technical library/experiment identifiers (e.g. '20230523_EXP115_001', '20230523_EXP115_049'"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are technical library/experiment identifiers (e.g. '20230523_EXP115_001', '20230523_EXP115_049') with 330 groups of mostly adequate size (median 1629.5 cells, only 2 tiny groups), representing the finest technical batch factor.\"}, {\"column\": \"Gender\", \"class\": \"donor\", \"reason\": \"Binary donor sex attribute (Female, Male) with large balanced groups (~279k and ~242k cells), a donor-level biological factor that could explain batch-like variation.\"}, {\"column\": \"Age_group\", \"class\": \"condition\", \"reason\": \"Experimental age groups (03_months, 06_months, 12_months, 16_months, 23_months) with 5 groups of good size (min 73321 cells), representing an experimental condition factor.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains 21 recognizable, named cell types including 'Intestinal epithelial cells', 'Paneth cells', 'Lymphoid cells_Resting B cells' at usable granularity. Broader (Lineage, 6 lineages) and finer (Sub_cell_type, 347 subtypes) author annotations also exist.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"constant\", \"Gender\": \"donor\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Multiple redundant QC metrics exist (duplicate count/gene columns: UMI_count/n_counts/nCounts/total_counts, Gene_count/nGenes/n_genes_by_counts). The 'batch' column likely corresponds to individual sample/library units. Sub_cell_type provides finer grained annotations as Main_cell_type + numeric suffix, while Lineage provides broad lineage-level grouping.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14510,
+          "output_tokens": 9183,
+          "reasoning_tokens": 8503,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 134.652,
+            "total": 134.654
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/jejunum",
+      "kind": "control",
+      "elapsed_s": 138.2,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are experimental library/run identifiers (e.g., 20230607_EXP117_055, 20230627_EXP117_069) representing technical batch factors. It has 559 groups with mostly reasonable size (median 642 cells per group, only 6 tiny groups), making it the finest available technical batch level."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains recognizable, author-annotated cell type names such as 'Intestinal epithelial cells', 'Paneth cells', and 'Goblet cells' at a usable granularity (21 distinct cell type groups).",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Additional annotation columns include Sub_cell_type (finer-grained sub-cell-type annotations prefixed with main cell type names and numeric suffixes, 324 groups) and Lineage (broad lineage-level annotations, 6 groups). The louvain column is an algorithmic clustering result. Multiple redundant QC numeric columns capture per-cell quality metrics (total UMI counts, detected gene counts, mitochondrial and hemoglobin transcript percentages).",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\n  \"batch_ranked\": [\n    {\n      \"column\": \"batch\",\n      \"class\": \"technical\",\n      \"reason\": \"Values are experimental library/run identifiers (e.g., 20230607_EXP117_055, 20230627_EXP117_069) repre"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are experimental library/run identifiers (e.g., 20230607_EXP117_055, 20230627_EXP117_069) representing technical batch factors. It has 559 groups with mostly reasonable size (median 642 cells per group, only 6 tiny groups), making it the finest available technical batch level.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains recognizable, author-annotated cell type names such as 'Intestinal epithelial cells', 'Paneth cells', and 'Goblet cells' at a usable granularity (21 distinct cell type groups).\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Additional annotation columns include Sub_cell_type (finer-grained sub-cell-type annotations prefixed with main cell type names and numeric suffixes, 324 groups) and Lineage (broad lineage-level annotations, 6 groups). The louvain column is an algorithmic clustering result. Multiple redundant QC numeric columns capture per-cell quality metrics (total UMI counts, detected gene counts, mitochondrial and hemoglobin transcript percentages).\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14639,
+          "output_tokens": 8795,
+          "reasoning_tokens": 8270,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 138.193,
+            "total": 138.195
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/muscle",
+      "kind": "control",
+      "elapsed_s": 109.9,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are experiment/library identifiers (e.g., 20230218_EXP103_83, 20230218_EXP103_76) representing technical scRNA-seq library batches, with 94 groups of typical size ~2500-3500 cells (only 2 tiny groups)."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains author-annotated cell types with recognizable names such as 'Type II myonuclei', 'Vascular endothelial cells', and 'Fibro\u2013adipogenic progenitors' across 21 classes at usable granularity. Finer Sub_cell_type and broader Lineage annotations are also present.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Multiple QC columns are redundant: UMI_count, n_counts, nCounts, and total_counts all represent total UMI counts per cell; Gene_count, nGenes, and n_genes_by_counts all represent number of detected genes per cell. Organ_name is constant (all Muscle tissue). Sub_cell_type provides finer subtype annotations, Lineage provides broader lineage groupings.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are experiment/library identifiers (e.g., 20230218_EXP103_83, 20230218_EXP103_76) representing technical scRNA-seq library"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are experiment/library identifiers (e.g., 20230218_EXP103_83, 20230218_EXP103_76) representing technical scRNA-seq library batches, with 94 groups of typical size ~2500-3500 cells (only 2 tiny groups).\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains author-annotated cell types with recognizable names such as 'Type II myonuclei', 'Vascular endothelial cells', and 'Fibro\u2013adipogenic progenitors' across 21 classes at usable granularity. Finer Sub_cell_type and broader Lineage annotations are also present.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Multiple QC columns are redundant: UMI_count, n_counts, nCounts, and total_counts all represent total UMI counts per cell; Gene_count, nGenes, and n_genes_by_counts all represent number of detected genes per cell. Organ_name is constant (all Muscle tissue). Sub_cell_type provides finer subtype annotations, Lineage provides broader lineage groupings.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14357,
+          "output_tokens": 6658,
+          "reasoning_tokens": 6203,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.003,
+            "agent_run": 109.844,
+            "total": 109.847
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "mouse-pansci/stomach",
+      "kind": "control",
+      "elapsed_s": 202.1,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Values are experiment/run identifiers (e.g., 20230226_EXP104_174, 20230226_EXP104_173) representing technical processing batches. There are 173 groups with all sizes \u2265414 (no tiny groups), making this the clearest and most well-supported technical batch factor in the dataset."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Contains recognizable author-annotated stomach cell types such as 'Gastric mucous cells', 'Chief cells', and 'Parietal cells' at a usable granularity. Finer (Sub_cell_type) and broader (Lineage) nested annotation columns also exist.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Multiple redundant QC columns are present: UMI_count, n_counts, nCounts, and total_counts all measure total UMI counts per cell; Gene_count, nGenes, and n_genes_by_counts all measure detected gene counts per cell. Annotation columns form a nested hierarchy: Lineage (coarest) \u2192 Main_cell_type \u2192 Sub_cell_type (finest). Genotype, Age_group, and Gender are biological variables (not technical batches) and are lower priority for integration testing, as correcting on them could erase biologically meaningful variation.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\n  \"batch_ranked\": [\n    {\n      \"column\": \"batch\",\n      \"class\": \"technical\",\n      \"reason\": \"Values are experiment/run identifiers (e.g., 20230226_EXP104_174, 20230226_EXP104_173) representing te"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Values are experiment/run identifiers (e.g., 20230226_EXP104_174, 20230226_EXP104_173) representing technical processing batches. There are 173 groups with all sizes \u2265414 (no tiny groups), making this the clearest and most well-supported technical batch factor in the dataset.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Contains recognizable author-annotated stomach cell types such as 'Gastric mucous cells', 'Chief cells', and 'Parietal cells' at a usable granularity. Finer (Sub_cell_type) and broader (Lineage) nested annotation columns also exist.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Multiple redundant QC columns are present: UMI_count, n_counts, nCounts, and total_counts all measure total UMI counts per cell; Gene_count, nGenes, and n_genes_by_counts all measure detected gene counts per cell. Annotation columns form a nested hierarchy: Lineage (coarest) \u2192 Main_cell_type \u2192 Sub_cell_type (finest). Genotype, Age_group, and Gender are biological variables (not technical batches) and are lower priority for integration testing, as correcting on them could erase biologically meaningful variation.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14557,
+          "output_tokens": 12279,
+          "reasoning_tokens": 11720,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 202.119,
+            "total": 202.12
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    },
+    {
+      "id": "3ca/Aynaud2020_CellLines",
+      "kind": "hard",
+      "elapsed_s": 145.1,
+      "answer": {
+        "batch_ranked": [],
+        "cell_type": null,
+        "cell_type_reason": "No column contains recognizable cell type annotations (e.g., lineage names, ontology terms, cell type abbreviations). The only categorical grouping column (cell_subtype) contains experimental time point/condition values such as d0_Xeno, d7+4, and d7+10, which do not correspond to cell type identities. All other columns are QC metrics, cell cycle state, constant values, or entirely missing.",
+        "columns": {
+          "cell_subtype": "condition",
+          "complexity": "qc_numeric",
+          "umap1": "constant",
+          "umap2": "constant",
+          "g1s_score": "state",
+          "g2m_score": "state",
+          "cell_cycle_phase": "state",
+          "mp_top_score": "constant",
+          "mp_top": "constant",
+          "mp_assignment": "constant",
+          "dataset": "constant",
+          "organ": "constant",
+          "species": "constant",
+          "pct_counts_mt": "constant",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "No probeable batch columns are present in the dataset. The cell_subtype column represents experimental time points and culture conditions (e.g., d0_Xeno, d7+2) rather than cell type labels. Multiple columns are entirely null (umap1, umap2, mp_top_score, mp_top, mp_assignment) or constant across all cells (dataset, organ, species, pct_counts_mt).",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [], \"cell_type\": null, \"cell_type_reason\": \"No column contains recognizable cell type annotations (e.g., lineage names, ontology terms, cell type abbreviations). The only categorical "
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [], \"cell_type\": null, \"cell_type_reason\": \"No column contains recognizable cell type annotations (e.g., lineage names, ontology terms, cell type abbreviations). The only categorical grouping column (cell_subtype) contains experimental time point/condition values such as d0_Xeno, d7+4, and d7+10, which do not correspond to cell type identities. All other columns are QC metrics, cell cycle state, constant values, or entirely missing.\", \"columns\": {\"cell_subtype\": \"condition\", \"complexity\": \"qc_numeric\", \"umap1\": \"constant\", \"umap2\": \"constant\", \"g1s_score\": \"state\", \"g2m_score\": \"state\", \"cell_cycle_phase\": \"state\", \"mp_top_score\": \"constant\", \"mp_top\": \"constant\", \"mp_assignment\": \"constant\", \"dataset\": \"constant\", \"organ\": \"constant\", \"species\": \"constant\", \"pct_counts_mt\": \"constant\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"No probeable batch columns are present in the dataset. The cell_subtype column represents experimental time points and culture conditions (e.g., d0_Xeno, d7+2) rather than cell type labels. Multiple columns are entirely null (umap1, umap2, mp_top_score, mp_top, mp_assignment) or constant across all cells (dataset, organ, species, pct_counts_mt).\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 6783,
+          "output_tokens": 9792,
+          "reasoning_tokens": 9419,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 145.04,
+            "total": 145.042
+          }
+        }
+      },
+      "checks": {
+        "class:cell_cycle_phase": true
+      }
+    },
+    {
+      "id": "abm-ilcp/ann0608",
+      "kind": "hard",
+      "elapsed_s": 118.2,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Technical batch variable with two levels (abm1, abm2) and no tiny groups, representing the primary experimental batch factor. The batch-ann0608 column is a batch x annotation composite (values like ABM2-\u03b1LP1.1) nested within both batch and the ann0608 cell type annotation, so the coarser pure technical batch column is preferred per guidelines."
+          }
+        ],
+        "cell_type": "ann0608",
+        "cell_type_reason": "Contains innate lymphoid progenitor subset labels including ILC2P.4, cEILP, and NKP \u2014 recognizable immune cell type abbreviations consistent with author-curated annotation, with all 21 groups having non-tiny cell counts.",
+        "columns": {
+          "Clusters": "cluster",
+          "ann0608": "annotation",
+          "ImmGen_refine": "annotation",
+          "batch-ann0608": "other",
+          "leiden": "cluster",
+          "n_counts": "qc_numeric",
+          "batch": "technical",
+          "ann231127_leiden": "annotation",
+          "initial_size_unspliced": "qc_numeric",
+          "initial_size_spliced": "qc_numeric",
+          "initial_size": "qc_numeric",
+          "pct_counts_mt": "constant",
+          "pct_counts_hb": "constant",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Additional annotation columns: ann231127_leiden (coarser cluster-associated cell type labels e.g. 1:CDP-like, 0:proB-like, equivalent to leiden clusters) and ImmGen_refine (reference-based immune cell types with 16/29 tiny groups <25 cells). The barcode:suffix:- derived candidate is equivalent to the batch column. pct_counts_mt and pct_counts_hb are constant at 0.0 across all cells.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Technical batch variable with two levels (abm1, abm2) and no tiny groups, representing the primary experimental batch factor. The"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Technical batch variable with two levels (abm1, abm2) and no tiny groups, representing the primary experimental batch factor. The batch-ann0608 column is a batch x annotation composite (values like ABM2-\u03b1LP1.1) nested within both batch and the ann0608 cell type annotation, so the coarser pure technical batch column is preferred per guidelines.\"}], \"cell_type\": \"ann0608\", \"cell_type_reason\": \"Contains innate lymphoid progenitor subset labels including ILC2P.4, cEILP, and NKP \u2014 recognizable immune cell type abbreviations consistent with author-curated annotation, with all 21 groups having non-tiny cell counts.\", \"columns\": {\"Clusters\": \"cluster\", \"ann0608\": \"annotation\", \"ImmGen_refine\": \"annotation\", \"batch-ann0608\": \"other\", \"leiden\": \"cluster\", \"n_counts\": \"qc_numeric\", \"batch\": \"technical\", \"ann231127_leiden\": \"annotation\", \"initial_size_unspliced\": \"qc_numeric\", \"initial_size_spliced\": \"qc_numeric\", \"initial_size\": \"qc_numeric\", \"pct_counts_mt\": \"constant\", \"pct_counts_hb\": \"constant\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Additional annotation columns: ann231127_leiden (coarser cluster-associated cell type labels e.g. 1:CDP-like, 0:proB-like, equivalent to leiden clusters) and ImmGen_refine (reference-based immune cell types with 16/29 tiny groups <25 cells). The barcode:suffix:- derived candidate is equivalent to the batch column. pct_counts_mt and pct_counts_hb are constant at 0.0 across all cells.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 7806,
+          "output_tokens": 7201,
+          "reasoning_tokens": 6736,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 118.214,
+            "total": 118.215
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true
+      }
+    },
+    {
+      "id": "tabula-muris-drop/Mammary_Gland",
+      "kind": "hard",
+      "elapsed_s": 92.8,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "channel",
+            "class": "technical",
+            "reason": "Channel is a technical 10X run/library factor with 2 groups (10X_P7_12: 1938 cells, 10X_P7_13: 2543 cells), no tiny groups, preferred as the primary technical batch candidate."
+          },
+          {
+            "column": "mouse.id",
+            "class": "donor",
+            "reason": "Mouse donor ID is 1:1 equivalent to channel, representing inter-donor biological variation, serving as a secondary batch candidate."
+          }
+        ],
+        "cell_type": "cell_ontology_class",
+        "cell_type_reason": "Contains recognizable canonical cell type names such as 'T cell', 'B cell', 'macrophage', and 'luminal epithelial cell of mammary gland', covering all 4481 cells with 7 distinct classes.",
+        "columns": {
+          "cell_id": "identifier",
+          "channel": "technical",
+          "tissue": "constant",
+          "cell_ontology_class": "annotation",
+          "cell_ontology_id": "annotation",
+          "free_annotation": "annotation",
+          "mouse.id": "donor",
+          "mouse.sex": "constant",
+          "subtissue": "constant",
+          "dataset": "constant",
+          "pct_counts_mt": "constant",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "channel and mouse.id are 1:1 equivalent (each 10X channel maps to one mouse donor). cell_ontology_class and cell_ontology_id are equivalent cell type annotations (human-readable names vs. Cell Ontology IDs). free_annotation is largely incomplete (4022/4481 cells have empty values), only annotating luminal epithelial progenitor/mature subtypes. All cells originate from female mouse mammary gland (tissue, mouse.sex, and subtissue are constant). pct_counts_mt is uniformly 0.0 across all cells. Dataset is from the Tabula Muris droplet platform.",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"channel\", \"class\": \"technical\", \"reason\": \"Channel is a technical 10X run/library factor with 2 groups (10X_P7_12: 1938 cells, 10X_P7_13: 2543 cells), no tiny groups, pre"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"channel\", \"class\": \"technical\", \"reason\": \"Channel is a technical 10X run/library factor with 2 groups (10X_P7_12: 1938 cells, 10X_P7_13: 2543 cells), no tiny groups, preferred as the primary technical batch candidate.\"}, {\"column\": \"mouse.id\", \"class\": \"donor\", \"reason\": \"Mouse donor ID is 1:1 equivalent to channel, representing inter-donor biological variation, serving as a secondary batch candidate.\"}], \"cell_type\": \"cell_ontology_class\", \"cell_type_reason\": \"Contains recognizable canonical cell type names such as 'T cell', 'B cell', 'macrophage', and 'luminal epithelial cell of mammary gland', covering all 4481 cells with 7 distinct classes.\", \"columns\": {\"cell_id\": \"identifier\", \"channel\": \"technical\", \"tissue\": \"constant\", \"cell_ontology_class\": \"annotation\", \"cell_ontology_id\": \"annotation\", \"free_annotation\": \"annotation\", \"mouse.id\": \"donor\", \"mouse.sex\": \"constant\", \"subtissue\": \"constant\", \"dataset\": \"constant\", \"pct_counts_mt\": \"constant\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"channel and mouse.id are 1:1 equivalent (each 10X channel maps to one mouse donor). cell_ontology_class and cell_ontology_id are equivalent cell type annotations (human-readable names vs. Cell Ontology IDs). free_annotation is largely incomplete (4022/4481 cells have empty values), only annotating luminal epithelial progenitor/mature subtypes. All cells originate from female mouse mammary gland (tissue, mouse.sex, and subtissue are constant). pct_counts_mt is uniformly 0.0 across all cells. Dataset is from the Tabula Muris droplet platform.\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 4014,
+          "output_tokens": 6326,
+          "reasoning_tokens": 5848,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 1336,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.002,
+            "agent_run": 92.79,
+            "total": 92.792
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true
+      }
+    }
+  ]
+}

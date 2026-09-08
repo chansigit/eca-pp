@@ -5,7 +5,6 @@ cd /scratch/users/chensj16/worktrees/eca-pp-agent-eval
 PY=/scratch/users/chensj16/venvs/eca-pp-ct/python
 export PYTHONPATH=$PWD/src
 
-while pgrep -f "run_eval.py --tag doubao-turbo" >/dev/null; do sleep 30; done
 
 run() {  # tag harness model
   echo "===== $1 ($2 / $3) ====="

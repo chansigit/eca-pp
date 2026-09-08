@@ -1,0 +1,87 @@
+{
+  "harness": "openai",
+  "model": "doubao-seed-2-1-turbo-260628",
+  "summary": {
+    "passed": 6,
+    "total": 6,
+    "rate": 1.0,
+    "by_kind": {
+      "hard": "6/6"
+    }
+  },
+  "records": [
+    {
+      "id": "mouse-pansci/BAT",
+      "kind": "hard",
+      "elapsed_s": 112.9,
+      "answer": {
+        "batch_ranked": [
+          {
+            "column": "batch",
+            "class": "technical",
+            "reason": "Column contains 215 technical sample/library batch IDs (e.g., '20230501_EXP111_084', '20230501_EXP111_042') with group sizes ranging from 1032 to 5996 (no tiny groups), representing the finest available technical batch level."
+          }
+        ],
+        "cell_type": "Main_cell_type",
+        "cell_type_reason": "Values are recognizable author-annotated cell types including 'Brown adipocytes', 'Vascular endothelial cells', and 'Myeloid cells'.",
+        "columns": {
+          "Cell_name": "identifier",
+          "Genotype": "condition",
+          "Gender": "other",
+          "Age_group": "condition",
+          "UMI_count": "qc_numeric",
+          "Gene_count": "qc_numeric",
+          "Organ_name": "constant",
+          "Main_cell_type": "annotation",
+          "Sub_cell_type": "annotation",
+          "Lineage": "annotation",
+          "n_counts": "qc_numeric",
+          "louvain": "cluster",
+          "nGenes": "qc_numeric",
+          "nCounts": "qc_numeric",
+          "batch": "technical",
+          "pct_counts_mt": "qc_numeric",
+          "pct_counts_hb": "qc_numeric",
+          "total_counts": "qc_numeric",
+          "n_genes_by_counts": "qc_numeric"
+        },
+        "notes": "Additional annotation columns include Sub_cell_type (finer 199-subtype annotation with numbered subsets of main cell types) and Lineage (coarser 7-group lineage annotation). All cells are from brown adipose tissue (BAT, constant Organ_name). Multiple redundant QC numeric metrics are present (counts, gene counts, mitochondrial/hemoglobin percentages).",
+        "tools_used": [
+          {
+            "tool": "submit_column_classification",
+            "target": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Column contains 215 technical sample/library batch IDs (e.g., '20230501_EXP111_084', '20230501_EXP111_042') with group sizes rang"
+          }
+        ],
+        "raw_reply": "{\"batch_ranked\": [{\"column\": \"batch\", \"class\": \"technical\", \"reason\": \"Column contains 215 technical sample/library batch IDs (e.g., '20230501_EXP111_084', '20230501_EXP111_042') with group sizes ranging from 1032 to 5996 (no tiny groups), representing the finest available technical batch level.\"}], \"cell_type\": \"Main_cell_type\", \"cell_type_reason\": \"Values are recognizable author-annotated cell types including 'Brown adipocytes', 'Vascular endothelial cells', and 'Myeloid cells'.\", \"columns\": {\"Cell_name\": \"identifier\", \"Genotype\": \"condition\", \"Gender\": \"other\", \"Age_group\": \"condition\", \"UMI_count\": \"qc_numeric\", \"Gene_count\": \"qc_numeric\", \"Organ_name\": \"constant\", \"Main_cell_type\": \"annotation\", \"Sub_cell_type\": \"annotation\", \"Lineage\": \"annotation\", \"n_counts\": \"qc_numeric\", \"louvain\": \"cluster\", \"nGenes\": \"qc_numeric\", \"nCounts\": \"qc_numeric\", \"batch\": \"technical\", \"pct_counts_mt\": \"qc_numeric\", \"pct_counts_hb\": \"qc_numeric\", \"total_counts\": \"qc_numeric\", \"n_genes_by_counts\": \"qc_numeric\"}, \"notes\": \"Additional annotation columns include Sub_cell_type (finer 199-subtype annotation with numbered subsets of main cell types) and Lineage (coarser 7-group lineage annotation). All cells are from brown adipose tissue (BAT, constant Organ_name). Multiple redundant QC numeric metrics are present (counts, gene counts, mitochondrial/hemoglobin percentages).\"}",
+        "usage": {
+          "backend": "openai",
+          "model": "doubao-seed-2-1-turbo-260628",
+          "reasoning_effort": "medium",
+          "server_state": true,
+          "parallel_tool_calls": false,
+          "nudges": 0,
+          "cost_usd": null,
+          "input_tokens": 14538,
+          "output_tokens": 6414,
+          "reasoning_tokens": 5992,
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "num_turns": 1,
+          "timings": {
+            "runtime_init": 0.084,
+            "agent_run": 104.436,
+            "total": 104.52
+          }
+        }
+      },
+      "checks": {
+        "cell_type": true,
+        "class:batch": true,
+        "class:Age_group": true,
+        "not_top_batch:Age_group": true,
+        "class:Genotype": true,
+        "not_top_batch:Genotype": true
+      }
+    }
+  ]
+}
