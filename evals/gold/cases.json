@@ -84,7 +84,7 @@
         "column_class": {
           "batch": "technical",
           "Age_group": "condition",
-          "Genotype": "condition"
+          "Genotype": "constant"
         },
         "final_batch": null
       },
@@ -129,7 +129,7 @@
         "column_class": {
           "batch": "technical",
           "Age_group": "condition",
-          "Genotype": "condition"
+          "Genotype": "constant"
         },
         "final_batch": null
       },
@@ -186,7 +186,7 @@
       "kind": "hard",
       "expect": {
         "column_class": {
-          "cell_cycle_phase": "per_cell_state"
+          "cell_cycle_phase": "state"
         }
       },
       "why": "50cd3da: per-cell state (cell-cycle phase) was ranked as batch because it was the only probeable column"

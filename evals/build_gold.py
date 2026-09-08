@@ -23,12 +23,13 @@ OUT = Path(__file__).resolve().parent / "gold" / "cases.json"
 # the machine verdict), 8 got it right natively — same question, so they are matched controls.
 PANSCI_HARD = ["BAT", "gWAT", "iWAT", "liver"]
 PANSCI_CONTROL = ["brain", "colon", "duodenum", "heart", "ileum", "jejunum", "muscle", "stomach"]
-PANSCI_EXPECT = {
-    # what the CLASSIFIER should say (track 1) — not what the pipeline should adopt (track 2)
-    "cell_type": "Main_cell_type",
-    "column_class": {"batch": "technical", "Age_group": "condition", "Genotype": "condition"},
-    "final_batch": None,  # track 2 only: the verdict the pipeline should reach
-}
+
+# Expected classes must be derived per organ, not hard-coded: Genotype is a real 3-level condition
+# in most organs but is single-valued in colon/ileum, where `constant` is the correct answer.
+# A first version asserted "condition" everywhere and scored two correct answers as failures —
+# gold that is wrong measures nothing. Vocabulary is policies.CLASSES; there is no "per_cell_state".
+PANSCI_CELL_TYPE = "Main_cell_type"
+PANSCI_BIOLOGICAL = ["Age_group", "Genotype"]
 
 # Failure modes with a named cause. Paths are resolved leniently: a case that cannot be located
 # on disk is reported and skipped rather than silently dropped.
@@ -36,7 +37,7 @@ CHARACTERISED = [
     # v05-comparison is the post-fix rerun, so it is the one that reflects the intended answer
     {"id": "3ca/Aynaud2020_CellLines",
      "glob": "3ca/eca-pp/v05-comparison-*/Aynaud2020_othermodels_CellLines/identify_columns/result.json",
-     "expect": {"column_class": {"cell_cycle_phase": "per_cell_state"}},
+     "expect": {"column_class": {"cell_cycle_phase": "state"}},
      "why": "50cd3da: per-cell state (cell-cycle phase) was ranked as batch because it was the "
             "only probeable column"},
     {"id": "abm-ilcp/ann0608", "glob": "abm-ilcp/eca-pp/identify_columns-v3/result.json",
@@ -63,10 +64,16 @@ def pansci_cases():
             print(f"  MISSING {p}", file=sys.stderr)
             continue
         hard = organ in PANSCI_HARD
+        prof = {e["column"]: e for e in json.loads(p.read_text())["profile"]["columns"]}
+        cls = {"batch": "technical"}
+        for col in PANSCI_BIOLOGICAL:
+            e = prof.get(col)
+            if e:
+                cls[col] = "constant" if e["n_unique"] <= 1 else "condition"
         out.append({
             "id": f"mouse-pansci/{organ}", "result": str(p),
             "kind": "hard" if hard else "control",
-            "expect": PANSCI_EXPECT,
+            "expect": {"cell_type": PANSCI_CELL_TYPE, "column_class": cls, "final_batch": None},
             "why": ("human-corrected: machine adopted a condition column as batch "
                     "(result.json.orig keeps the original verdict)" if hard else
                     "same obs schema as the hard cases; model got it right natively"),

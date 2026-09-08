@@ -80,6 +80,27 @@ def summarise(records: list[dict]) -> dict:
             "by_kind": {k: f"{v[0]}/{v[1]}" for k, v in by_kind.items()}}
 
 
+def rescore() -> int:
+    """Re-apply the current gold to stored answers. Gold will keep being corrected; paying for
+    fresh LLM calls each time would be both wasteful and non-comparable."""
+    cases = {c["id"]: c for c in json.loads((HERE / "gold" / "cases.json").read_text())["cases"]}
+    for p in sorted(RUNS.glob("*.json")):
+        d = json.loads(p.read_text())
+        changed = 0
+        for r in d["records"]:
+            c = cases.get(r["id"])
+            if not c or "answer" not in r:
+                continue
+            new = score(r["answer"], c["expect"])
+            changed += new != r["checks"]
+            r["checks"] = new
+        d["summary"] = summarise([r for r in d["records"] if r["checks"]])
+        p.write_text(json.dumps(d, indent=2))
+        print(f"{p.stem:22} {d['summary']['passed']}/{d['summary']['total']} "
+              f"({d['summary']['rate']})  {changed} case(s) rescored")
+    return 0
+
+
 def compare() -> int:
     rows = []
     for p in sorted(RUNS.glob("*.json")):
@@ -99,9 +120,12 @@ def main() -> int:
     ap.add_argument("--tag", help="name for this run (default: harness+model)")
     ap.add_argument("--only", help="substring filter on case id")
     ap.add_argument("--compare", action="store_true", help="table of previous runs, no LLM calls")
+    ap.add_argument("--rescore", action="store_true", help="re-apply current gold to stored answers")
     args = ap.parse_args()
     if args.compare:
         return compare()
+    if args.rescore:
+        return rescore()
 
     from eca_pp.harness import backend_name, default_model
 
