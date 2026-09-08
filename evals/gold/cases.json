@@ -1,0 +1,222 @@
+{
+  "cases": [
+    {
+      "id": "mouse-pansci/BAT",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/BAT/identify_columns/result.json",
+      "kind": "hard",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "human-corrected: machine adopted a condition column as batch (result.json.orig keeps the original verdict)"
+    },
+    {
+      "id": "mouse-pansci/gWAT",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/gWAT/identify_columns/result.json",
+      "kind": "hard",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "human-corrected: machine adopted a condition column as batch (result.json.orig keeps the original verdict)"
+    },
+    {
+      "id": "mouse-pansci/iWAT",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/iWAT/identify_columns/result.json",
+      "kind": "hard",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "human-corrected: machine adopted a condition column as batch (result.json.orig keeps the original verdict)"
+    },
+    {
+      "id": "mouse-pansci/liver",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/liver/identify_columns/result.json",
+      "kind": "hard",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "human-corrected: machine adopted a condition column as batch (result.json.orig keeps the original verdict)"
+    },
+    {
+      "id": "mouse-pansci/brain",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/brain/identify_columns/result.json",
+      "kind": "control",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "same obs schema as the hard cases; model got it right natively"
+    },
+    {
+      "id": "mouse-pansci/colon",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/colon/identify_columns/result.json",
+      "kind": "control",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "same obs schema as the hard cases; model got it right natively"
+    },
+    {
+      "id": "mouse-pansci/duodenum",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/duodenum/identify_columns/result.json",
+      "kind": "control",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "same obs schema as the hard cases; model got it right natively"
+    },
+    {
+      "id": "mouse-pansci/heart",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/heart/identify_columns/result.json",
+      "kind": "control",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "same obs schema as the hard cases; model got it right natively"
+    },
+    {
+      "id": "mouse-pansci/ileum",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/ileum/identify_columns/result.json",
+      "kind": "control",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "same obs schema as the hard cases; model got it right natively"
+    },
+    {
+      "id": "mouse-pansci/jejunum",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/jejunum/identify_columns/result.json",
+      "kind": "control",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "same obs schema as the hard cases; model got it right natively"
+    },
+    {
+      "id": "mouse-pansci/muscle",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/muscle/identify_columns/result.json",
+      "kind": "control",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "same obs schema as the hard cases; model got it right natively"
+    },
+    {
+      "id": "mouse-pansci/stomach",
+      "result": "/home/users/chensj16/oak/data/sc/mouse-pansci/eca-pp/stomach/identify_columns/result.json",
+      "kind": "control",
+      "expect": {
+        "cell_type": "Main_cell_type",
+        "column_class": {
+          "batch": "technical",
+          "Age_group": "condition",
+          "Genotype": "condition"
+        },
+        "final_batch": null
+      },
+      "why": "same obs schema as the hard cases; model got it right natively"
+    },
+    {
+      "id": "3ca/Aynaud2020_CellLines",
+      "result": "/home/users/chensj16/oak/data/sc/3ca/eca-pp/v05-comparison-20260904/Aynaud2020_othermodels_CellLines/identify_columns/result.json",
+      "kind": "hard",
+      "expect": {
+        "column_class": {
+          "cell_cycle_phase": "per_cell_state"
+        }
+      },
+      "why": "50cd3da: per-cell state (cell-cycle phase) was ranked as batch because it was the only probeable column"
+    },
+    {
+      "id": "abm-ilcp/ann0608",
+      "result": "/home/users/chensj16/oak/data/sc/abm-ilcp/eca-pp/identify_columns-v3/result.json",
+      "kind": "hard",
+      "expect": {
+        "cell_type": "ann0608"
+      },
+      "why": "1b40a71/38cc972: v0.4 rule prefilter made the real annotation column unselectable"
+    },
+    {
+      "id": "tabula-muris-drop/Mammary_Gland",
+      "result": "/home/users/chensj16/oak/data/sc/tabula-muris-drop/eca-pp/Mammary_Gland/identify_columns/result.json",
+      "kind": "hard",
+      "expect": {
+        "cell_type": "cell_ontology_class"
+      },
+      "why": "tracker CAVEATS: agent returned explicit null and cli.py did not fall back; cell_ontology_class is the obvious column"
+    },
+    {
+      "id": "tabula-muris-facs/Kidney",
+      "result": "/home/users/chensj16/oak/data/sc/tabula-muris-facs/eca-pp/Kidney/identify_columns/result.json",
+      "kind": "hard",
+      "expect": {
+        "final_batch": null
+      },
+      "why": "empty-string artefact: 1-63% of cells have blank tissue/mouse.id, the profiler treats blank as a real group and 'annotated vs unannotated' looks like a batch"
+    }
+  ]
+}
