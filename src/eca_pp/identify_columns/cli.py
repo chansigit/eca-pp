@@ -117,7 +117,12 @@ def classify_column(entry: dict) -> str:
     probed)."""
     n = _norm(entry["column"])
     if (n.startswith(("pctcounts", "percent", "nfeature", "ncount", "ngenes"))
-            or n in {"totalcounts", "doubletscore", "scrubletscore", "pctmt", "pcthb"}):
+            or n in {"totalcounts", "doubletscore", "scrubletscore", "pctmt", "pcthb",
+                     "ncells", "ncell"}):
+        # ncells/ncell: a per-sample cell-count metadata scalar copied onto every
+        # cell of that sample (author-supplied summary stats, not a per-cell
+        # measurement) -- recurs across the corpus as an 'other'-classified
+        # dead end (59 datasets), never a technical/donor/cell-type factor.
         return "qc_numeric"
     if (n in ANNOTATION_EXACT or ANNOTATION_AFFIX.search(entry["column"])
             or any(t in n for t in ANNOTATION_TOKENS)):

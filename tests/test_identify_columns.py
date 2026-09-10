@@ -388,6 +388,20 @@ def test_sex_and_gender_columns_are_never_probeable(tmp_path):
         assert col not in [c["label"] for c in res["candidates"]["cell_type"]]
 
 
+def test_per_sample_cell_count_metadata_is_never_probeable(tmp_path):
+    """Real corpus finding: n_cells is an author-supplied per-sample total
+    copied onto every cell of that sample -- a disguised sample id, not a
+    technical/donor factor or a cell type. Recurs across 59 3CA datasets
+    classified 'other' with no consistent verdict."""
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
+        "n_cells": np.array([100, 200, 300] * (n // 3))})
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
+    assert classify_column(_entry("n_cells", {"100": 1, "200": 1}, dtype="int")) == "qc_numeric"
+    assert "n_cells" not in [c["label"] for c in res["candidates"]["batch"]]
+    assert "n_cells" not in [c["label"] for c in res["candidates"]["cell_type"]]
+
+
 def test_cell_type_ranking_prefers_annotation_over_clusters(tmp_path):
     """Seurat-style obs: seurat_clusters precedes the manual annotation."""
     n = 600
