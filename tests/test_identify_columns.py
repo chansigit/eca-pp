@@ -19,6 +19,8 @@ from eca_pp.identify_columns.cli import (
     build_evidence,
     classify_column,
     main,
+    qualifies,
+    trial_verdict,
 )
 from eca_pp.identify_columns.policies import HeuristicClassifier, PolicyUnavailable
 
@@ -478,7 +480,9 @@ def test_unnamed_text_column_chosen_from_values_is_accepted(tmp_path):
     assert not any(w["code"] == "cell_type_not_found" for w in res["warnings"])
 
 
-def test_condition_batch_is_allowed_but_warned(tmp_path):
+def test_condition_batch_is_probed_but_never_adopted(tmp_path):
+    """issue #1: a strong effect on a column the classifier called `condition` is
+    biological signal — the trial is kept as evidence, the batch stays null."""
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
     import anndata as ad
     A = ad.read_h5ad(src)
@@ -487,8 +491,28 @@ def test_condition_batch_is_allowed_but_warned(tmp_path):
     clf = ScriptedClassifier(["stage"], "cell_type")
     clf.answer["batch_ranked"][0]["class"] = "condition"
     code, res, _ = run(tmp_path, src, clf, "--n-cells", 600)
-    assert code == 0 and res["columns"]["batch"]["value"] == "stage"
-    assert any(w["code"] == "biological_batch_fallback" for w in res["warnings"])
+    assert code == 0 and res["columns"]["batch"] is None
+    (trial,) = res["trials"]
+    assert trial["class"] == "condition" and trial["verdict"] == "biological"
+    assert qualifies(trial["metrics"])  # the metrics alone would have adopted it
+    assert "stage: biological" in res["columns"]["batch_evidence"]
+    assert any(w["code"] == "batch_evidence_insufficient" for w in res["warnings"])
+    assert not any(w["code"] == "biological_batch_fallback" for w in res["warnings"])
+
+
+def test_trial_verdict_never_adopts_a_biological_grouping():
+    good = {"harmony_converged": True, "ilisi_norm_pre": 0.1, "ilisi_norm_post": 0.4,
+            "clisi_norm_pre": 0.9, "clisi_norm_post": 0.9, "clisi_labels": "annotated",
+            "pc_regression_r2": 0.3}
+    mixed = {**good, "ilisi_norm_pre": 0.9, "ilisi_norm_post": 0.9, "pc_regression_r2": 0.01}
+    bad = {**good, "ilisi_norm_post": 0.12}
+    assert trial_verdict(good, "technical") == "adopted"
+    assert trial_verdict(mixed, "donor") == "correction_unnecessary"
+    assert trial_verdict(bad, "technical") == "rejected"
+    for cls in ("condition", "other"):
+        assert trial_verdict(good, cls) == "biological"
+        assert trial_verdict(mixed, cls) == "biological"
+        assert trial_verdict(bad, cls) == "rejected"
 
 
 def test_pseudo_clisi_uses_weaker_but_still_conservative_veto():

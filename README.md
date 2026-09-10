@@ -65,7 +65,7 @@ ECA-PP gives these recurring problems a shared treatment:
 
 - **Metadata choices supported by data.** Small integration trials test batch
   candidates for improved mixing and preservation of cell-type structure.
-  Technical and donor factors take priority over biological conditions.
+  Biological conditions are probed as evidence but never adopted as the batch.
 
 - **Automation you can inspect.** Model suggestions pass programmatic checks;
   built-in rules keep column identification moving when a model is unavailable.

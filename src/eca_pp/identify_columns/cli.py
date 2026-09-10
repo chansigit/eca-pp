@@ -46,6 +46,7 @@ PRE_MIXED_PCR = 0.05                 # ...together with PC-regression R2 below
 ILISI_GAIN_MIN = 0.05                # normalized iLISI gain required to adopt
 CLISI_DROP_TOL = 0.05                # annotated cLISI drop tolerance
 PSEUDO_CLISI_DROP_TOL = 0.15         # pseudo-labels are weaker evidence
+BIOLOGICAL_CLASSES = ("condition", "other")   # probed as evidence, never adopted (issue #1)
 CELLS_PER_BATCH = 50                 # adaptive sampling: expected cells/batch
 N_CELLS_FLOOR, N_CELLS_CAP = 5000, 30000
 MAX_PROBES = 2                       # the classifier ranks; probes verify in order
@@ -331,6 +332,19 @@ def correction_unnecessary(m: dict) -> bool:
                 and m.get("pc_regression_r2", 1.0) <= PRE_MIXED_PCR)
 
 
+def trial_verdict(m: dict, cls: str | None) -> str:
+    """Verdict for one probed candidate: its metrics, then the class the classifier gave it."""
+    if correction_unnecessary(m):
+        verdict = "correction_unnecessary"
+    elif qualifies(m):
+        verdict = "adopted"
+    else:
+        return "rejected"
+    # issue #1: Harmony mixes any grouping, so a gain on a condition column means biological
+    # signal removed, not an artefact removed. The trial stays as evidence; the batch stays null.
+    return "biological" if cls in BIOLOGICAL_CLASSES else verdict
+
+
 # ------------------------------------------------------------------- flow
 
 def _adaptive_n_cells(candidates: dict, override: int | None) -> int:
@@ -352,7 +366,7 @@ def _candidate_spec(adata, cand: dict, outdir: str) -> str:
 
 
 def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
-               cell_type_spec: str | None, outdir: str) -> dict:
+               cell_type_spec: str | None, outdir: str, cls: str | None) -> dict:
     spec = _candidate_spec(adata, cand, outdir)
     trial_dir = os.path.join(outdir, f"trial_{trial_no}")
     argv = [args.src, "-o", trial_dir, "--batch-col", spec,
@@ -374,14 +388,7 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
             f"integration probe returned unexpected exit code {code} "
             f"for {cand['label']!r}"
         )
-    if code == EXIT_REJECTED:
-        verdict = "rejected"
-    elif correction_unnecessary(m):
-        verdict = "correction_unnecessary"
-    elif qualifies(m):
-        verdict = "adopted"
-    else:
-        verdict = "rejected"
+    verdict = "rejected" if code == EXIT_REJECTED else trial_verdict(m, cls)
     return {"batch_col": cand["label"], "spec": spec,
             "cell_type_col": cell_type_spec, "exit_code": code,
             "metrics": {k: m.get(k) for k in
@@ -392,7 +399,7 @@ def _run_trial(args, adata, cand: dict, n_cells: int, trial_no: int,
                          "cell_type_coverage_sampled", "n_cells_clisi",
                          "harmony_converged", "n_batches",
                          "n_batches_sampled", "pc_regression_r2", "timings")},
-            "verdict": verdict,
+            "verdict": verdict, "class": cls,
             "probe_reasons": pr.get("reasons") or [],
             "reason": ""}
 
@@ -649,9 +656,8 @@ def _run(args, res: dict, classifier) -> int:
         cand = by_label[b["column"]]
         t1 = time.perf_counter()
         trial = _run_trial(args, adata, cand, n_cells, len(trials) + 1,
-                           ct_spec, args.outdir)
+                           ct_spec, args.outdir, b.get("class") or cand["class"])
         trial["reason"] = b.get("reason", "")
-        trial["class"] = b.get("class") or cand["class"]
         trials.append(trial)
         timings[f"trial_{len(trials)}"] = round(time.perf_counter() - t1, 3)
         log.info("trial %d: %s -> %s", len(trials), cand["label"], trial["verdict"])
@@ -674,11 +680,6 @@ def _run(args, res: dict, classifier) -> int:
                        "correction": ("recommended" if trial["verdict"] == "adopted"
                                       else "unnecessary"),
                        "confidence": 0.9, "evidence": evidence}
-        if trial["class"] in ("condition", "other"):
-            _warn(res, "biological_batch_fallback",
-                  "selected batch is an experimental condition or unclassified grouping, "
-                  "not a technical/donor factor",
-                  candidate=cand["label"], candidate_class=trial["class"])
         if cand.get("missing_frac", 0):
             _warn(res, "selected_batch_has_missing_values",
                   "selected batch column contains missing values",

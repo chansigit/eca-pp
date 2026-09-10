@@ -76,7 +76,9 @@ result.json 输出 → 退出码汇报);内部只有**一次**模型调用:模�
 4. **程序验证**:按排序依次 probe(≤ `--max-probes`,默认 2),第一个满足
    "收敛 + iLISI 提升 ≥0.05 + cLISI 不劣化"或"整合前已混合"的候选即为结论;
    全部不合格 → `batch: null` + 结构化 warning,不猜测。
-5. 采纳实验条件或语义不明的分组做批次时记 `biological_batch_fallback`。
+5. 模型判为实验条件或语义不明(class `condition` / `other`)的候选照常 probe、
+   指标照常记录,但即使合格也不采纳(verdict `biological`),继续试下一候选:
+   Harmony 会混合任何分组,条件列上的 iLISI 增益是被抹去的生物学信号,不是批次效应。
 
 ## 5. integration-probe · CLI 契约(确定性工具)
 
@@ -232,7 +234,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
                              "timings": { "load": 0.0, "hvg_pca": 0.0,
                                           "labels": 0.0, "harmony": 0.0,
                                           "lisi": 0.0, "total": 0.0 } },
-                "verdict": "adopted | rejected | correction_unnecessary",
+                "verdict": "adopted | rejected | correction_unnecessary | biological",
                 "class": "模型给该候选的类别", "reason": "模型的排序理由",
                 "probe_reasons": [] } ],
   "columns": {
