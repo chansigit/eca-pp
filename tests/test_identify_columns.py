@@ -369,6 +369,25 @@ def test_cell_state_columns_are_never_probeable(tmp_path):
     assert "cell_cycle_phase" not in [c["label"] for c in res["candidates"]["cell_type"]]
 
 
+def test_sex_and_gender_columns_are_never_probeable(tmp_path):
+    """issue #8 follow-up: a run classified 'Gender' as class donor and adopted
+    it (iLISI gain 0.38 on mouse-pansci/BAT_WT) -- sex is a biological
+    attribute of the individual, never a batch, regardless of what a model's
+    own judgement would call it. Excluding it from the candidate list (like
+    cell-cycle phase) makes it impossible for a model to submit it at all,
+    not merely unlikely."""
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
+        "sex": np.array(["M", "F"] * (n // 2)),
+        "Gender": np.array(["Male", "Female"] * (n // 2))})
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
+    assert classify_column(_entry("sex", {"M": 1, "F": 1})) == "sex"
+    assert classify_column(_entry("Gender", {"Male": 1, "Female": 1})) == "sex"
+    for col in ("sex", "Gender"):
+        assert col not in [c["label"] for c in res["candidates"]["batch"]]
+        assert col not in [c["label"] for c in res["candidates"]["cell_type"]]
+
+
 def test_cell_type_ranking_prefers_annotation_over_clusters(tmp_path):
     """Seurat-style obs: seurat_clusters precedes the manual annotation."""
     n = 600

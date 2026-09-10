@@ -58,7 +58,7 @@ DONOR_TOKENS = ("donor", "mouse", "patient", "subject", "individual", "animal",
                 "sample", "specimen", "rep")
 CONDITION_TOKENS = ("condition", "disease", "treatment", "treat", "stim",
                     "genotype", "timepoint", "time", "stage", "diet", "dose",
-                    "age", "sex", "group")
+                    "age", "group")
 ANNOTATION_TOKENS = ("celltype", "annotation", "ontology", "class",
                      "lineage", "subtype", "celllabel")
 ANNOTATION_EXACT = frozenset({"ct", "celltype", "celltypes", "celllabel",
@@ -71,6 +71,11 @@ ANNOTATION_AFFIX = re.compile(r"(?i)(^|[_.\s])ann(?:\d+|_?v?\d+)?([_.\s]|$)")
 CLUSTER_TOKENS = ("cluster", "louvain", "leiden")
 # Per-cell biological states (cell-cycle phase, ...): never a batch factor.
 STATE_TOKENS = ("cellcycle", "phase", "cyclestate")
+# Sex/gender: a real biological attribute of the individual, not a technical
+# or donor-processing factor. It is never a batch, no matter what a model's
+# own judgement would have called it (issue #8 follow-up: 'Gender' slipped
+# past the condition/other guard from #1 by getting classified 'donor').
+SEX_TOKENS = ("sex", "gender")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -106,9 +111,10 @@ def _norm(name: str) -> str:
 
 def classify_column(entry: dict) -> str:
     """Name heuristic: technical | donor | condition | annotation | cluster |
-    state | qc_numeric | identifier | constant | other. A hint for the model
-    and the deterministic fallback; it also defines the probeable set (state /
-    annotation / cluster / qc / identifier columns are never probed)."""
+    state | sex | qc_numeric | identifier | constant | other. A hint for the
+    model and the deterministic fallback; it also defines the probeable set
+    (state / sex / annotation / cluster / qc / identifier columns are never
+    probed)."""
     n = _norm(entry["column"])
     if (n.startswith(("pctcounts", "percent", "nfeature", "ncount", "ngenes"))
             or n in {"totalcounts", "doubletscore", "scrubletscore", "pctmt", "pcthb"}):
@@ -124,6 +130,8 @@ def classify_column(entry: dict) -> str:
         return "qc_numeric"
     if any(t in n for t in STATE_TOKENS):
         return "state"
+    if any(t in n for t in SEX_TOKENS):
+        return "sex"
     for tokens, label in ((CLUSTER_TOKENS, "cluster"),
                           (TECH_TOKENS, "technical"),
                           (DONOR_TOKENS, "donor"),

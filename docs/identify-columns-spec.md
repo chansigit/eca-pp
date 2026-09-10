@@ -352,7 +352,7 @@ values are the truth — and answer two questions in one submission.
    none exists.
 
 Also classify each grouping column (technical/donor/condition/annotation/
-cluster/state/qc_numeric/identifier/constant/other) in "columns".
+cluster/state/sex/qc_numeric/identifier/constant/other) in "columns".
 
 Submit exactly this JSON through the provided tool:
 {"batch_ranked": [{"column": "<name>", "class": "<class>", "reason": "<why, citing values>"}],

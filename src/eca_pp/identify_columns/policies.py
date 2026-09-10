@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 
 CLASSES = ("technical", "donor", "condition", "annotation", "cluster", "state",
-           "qc_numeric", "identifier", "constant", "other")
+           "sex", "qc_numeric", "identifier", "constant", "other")
 MAX_BATCH_RANKED = 3
 
 
@@ -185,9 +185,11 @@ values are the truth — and answer two questions in one submission.
      "<batch>-<cell type>" (e.g. "ABM2-ILC2P.4"), is batch x annotation:
      use the coarser technical column instead.
    - Never a batch: annotation columns, QC numbers, per-cell identifiers,
-     constants, cluster IDs, and per-cell biological STATES such as cell-cycle
-     phase, activation/stress state, or doublet/QC bins — correcting on them
-     would erase biology. Only columns listed as probeable are allowed, but
+     constants, cluster IDs, per-cell biological STATES such as cell-cycle
+     phase, activation/stress state, or doublet/QC bins, and SEX/GENDER —
+     correcting on any of these would erase biology, and sex specifically is
+     never a technical or donor-processing factor no matter how the values
+     look. Only columns listed as probeable are allowed, but
      "probeable" only means the program can run a trial on it, not that it
      is a batch: return an EMPTY list rather than a state or annotation
      column when no sample/technical structure exists.
@@ -201,7 +203,7 @@ values are the truth — and answer two questions in one submission.
    none exists.
 
 Also classify each grouping column (technical/donor/condition/annotation/
-cluster/state/qc_numeric/identifier/constant/other) in "columns".
+cluster/state/sex/qc_numeric/identifier/constant/other) in "columns".
 
 Submit exactly this JSON through the provided tool:
 {"batch_ranked": [{"column": "<name>", "class": "<class>", "reason": "<why, citing values>"}],
