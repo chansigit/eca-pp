@@ -524,9 +524,11 @@ def test_unnamed_text_column_chosen_from_values_is_accepted(tmp_path):
     assert not any(w["code"] == "cell_type_not_found" for w in res["warnings"])
 
 
-def test_condition_batch_is_probed_but_never_adopted(tmp_path):
-    """issue #1: a strong effect on a column the classifier called `condition` is
-    biological signal — the trial is kept as evidence, the batch stays null."""
+def test_condition_batch_is_adopted_with_a_warning(tmp_path):
+    """2026-09-10: #1's class-based guard was reverted by the repo owner --
+    cross-sample cell-type alignment matters more here than preserving
+    biological variance, so a condition-classified column that genuinely
+    mixes the data is adopted like any other, just flagged."""
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
     import anndata as ad
     A = ad.read_h5ad(src)
@@ -535,27 +537,23 @@ def test_condition_batch_is_probed_but_never_adopted(tmp_path):
     clf = ScriptedClassifier(["stage"], "cell_type")
     clf.answer["batch_ranked"][0]["class"] = "condition"
     code, res, _ = run(tmp_path, src, clf, "--n-cells", 600)
-    assert code == 0 and res["columns"]["batch"] is None
+    assert code == 0 and res["columns"]["batch"]["value"] == "stage"
     (trial,) = res["trials"]
-    assert trial["class"] == "condition" and trial["verdict"] == "biological"
-    assert qualifies(trial["metrics"])  # the metrics alone would have adopted it
-    assert "stage: biological" in res["columns"]["batch_evidence"]
-    assert any(w["code"] == "batch_evidence_insufficient" for w in res["warnings"])
-    assert not any(w["code"] == "biological_batch_fallback" for w in res["warnings"])
+    assert trial["class"] == "condition" and trial["verdict"] == "adopted"
+    assert any(w["code"] == "biological_batch_fallback" for w in res["warnings"])
 
 
-def test_trial_verdict_never_adopts_a_biological_grouping():
+def test_trial_verdict_is_class_blind():
+    """2026-09-10: the class a candidate was given (technical/donor/condition/
+    other) no longer changes its verdict -- only the metrics do."""
     good = {"harmony_converged": True, "ilisi_norm_pre": 0.1, "ilisi_norm_post": 0.4,
             "clisi_norm_pre": 0.9, "clisi_norm_post": 0.9, "clisi_labels": "annotated",
             "pc_regression_r2": 0.3}
     mixed = {**good, "ilisi_norm_pre": 0.9, "ilisi_norm_post": 0.9, "pc_regression_r2": 0.01}
     bad = {**good, "ilisi_norm_post": 0.12}
-    assert trial_verdict(good, "technical") == "adopted"
-    assert trial_verdict(mixed, "donor") == "correction_unnecessary"
-    assert trial_verdict(bad, "technical") == "rejected"
-    for cls in ("condition", "other"):
-        assert trial_verdict(good, cls) == "biological"
-        assert trial_verdict(mixed, cls) == "biological"
+    for cls in ("technical", "donor", "condition", "other", None):
+        assert trial_verdict(good, cls) == "adopted"
+        assert trial_verdict(mixed, cls) == "correction_unnecessary"
         assert trial_verdict(bad, cls) == "rejected"
 
 

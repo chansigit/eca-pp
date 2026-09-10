@@ -46,7 +46,6 @@ PRE_MIXED_PCR = 0.05                 # ...together with PC-regression R2 below
 ILISI_GAIN_MIN = 0.05                # normalized iLISI gain required to adopt
 CLISI_DROP_TOL = 0.05                # annotated cLISI drop tolerance
 PSEUDO_CLISI_DROP_TOL = 0.15         # pseudo-labels are weaker evidence
-BIOLOGICAL_CLASSES = ("condition", "other")   # probed as evidence, never adopted (issue #1)
 CELLS_PER_BATCH = 50                 # adaptive sampling: expected cells/batch
 N_CELLS_FLOOR, N_CELLS_CAP = 5000, 30000
 MAX_PROBES = 2                       # the classifier ranks; probes verify in order
@@ -353,16 +352,22 @@ def correction_unnecessary(m: dict) -> bool:
 
 
 def trial_verdict(m: dict, cls: str | None) -> str:
-    """Verdict for one probed candidate: its metrics, then the class the classifier gave it."""
+    """Verdict for one probed candidate, from its metrics alone.
+
+    Deliberately class-blind (2026-09-10, reverting #1's guard): the pipeline's
+    purpose is aligning the same cell type across samples for comparison, and
+    that goal does not care whether the grouping Harmony corrected was
+    technical or biological (condition, donor, ...) in origin -- if the probe
+    shows real, clean mixing, it is adopted. `cls` is kept as a parameter only
+    so callers do not need to change; it no longer affects the verdict. The
+    caller still records and warns on the class of whatever gets adopted
+    (`biological_batch_fallback`), so this is visible, not silent.
+    """
     if correction_unnecessary(m):
-        verdict = "correction_unnecessary"
-    elif qualifies(m):
-        verdict = "adopted"
-    else:
-        return "rejected"
-    # issue #1: Harmony mixes any grouping, so a gain on a condition column means biological
-    # signal removed, not an artefact removed. The trial stays as evidence; the batch stays null.
-    return "biological" if cls in BIOLOGICAL_CLASSES else verdict
+        return "correction_unnecessary"
+    if qualifies(m):
+        return "adopted"
+    return "rejected"
 
 
 # ------------------------------------------------------------------- flow
@@ -700,6 +705,11 @@ def _run(args, res: dict, classifier) -> int:
                        "correction": ("recommended" if trial["verdict"] == "adopted"
                                       else "unnecessary"),
                        "confidence": 0.9, "evidence": evidence}
+        if trial["class"] in ("condition", "other"):
+            _warn(res, "biological_batch_fallback",
+                  "selected batch is an experimental condition or unclassified grouping, "
+                  "not a technical/donor factor",
+                  candidate=cand["label"], candidate_class=trial["class"])
         if cand.get("missing_frac", 0):
             _warn(res, "selected_batch_has_missing_values",
                   "selected batch column contains missing values",

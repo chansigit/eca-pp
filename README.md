@@ -64,8 +64,11 @@ ECA-PP gives these recurring problems a shared treatment:
   on the same final gene set.
 
 - **Metadata choices supported by data.** Small integration trials test batch
-  candidates for improved mixing and preservation of cell-type structure.
-  Biological conditions are probed as evidence but never adopted as the batch.
+  candidates for improved mixing and preservation of cell-type structure. The
+  goal is the same cell type aligning across samples; a candidate that
+  genuinely mixes the data is adopted whether its origin is technical or
+  biological (a condition/other-classified column is flagged when adopted,
+  not blocked).
 
 - **Automation you can inspect.** Model suggestions pass programmatic checks;
   built-in rules keep column identification moving when a model is unavailable.
