@@ -5,8 +5,9 @@
 #
 # Fixups:
 #   - unset PYTHONPATH    : drop Lmod's py3.12 numpy/h5py that shadow the venv
-#   - eca-pp-ct python    : container-only interpreter (python312-slim.sif, glibc 2.41)
-#                           so official manylinux wheels work on this glibc-2.17 host.
+#   - eca-ct python       : container-only interpreter (python312-slim.sif, glibc 2.41),
+#                           shared with eca-rsi since phase 2 of the containerisation
+#                           (eca-pp#5) -- one venv, not a duplicate eca-pp-ct.
 #                           stancounts/stangene/eca-pp are editable-installed inside it,
 #                           so no STANGENE_SRC shadowing and no hdf5 module are needed.
 #                           Set ECA_PP_PYTHON=/path/to/python to override (e.g. a plain
@@ -29,7 +30,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PY="${ECA_PP_PYTHON:-/scratch/users/chensj16/venvs/eca-pp-ct/python}"
+PY="${ECA_PP_PYTHON:-/scratch/users/chensj16/venvs/eca-ct/python}"
 
 unset PYTHONPATH || true
 # The container wrapper forwards PYTHONPATH via APPTAINERENV_PYTHONPATH, so worktree
