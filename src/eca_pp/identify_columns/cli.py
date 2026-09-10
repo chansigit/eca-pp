@@ -68,6 +68,79 @@ ANNOTATION_EXACT = frozenset({"ct", "celltype", "celltypes", "celllabel",
 ANNOTATION_AFFIX = re.compile(r"(?i)(^|[_.\s])ann(?:\d+|_?v?\d+)?([_.\s]|$)")
 # Algorithmic cluster IDs: never the author's cell-type annotation.
 CLUSTER_TOKENS = ("cluster", "louvain", "leiden")
+# organ/tissue role (issue #3, part 1): deterministic only, no agent call --
+# either the whitelist recognizes it or the role is left null. Column-name
+# tokens; the value whitelist below is the stronger signal since a tissue
+# column is often named something generic (group, region, source).
+ORGAN_NAME_TOKENS = ("tissue", "organ")
+# Substring-safe (>=4 chars, checked against _norm(value)): built from the
+# actual tissue/organ vocabulary observed across mca1.1/2.0/3.0, tabula-muris,
+# tabula-sapiens, 3CA and mouse-pansci (2026-09-10). "adult"/"fetal"/"neonatal"
+# prefixes and free-text suffixes (mammary_gland.lactation) are handled by
+# substring containment, not exact match.
+ORGAN_VALUE_TOKENS = frozenset({
+    "kidney", "liver", "heart", "lung", "spleen", "skin", "muscle", "pancreas",
+    "stomach", "bladder", "ovary", "ovarian", "testis", "uterus", "prostate",
+    "thymus", "tongue", "trachea", "colon", "intestine", "marrow", "placenta",
+    "brain", "blood", "vasculature", "aorta", "diaphragm", "mesenchyme",
+    "omentum", "calvaria", "pleura", "gonad", "mammary", "adrenal", "salivary",
+    "lymph", "esophagus", "gallbladder", "thyroid", "retina", "cornea",
+    "cerebellum", "hippocampus", "breast", "embryo", "biliary", "sarcoma",
+    "neuroendocrine", "hematologic", "pbmc",
+})
+# Short/ambiguous as a substring (a false hit costs nothing worse than a wrong
+# metadata label, but these are common enough as word fragments to warrant
+# exact-token matching instead): whole normalized value must equal one of
+# these, or one of these joined with an adult/fetal/neonatal age prefix.
+ORGAN_VALUE_EXACT = frozenset({
+    "ear", "eye", "rib", "fat", "bat", "gat", "scat", "mat", "csf",
+})
+_AGE_PREFIXES = ("adult", "fetal", "neonatal")
+
+
+def _organ_hit(value_norm: str) -> bool:
+    if any(t in value_norm for t in ORGAN_VALUE_TOKENS):
+        return True
+    stripped = value_norm
+    for p in _AGE_PREFIXES:
+        if stripped.startswith(p):
+            stripped = stripped[len(p):]
+            break
+    return stripped in ORGAN_VALUE_EXACT
+
+
+ORGAN_VALUE_COVERAGE_MIN = 0.5   # fraction of a column's distinct values that must hit the whitelist
+
+
+def identify_organ(profile: dict) -> dict | None:
+    """Deterministic organ/tissue role from a name + content whitelist,
+    no agent call. Confident when the column name says tissue/organ, or when
+    at least half its distinct non-missing values are recognized organ names
+    -- otherwise the role is left null rather than guessed by a model."""
+    best = None
+    for e in profile["columns"]:
+        if e["is_per_cell_unique"] or not (1 <= e["n_unique"] <= obsprofile.MAX_GROUPING_CARD):
+            continue
+        name_hit = any(t in _norm(e["column"]) for t in ORGAN_NAME_TOKENS)
+        values = [v for v in e["examples"] if v != "<NA>"]
+        if not values:
+            continue
+        hits = [v for v in values if _organ_hit(_norm(v))]
+        value_hit = len(hits) / len(values) >= ORGAN_VALUE_COVERAGE_MIN
+        if not (name_hit or value_hit):
+            continue
+        confidence = 0.9 if (name_hit and value_hit) else 0.7
+        candidate = {"label": e["column"], "n_groups": e["n_unique"],
+                    "confidence": confidence,
+                    "evidence": (f"column name matches organ/tissue" if name_hit else "") +
+                                (" and " if name_hit and value_hit else "") +
+                                (f"{len(hits)}/{len(values)} sampled values are recognized "
+                                 f"organ/tissue names" if value_hit else "")}
+        if best is None or candidate["confidence"] > best["confidence"]:
+            best = candidate
+    return best
+
+
 # Per-cell biological states (cell-cycle phase, ...): never a batch factor.
 STATE_TOKENS = ("cellcycle", "phase", "cyclestate")
 # Sex/gender: a real biological attribute of the individual, not a technical
@@ -574,7 +647,7 @@ def _warn_if_null_cell_type(res: dict, ct: dict | None, candidates: dict) -> Non
 
 def _finish(res: dict, batch_block: dict | None, ct_block: dict | None,
             batch_evidence: str | None = None) -> int:
-    res["columns"] = {"batch": batch_block, "cell_type": ct_block}
+    res["columns"] = {"batch": batch_block, "cell_type": ct_block, "organ": res.pop("organ", None)}
     if batch_block is None and batch_evidence:
         res["columns"]["batch_evidence"] = batch_evidence
     res["status"] = "ok"
@@ -591,6 +664,7 @@ def _run(args, res: dict, classifier) -> int:
     res["profile"] = profile
     candidates = build_candidates(profile)
     res["candidates"] = candidates
+    res["organ"] = identify_organ(profile)   # deterministic, no agent call
     res["thresholds"] = {
         "ilisi_gain_min": ILISI_GAIN_MIN, "clisi_drop_tol": CLISI_DROP_TOL,
         "pseudo_clisi_drop_tol": PSEUDO_CLISI_DROP_TOL,

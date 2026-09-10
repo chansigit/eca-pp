@@ -308,9 +308,18 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
 | 分类校验(mock SDK) | 排除列 / 不可探测列 / cluster 列 / 标识符被退回;合法答案通过 |
 | Tabula Muris 实际数据 | 正确识别 channel/mouse.id 类批次列与细胞类型列 |
 
+## 10.5 organ / tissue 角色(issue #3 part 1,2026-09-10)
+
+纯白名单判定,**不经过模型**:列名命中 `tissue`/`organ` 关键词,或该列取值里
+≥50% 命中已知器官/组织名表(建库自 mca1.1/2.0/3.0、tabula-muris、
+tabula-sapiens、3CA、mouse-pansci 的真实取值,`adult`/`fetal`/`neonatal`
+年龄前缀按子串处理),两者任一命中即采纳,同时命中则置信度更高。白名单判定
+不了就留 null,不追加模型调用兜底——省时间是代价也是设计:宁可漏判,不为
+这一个角色多花一次模型调用。结果落在 `columns.organ`,与 `batch`/`cell_type`
+同级。
+
 ## 11. 范围之外(non-goals)
 
-- organ / tissue 等其余角色——后续工作;
 - 写入规范 obs 列、修改任何输入 h5ad——本环节仅产出结论与证据;
 - 多协变量校正(Harmony 多 key)——后续工作;
 - 整合方法选型(scVI/MrVI probe)——probe 固定使用 Harmony,

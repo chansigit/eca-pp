@@ -413,6 +413,27 @@ def test_per_sample_cell_count_metadata_is_never_probeable(tmp_path):
     assert "n_cells" not in [c["label"] for c in res["candidates"]["cell_type"]]
 
 
+def test_organ_role_is_deterministic_from_a_name_and_value_whitelist(tmp_path):
+    """issue #3 part 1: organ/tissue is resolved by whitelist alone, no agent
+    call -- name match (tissue/organ) and/or content match (known organ
+    names) each count as evidence; a column that hits neither stays null."""
+    from eca_pp.identify_columns.cli import identify_organ
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
+        "tissue": np.array(["Kidney"] * n),
+        "region": np.array(["adultheart", "adultheart", "unrecognized_value"] * (n // 3)),
+        "notes": np.array(["free text a", "free text b"] * (n // 2))})
+    code, res, _ = run(tmp_path, src, None, "--no-probe")
+    assert res["columns"]["organ"]["label"] == "tissue"
+    assert res["columns"]["organ"]["confidence"] == 0.9   # name + value both hit
+    assert identify_organ({"columns": [
+        {"column": "region", "dtype": "string", "n_unique": 2, "is_per_cell_unique": False,
+         "examples": {"adultheart": 1, "unrecognized_value": 1}}]})["label"] == "region"
+    assert identify_organ({"columns": [
+        {"column": "notes", "dtype": "string", "n_unique": 2, "is_per_cell_unique": False,
+         "examples": {"free text a": 1, "free text b": 1}}]}) is None
+
+
 def test_cell_type_ranking_prefers_annotation_over_clusters(tmp_path):
     """Seurat-style obs: seurat_clusters precedes the manual annotation."""
     n = 600
