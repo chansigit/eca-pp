@@ -388,6 +388,17 @@ def test_sex_and_gender_columns_are_never_probeable(tmp_path):
         assert col not in [c["label"] for c in res["candidates"]["cell_type"]]
 
 
+def test_float_score_is_never_annotation_even_with_a_matching_name(tmp_path):
+    """A float dtype check must win over the name heuristic: a continuous
+    score named like an annotation (e.g. a per-cell classifier confidence
+    score called *_class or *_celltype_score) is qc_numeric, not annotation
+    -- it must never become a cell_type candidate just because of its name."""
+    assert classify_column(_entry("cell_type_score", {"0.5": 1, "0.9": 1}, dtype="float")) == "qc_numeric"
+    assert classify_column(_entry("prediction.class", {"0.1": 1, "0.8": 1}, dtype="float")) == "qc_numeric"
+    # a genuine annotation column (string dtype) is unaffected
+    assert classify_column(_entry("cell_type", {"T cell": 10, "B cell": 5})) == "annotation"
+
+
 def test_per_sample_cell_count_metadata_is_never_probeable(tmp_path):
     """Real corpus finding: n_cells is an author-supplied per-sample total
     copied onto every cell of that sample -- a disguised sample id, not a

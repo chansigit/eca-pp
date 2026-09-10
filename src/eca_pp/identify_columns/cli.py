@@ -116,6 +116,15 @@ def classify_column(entry: dict) -> str:
     (state / sex / annotation / cluster / qc / identifier columns are never
     probed)."""
     n = _norm(entry["column"])
+    # A continuous score is never a batch or a cell type no matter what its name
+    # looks like -- checked before the name heuristics below, because a column
+    # like "cell_type_score" would otherwise match the annotation tokens first
+    # and become eligible as a cell_type candidate despite being a float score,
+    # not discrete labels. (_dtype_of already reports whole-number-valued float
+    # arrays, e.g. factor codes with missing values, as "int", so this only
+    # catches genuine continuous values.)
+    if entry["dtype"] == "float":
+        return "qc_numeric"
     if (n.startswith(("pctcounts", "percent", "nfeature", "ncount", "ngenes"))
             or n in {"totalcounts", "doubletscore", "scrubletscore", "pctmt", "pcthb",
                      "ncells", "ncell"}):
@@ -131,8 +140,6 @@ def classify_column(entry: dict) -> str:
         return "constant"
     if entry["is_per_cell_unique"]:
         return "identifier"
-    if entry["dtype"] == "float":
-        return "qc_numeric"
     if any(t in n for t in STATE_TOKENS):
         return "state"
     if any(t in n for t in SEX_TOKENS):
