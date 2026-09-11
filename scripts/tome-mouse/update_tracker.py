@@ -23,11 +23,15 @@ def main():
     argv = sys.argv
     dry = "--dry-run" in argv
     def after(flag):
-        if flag not in argv: return []
-        out = []
-        for a in argv[argv.index(flag) + 1:]:
-            if a.startswith("--"): break
-            out.append(a)
+        # every occurrence of a repeatable flag, e.g. --note A --note B --note C
+        out, i = [], 0
+        while i < len(argv):
+            if argv[i] == flag:
+                i += 1
+                while i < len(argv) and not argv[i].startswith("--"):
+                    out.append(argv[i]); i += 1
+            else:
+                i += 1
         return out
     datasets = after("--datasets")
     skipped = [tuple(s.partition("=")[::2]) for s in after("--skipped")]

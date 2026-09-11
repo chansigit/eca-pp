@@ -120,11 +120,15 @@ def build_rows(datasets, skipped, extra_notes=()):
 def main():
     dry = "--dry-run" in sys.argv
     def after(flag):
-        if flag not in sys.argv: return []
-        out = []
-        for a in sys.argv[sys.argv.index(flag) + 1:]:
-            if a.startswith("--"): break
-            out.append(a)
+        # every occurrence of a repeatable flag, e.g. --note A --note B --note C
+        out, i = [], 0
+        while i < len(sys.argv):
+            if sys.argv[i] == flag:
+                i += 1
+                while i < len(sys.argv) and not sys.argv[i].startswith("--"):
+                    out.append(sys.argv[i]); i += 1
+            else:
+                i += 1
         return out
     datasets = after("--datasets")
     skipped = [tuple(spec.partition("=")[::2]) for spec in after("--skipped")]

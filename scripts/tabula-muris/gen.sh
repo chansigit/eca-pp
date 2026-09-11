@@ -19,10 +19,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 OAK_BASE=/home/users/chensj16/oak/data/sc
 WORK_BASE="$SCRATCH/eca-pp-runs"
-MODEL="${ECA_PP_AGENT_MODEL:-claude-sonnet-5}"
-# The default backend is HARNESS=openai (Doubao); a claude-* model only works
-# through HARNESS=claude, so pin the backend alongside the model.
-HARNESS="${HARNESS:-claude}"
+MODEL="${ECA_PP_AGENT_MODEL:-doubao-seed-2-1-turbo-260628}"
+# Backend and model are pinned as a pair: HARNESS=openai drives Doubao. Switch both
+# together (HARNESS=claude + ECA_PP_AGENT_MODEL=claude-sonnet-5) to use Claude;
+HARNESS="${HARNESS:-openai}"   # claude also works in the container (node+CLI are bound in)
 CLAUDE_CLI="${ECA_PP_CLAUDE_CLI:-$(command -v claude)}"
 MEM_MIN="${ECA_JOB_MEM_MIN:-64}"; MEM_MAX="${ECA_JOB_MEM_MAX:-240}"; TIME="${ECA_JOB_TIME:-04:00:00}"
 
