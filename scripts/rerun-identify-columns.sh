@@ -10,7 +10,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODEL="${ECA_PP_AGENT_MODEL:-doubao-seed-2-1-turbo-260628}"
 # Backend and model are pinned as a pair: HARNESS=openai drives Doubao (ARK_API_KEY from the environment).
 HARNESS="${HARNESS:-openai}"
-PY="${ECA_PP_PYTHON:-/scratch/users/chensj16/venvs/eca-pp-ct/python}"
+PY="${ECA_PP_PYTHON:-/home/groups/lei/chensj16/venvs/eca-pp-ct/python}"
 platform=auto; dry=
 while [ $# -gt 0 ]; do
   case $1 in --platform) platform=$2; shift 2;; --dry-run) dry=1; shift;; *) break;; esac

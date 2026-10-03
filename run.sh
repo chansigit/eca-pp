@@ -30,7 +30,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PY="${ECA_PP_PYTHON:-/scratch/users/chensj16/venvs/eca-ct/python}"
+PY="${ECA_PP_PYTHON:-/home/groups/lei/chensj16/venvs/eca-pp-ct/python}"
 
 unset PYTHONPATH || true
 # The container wrapper forwards PYTHONPATH via APPTAINERENV_PYTHONPATH, so worktree

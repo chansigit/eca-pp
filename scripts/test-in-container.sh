@@ -8,7 +8,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SIF="${1:-${ECA_SIF:-/scratch/users/chensj16/containers/python312-slim.sif}}"
+SIF="${1:-${ECA_SIF:-/home/groups/lei/chensj16/eca/images/base/python312-slim.sif}}"
 STANCOUNTS_SRC="${STANCOUNTS_SRC:-/home/users/chensj16/s/projects/stancounts}"
 STANGENE_SRC="${STANGENE_SRC:-/home/users/chensj16/s/projects/stangene}"
 PIP_CACHE="${PIP_CACHE:-$SCRATCH/pip-cache}"
