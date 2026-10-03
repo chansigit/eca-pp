@@ -1,7 +1,7 @@
 """obs 画像 — the three-layer deterministic evidence base (identify-columns
 spec §3): per-column stats with sampled values, group-size health for grouping
 columns, and the nesting/equivalence graph among them, plus derived-candidate
-enumeration (barcode prefix/suffix, two-column composites). Pure pandas/numpy;
+enumeration (barcode prefix/suffix/head, two-column composites). Pure pandas/numpy;
 agent and human reviewers read the same JSON.
 """
 
@@ -156,8 +156,13 @@ def barcode_candidates(obs_names: list, grouping: dict | None = None) -> list[di
     for d in BARCODE_DELIMS:
         if not s.str.contains(re.escape(d), regex=True).all():
             continue
-        for pos in ("prefix", "suffix"):
+        prefix = None
+        for pos in ("prefix", "suffix", "head"):
             vals = _split_barcode(s, pos, d)
+            if pos == "prefix":
+                prefix = vals
+            elif pos == "head" and vals.equals(prefix):
+                continue  # one delimiter in every name: the head is the prefix
             nun = int(vals.nunique())
             if 2 <= nun < n and nun <= MAX_GROUPING_CARD:
                 sizes = vals.value_counts()
@@ -193,8 +198,13 @@ def composite_candidates(grouping: dict) -> list[dict]:
 
 
 def _split_barcode(s: pd.Series, pos: str, delim: str) -> pd.Series:
+    """prefix: before the first delimiter; suffix: after the last; head: everything
+    before the last, i.e. the name without its barcode ("Donor1.M1-1.AAAC..." ->
+    "Donor1.M1-1", a library that neither the prefix nor the suffix shows)."""
     if pos == "prefix":
         return s.str.split(delim, n=1, regex=False).str[0]
+    if pos == "head":
+        return s.str.rsplit(delim, n=1).str[0]
     return s.str.rsplit(delim, n=1).str[-1]  # rsplit is always literal
 
 

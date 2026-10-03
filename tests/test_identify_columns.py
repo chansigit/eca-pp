@@ -140,13 +140,13 @@ def test_heuristic_classifier_concludes_unnecessary_without_effect(tmp_path):
 def test_ranked_candidates_are_probed_in_order_until_one_qualifies(tmp_path):
     n = 600
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
-        "micro": np.array([f"g{i % 12}" for i in range(n)])})  # 12 groups of 50
-    # "micro" is a random partition: neither a gain nor pre-mixed enough with
-    # 12 groups -> rejected; then "batch" is adopted.
-    clf = ScriptedClassifier(["micro", "batch"], "cell_type")
+        "lane_micro": np.array([f"g{i % 12}" for i in range(n)])})  # 12 groups of 50
+    # "lane_micro" is a random partition on the same rung as "batch": neither a
+    # gain nor pre-mixed enough with 12 groups -> rejected; then "batch" is adopted.
+    clf = ScriptedClassifier(["lane_micro", "batch"], "cell_type")
     code, res, _ = run(tmp_path, src, clf, "--n-cells", 600)
     assert code == 0
-    assert [t["batch_col"] for t in res["trials"]] == ["micro", "batch"]
+    assert [t["batch_col"] for t in res["trials"]] == ["lane_micro", "batch"]
     assert res["trials"][0]["verdict"] != "adopted"
     assert res["columns"]["batch"]["value"] == "batch"
 
@@ -171,11 +171,101 @@ def test_unprobeable_batch_choice_is_skipped_with_warning(tmp_path):
     assert warning["details"]["candidates"] == ["cell_type"]
 
 
-def test_empty_ranking_means_no_batch(tmp_path):
+def test_empty_ranking_still_probes_every_rung(tmp_path):
+    """2026-10-03 ladder: the probes, not the classifier, decide that a dataset
+    has no batch; an empty ranking leaves each rung to the heuristic's pick."""
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
-    code, res, _ = run(tmp_path, src, ScriptedClassifier([], "cell_type"))
-    assert code == 0 and res["columns"]["batch"] is None and not res["trials"]
-    assert any(w["code"] == "no_batch_candidate" for w in res["warnings"])
+    code, res, _ = run(tmp_path, src, ScriptedClassifier([], "cell_type"), "--n-cells", 600)
+    assert code == 0 and res["columns"]["batch"]["value"] == "batch"
+    assert res["ladder"] == [{"rung": 1, "label": "batch", "verdict": "adopted"}]
+
+
+def test_ladder_probes_a_higher_rung_before_the_classifiers_first_pick(tmp_path):
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
+        "Gender": np.array(["Male", "Female"] * (n // 2))})
+    clf = ScriptedClassifier(["Gender", "batch"], "cell_type")
+    code, res, _ = run(tmp_path, src, clf, "--n-cells", 600)
+    assert code == 0
+    assert [t["batch_col"] for t in res["trials"]] == ["batch"]
+    assert res["columns"]["batch"]["rung"] == 1
+    assert [(s["rung"], s["label"], s["verdict"]) for s in res["ladder"]] == [
+        (1, "batch", "adopted"), (3, "Gender", "not probed")]
+
+
+def test_ladder_falls_through_to_the_cell_names(tmp_path):
+    """No usable obs batch column: rung 2 finds the batch hidden in the names."""
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, barcode_batch=True,
+                                obs_extra={"lane_micro": np.array([f"g{i % 12}" for i in range(n)])})
+    clf = ScriptedClassifier(["lane_micro"], "cell_type")
+    code, res, _ = run(tmp_path, src, clf, "--n-cells", 600)
+    assert code == 0
+    assert [t["batch_col"] for t in res["trials"]] == ["lane_micro", "barcode:prefix:-"]
+    assert res["columns"]["batch"]["kind"] == "derived"
+    assert res["columns"]["batch"]["rung"] == 2
+    assert res["columns"]["library"] is None  # 600 cells fit one library
+
+
+def test_platform_detection():
+    from eca_pp.identify_columns.cli import detect_platform
+
+    def prof(**cols):
+        return {"columns": [_entry(name, values) for name, values in cols.items()]}
+
+    assert detect_platform(prof(bc1_well={"A1": 5}, sublibrary={"s1": 5}))["value"] == "split-pool"
+    assert detect_platform(prof(reagent={"10X-V3": 85, "10X-V2": 75}))["value"] == "droplet"
+    assert detect_platform(prof(technology={"MARS-seq": 300, "": 20}))["value"] == "plate"
+    assert detect_platform(prof(technology={"modified inDrop platform": 9}))["value"] == "droplet"
+    assert detect_platform(prof(sample={"s1": 5}))["value"] == "unknown"
+    flagged = detect_platform(prof(reagent={"10X-V3": 1}), "split-pool")
+    assert flagged == {"value": "split-pool", "source": "flag", "evidence": "--platform split-pool"}
+
+
+def test_split_pool_never_uses_wells_or_barcode_segments(tmp_path):
+    import anndata as ad
+
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, barcode_batch=True, obs_extra={
+        "bc1_well": np.array([f"A{i % 4}" for i in range(n)]),
+        "bc2_wind": np.array([f"{i % 5}" for i in range(n)]),  # Parse well index, not "technical" by name
+        "sublibrary": np.array([f"s{i % 3}" for i in range(n)]),
+        "Gender": np.array(["Male", "Female"] * (n // 2))})
+    profile = obsprofile.profile_obs(ad.read_h5ad(src))
+    batch = {c["label"]: c for c in build_candidates(profile, "split-pool")["batch"]}
+    for label in ("bc1_well", "bc2_wind", "sublibrary", "barcode:prefix:-"):
+        assert batch[label]["excluded"] and "split-pool" in batch[label]["note"]
+    assert not batch["Gender"]["excluded"] and batch["Gender"]["rung"] == 3
+    droplet = {c["label"]: c for c in build_candidates(profile, "droplet")["batch"]}
+    assert not droplet["barcode:prefix:-"]["excluded"]
+    code, res, _ = run(tmp_path, src, None, "--no-probe", "--platform", "auto")
+    assert res["platform"]["value"] == "split-pool"
+
+
+def test_library_splits_a_batch_too_big_for_one_library():
+    """Hua Heart: two donors of 75-85k cells on 10x; the 23 libraries live in the
+    cell names ("Donor1.M1-1.<barcode>")."""
+    import anndata as ad
+    import pandas as pd
+    import scipy.sparse as sp
+    from eca_pp.identify_columns.cli import candidate_values, find_library
+
+    n = 600
+    donor = np.repeat(["Donor1", "Donor2"], n // 2)
+    lib = np.array([f"M{(i % 300) // 100}" for i in range(n)])  # 3 libraries per donor
+    A = ad.AnnData(X=sp.csr_matrix((n, 5), dtype=np.float32))
+    A.obs_names = pd.Index([f"{d}.{m}.CELL{i:05d}" for i, (d, m) in enumerate(zip(donor, lib))],
+                           dtype=object)
+    A.obs["donor"] = donor
+    A.obs["lane"] = np.array([f"g{i % 6}" for i in range(n)])  # crosses donors: not nested
+    candidates = build_candidates(obsprofile.profile_obs(A), "droplet")
+    by_label = {c["label"]: c for c in candidates["batch"]}
+    donors = candidate_values(A, by_label["donor"])
+    cand, values = find_library(A, candidates, donors, cap=200, floor=50)
+    assert cand["label"] == "barcode:head:." and values.nunique() == 6
+    assert find_library(A, candidates, donors, cap=300, floor=50) == (None, None)
+    cand, _ = find_library(A, candidates, None, cap=200, floor=50)  # no batch: anything that fits
+    assert cand["label"] == "lane"
 
 
 def test_derived_barcode_batch_materialized_as_tsv(tmp_path):
@@ -369,13 +459,12 @@ def test_cell_state_columns_are_never_probeable(tmp_path):
     assert "cell_cycle_phase" not in [c["label"] for c in res["candidates"]["cell_type"]]
 
 
-def test_sex_and_gender_columns_are_never_probeable(tmp_path):
-    """issue #8 follow-up: a run classified 'Gender' as class donor and adopted
-    it (iLISI gain 0.38 on mouse-pansci/BAT_WT) -- sex is a biological
-    attribute of the individual, never a batch, regardless of what a model's
-    own judgement would call it. Excluding it from the candidate list (like
-    cell-cycle phase) makes it impossible for a model to submit it at all,
-    not merely unlikely."""
+def test_sex_and_gender_are_last_rung_batch_candidates(tmp_path):
+    """issue #8 kept sex out of the donor class ('Gender' classified donor was
+    adopted on mouse-pansci/BAT_WT). Since 2026-10-03 (owner) sex is a rung-3
+    batch candidate: an atlas aligns one cell type across sexes, and sex is
+    the fallback when no technical or cell-name batch exists. It is still
+    never a cell type."""
     n = 600
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0, obs_extra={
         "sex": np.array(["M", "F"] * (n // 2)),
@@ -383,8 +472,10 @@ def test_sex_and_gender_columns_are_never_probeable(tmp_path):
     code, res, _ = run(tmp_path, src, None, "--no-probe")
     assert classify_column(_entry("sex", {"M": 1, "F": 1})) == "sex"
     assert classify_column(_entry("Gender", {"Male": 1, "Female": 1})) == "sex"
+    batch = {c["label"]: c for c in res["candidates"]["batch"]}
+    assert batch["batch"]["rung"] == 1
     for col in ("sex", "Gender"):
-        assert col not in [c["label"] for c in res["candidates"]["batch"]]
+        assert batch[col]["class"] == "sex" and batch[col]["rung"] == 3
         assert col not in [c["label"] for c in res["candidates"]["cell_type"]]
 
 

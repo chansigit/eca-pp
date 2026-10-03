@@ -175,21 +175,28 @@ between grouping columns and derived candidates (barcode prefix/suffix,
 two-column composites). Read the VALUES of every column — names are hints,
 values are the truth — and answer two questions in one submission.
 
-1. BATCH column(s), ranked, at most 3. The program will run a small Harmony
-   integration trial on each in order and keep the first one that qualifies
+1. BATCH column(s), ranked, at most 3. The program runs a small Harmony
+   integration trial on candidates and keeps the first one that qualifies
    (clear iLISI gain with cell-type structure preserved, or "already mixed").
+   It probes in a fixed ladder: rung 1 existing technical and donor/sample
+   columns, rung 2 segments of the cell names (barcode prefix/suffix/head),
+   rung 3 conditions, sex and composites. Your order decides which candidate
+   goes first WITHIN a rung; the program fills a rung you leave empty.
    - Prefer technical factors (lane/channel/library/run/pool/10x well),
      then donor/sample/animal, then experimental condition. Among nested
      technical levels prefer the finest one whose groups are not mostly tiny.
+   - Sex/gender and age are biological covariates but legitimate last-resort
+     batches here (the data feeds atlases that align one cell type across
+     sexes and ages): rank them only when nothing technical or donor-like
+     exists.
    - A column nested inside a cell-type-like column, or whose values look like
      "<batch>-<cell type>" (e.g. "ABM2-ILC2P.4"), is batch x annotation:
      use the coarser technical column instead.
    - Never a batch: annotation columns, QC numbers, per-cell identifiers,
      constants, cluster IDs, per-cell biological STATES such as cell-cycle
-     phase, activation/stress state, or doublet/QC bins, and SEX/GENDER —
-     correcting on any of these would erase biology, and sex specifically is
-     never a technical or donor-processing factor no matter how the values
-     look. Only columns listed as probeable are allowed, but
+     phase, activation/stress state, or doublet/QC bins — correcting on any
+     of these would erase biology. Never class sex/gender as donor or
+     technical. Only columns listed as probeable are allowed, but
      "probeable" only means the program can run a trial on it, not that it
      is a batch: return an EMPTY list rather than a state or annotation
      column when no sample/technical structure exists.

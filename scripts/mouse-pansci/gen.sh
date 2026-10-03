@@ -10,6 +10,9 @@
 # in X, no layers) with obs pulled from all/full-dataset.h5ad and cells filtered at
 # nGenes>500 & nCounts>800; obs carries a `batch` column ({date}_EXP{n}_{sub}).
 #
+# PanSci is EasySci-RNA (combinatorial indexing): identify-columns runs with --platform split-pool, so the
+# plate wells (`batch`) and the RT-well barcode segments are never a batch.
+#
 # Same job body as scripts/uniChondro/gen.sh: standardize -> fill_missing -> identify-columns,
 # work on $SCRATCH, rsync back to <ds>/eca-pp/<organ>.
 #
@@ -95,7 +98,7 @@ echo "== fill empty batch strings with 'missing'"
 bash "\$REPO/run.sh" python "\$REPO/scripts/tabula-muris/fill_missing.py" "\$WORK/standardize/standardized.h5ad"
 rc=\$?; echo "fill-missing exit=\$rc" | tee -a status.txt; [ \$rc -eq 0 ] || exit \$rc
 echo "== identify-columns"
-bash "\$REPO/run.sh" identify-columns "\$WORK/standardize/standardized.h5ad" -o "\$WORK/identify_columns" --model "\$ECA_PP_AGENT_MODEL"
+bash "\$REPO/run.sh" identify-columns "\$WORK/standardize/standardized.h5ad" -o "\$WORK/identify_columns" --platform split-pool --model "\$ECA_PP_AGENT_MODEL"
 rc=\$?; echo "identify-columns exit=\$rc" | tee -a status.txt; exit \$rc
 EOF
   n=$((n+1))

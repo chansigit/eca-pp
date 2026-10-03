@@ -73,7 +73,7 @@ result.json 输出 → 退出码汇报);内部只有**一次**模型调用:模�
    缩写),列名无关紧要(ann0608、ImmGen_refine、labels_v2 皆可);绝不是算法
    聚类(leiden/louvain/seurat_clusters/纯整数)。多列并存时取命名可辨且粒度
    可用者,其余在理由中提及;不存在则 null。
-4. **程序验证**:按排序依次 probe(≤ `--max-probes`,默认 2),第一个满足
+4. **程序验证**:按阶梯依次 probe(≤ `--max-probes`,默认 4;阶梯见 §10.6),第一个满足
    "收敛 + iLISI 提升 ≥0.05 + cLISI 不劣化"或"整合前已混合"的候选即为结论;
    全部不合格 → `batch: null` + 结构化 warning,不猜测。
 5. 判定跟 class 无关(2026-09-10 撤销此前的 condition/other 一律不采纳规则):
@@ -141,7 +141,8 @@ scVI / MrVI),批次列的身份判定与层级选择与整合方法无关。已�
 
 ```bash
 eca-pp-identify-columns SRC.h5ad -o OUTDIR \
-    [--max-probes 2] [--n-cells 5000] [--no-probe] [--seed 0] [--model ID]
+    [--max-probes 4] [--n-cells 5000] [--no-probe] [--seed 0] [--model ID]
+    [--platform auto|droplet|plate|microwell|split-pool]
 ```
 
 流程:
@@ -155,7 +156,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
    非 cluster;不合法的提交连同原因退回模型在同一会话内改正
 ④ 细胞类型列:直接采用分类结果;名字启发式未识别为 annotation 的列被选中时
    记 `cell_type_identified_from_values`;常量注释仍是有效输出但不用于 cLISI
-⑤ 按 batch_ranked 顺序 probe(≤ max-probes),首个合格者即结论;
+⑤ 按阶梯顺序 probe(≤ max-probes,§10.6),首个合格者即结论;
    cell_type 作为 cLISI 标签列
 ⑥ 判定写入 result.json;选中派生列时另写值文件(§8)
 ```
@@ -192,7 +193,7 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
   "status": "ok | error",
   "exit_code": 0,
   "src": "…/standardized.h5ad",
-  "params": { "max_probes": 2, "n_cells": 5000, "no_probe": false, "seed": 0 },
+  "params": { "max_probes": 4, "n_cells": 5000, "no_probe": false, "seed": 0, "platform": "auto" },
   "profile": {
     "columns": [ { "column": "", "dtype": "", "n_unique": 0, "entropy": 0.0,
                    "missing_frac": 0.0, "examples": { "<取值>": 0 },
@@ -318,6 +319,40 @@ tabula-sapiens、3CA、mouse-pansci 的真实取值,`adult`/`fetal`/`neonatal`
 这一个角色多花一次模型调用。结果落在 `columns.organ`,与 `batch`/`cell_type`
 同级。
 
+## 10.6 批次阶梯、平台与文库(0.5.2,2026-10-03)
+
+owner 的定位:数据用于构建图谱和 foundation model 训练集,目标是把不同条件下的同一类细胞
+认成一类;性别、年龄、化学版本、供体都是正当的批次信号。批次识别按固定阶梯进行,而不是
+完全依赖模型排序:
+
+- **阶**:代码给每个候选定档(`candidates.batch[].rung`)。
+  - 第 1 档:现有列中类别为 technical / donor 的(样本、文库、通道、供体)。
+  - 第 2 档:细胞名派生(barcode prefix / suffix / **head**;head = 去掉最后一段后的全部,
+    如 `Donor1.M1-1.<barcode>` → `Donor1.M1-1`)。
+  - 第 3 档:condition(化学版本、年龄等)、**sex**(此前永不参与,现为最后一档)、other,
+    以及两列组合。
+- **顺序**:模型的排序只决定同一档内的先后;代码按档稳定排序,并给模型没排到的档补上
+  启发式第一名。probe 默认最多 4 次,遇到 adopted 或 correction_unnecessary 即停。
+  `result.ladder` 记录每个候选的档与结局(adopted / rejected / correction_unnecessary /
+  not probed),`columns.batch.rung` 记录采用的档。
+- **平台**(`result.platform = {value, source, evidence}`):`--platform` 优先;否则
+  Parse/SPLiT-seq 的 barcode 列(`bc1_well`、`bc2_wind`、`sublibrary` 等)→ split-pool;
+  technology / reagent / assay 类列的取值(10x、Chromium、inDrop、Drop-seq → droplet;
+  MARS-seq、Smart-seq、CEL-seq → plate;Rhapsody、Seq-Well → microwell)按细胞数投票;
+  都没有 → unknown。
+- **split-pool**(Parse Evercode、SPLiT-seq、sci-RNA-seq3、EasySci):第 1 轮之后每个孔、
+  子文库、barcode 段都混有所有样本,是技术单位,没有批次效应。这些候选(technical 类、
+  barcode 列、所有细胞名派生、含它们的组合)标为 excluded,注明原因;"无批次"是正常结论。
+  PanSci 的 `scripts/mouse-pansci/gen.sh` 显式传 `--platform split-pool`。
+- **文库**(`columns.library`,仅 droplet / microwell / unknown):一个 10x 通道最多回收
+  约 2 万细胞;采用的批次(无批次时为整个数据集)若有一组超过 3 万细胞,说明文库信息丢了。
+  此时在候选中按档、再按组数从多到少,找第一个嵌套在批次之内、每组 200–3 万细胞的分组,
+  写入 `columns.library`(派生值写 `library.tsv`)。下游(eca-rsi)用它做单样本 QC 单位,
+  批次仍是 `columns.batch`。Hua Heart:批次 = 供体(≡ reagent),文库 = 细胞名 head 的
+  23 个文库,每个 5–9.6 千细胞。
+- **重跑**:`scripts/rerun-identify-columns.sh [--platform P] <eca-pp 输出目录>...`,每个
+  目录一个 sbatch,原地重跑,旧结果由本环节移入 `identify_columns/.history/`。
+
 ## 11. 范围之外(non-goals)
 
 - 写入规范 obs 列、修改任何输入 h5ad——本环节仅产出结论与证据;
@@ -337,19 +372,28 @@ between grouping columns and derived candidates (barcode prefix/suffix,
 two-column composites). Read the VALUES of every column — names are hints,
 values are the truth — and answer two questions in one submission.
 
-1. BATCH column(s), ranked, at most 3. The program will run a small Harmony
-   integration trial on each in order and keep the first one that qualifies
+1. BATCH column(s), ranked, at most 3. The program runs a small Harmony
+   integration trial on candidates and keeps the first one that qualifies
    (clear iLISI gain with cell-type structure preserved, or "already mixed").
+   It probes in a fixed ladder: rung 1 existing technical and donor/sample
+   columns, rung 2 segments of the cell names (barcode prefix/suffix/head),
+   rung 3 conditions, sex and composites. Your order decides which candidate
+   goes first WITHIN a rung; the program fills a rung you leave empty.
    - Prefer technical factors (lane/channel/library/run/pool/10x well),
      then donor/sample/animal, then experimental condition. Among nested
      technical levels prefer the finest one whose groups are not mostly tiny.
+   - Sex/gender and age are biological covariates but legitimate last-resort
+     batches here (the data feeds atlases that align one cell type across
+     sexes and ages): rank them only when nothing technical or donor-like
+     exists.
    - A column nested inside a cell-type-like column, or whose values look like
      "<batch>-<cell type>" (e.g. "ABM2-ILC2P.4"), is batch x annotation:
      use the coarser technical column instead.
    - Never a batch: annotation columns, QC numbers, per-cell identifiers,
-     constants, cluster IDs, and per-cell biological STATES such as cell-cycle
-     phase, activation/stress state, or doublet/QC bins — correcting on them
-     would erase biology. Only columns listed as probeable are allowed, but
+     constants, cluster IDs, per-cell biological STATES such as cell-cycle
+     phase, activation/stress state, or doublet/QC bins — correcting on any
+     of these would erase biology. Never class sex/gender as donor or
+     technical. Only columns listed as probeable are allowed, but
      "probeable" only means the program can run a trial on it, not that it
      is a batch: return an EMPTY list rather than a state or annotation
      column when no sample/technical structure exists.

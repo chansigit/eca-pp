@@ -115,3 +115,19 @@ def test_derived_candidates_carry_group_health():
                    if d["label"] == "barcode:prefix:-")
     assert barcode["group_sizes"]["n_groups"] == 3
     assert 0 <= barcode["entropy"] <= 1
+
+
+def test_head_candidate_is_the_name_without_its_barcode():
+    """Hua Heart names its cells "Donor1.M1-1.<barcode>": the library shows only
+    in everything before the last delimiter."""
+    names = [f"Donor{d}.M{m}-1.ACGT{i:04d}" for i, (d, m) in
+             enumerate((d, m) for d in (1, 2) for m in range(3) for _ in range(20))]
+    got = {c["label"]: c for c in obsprofile.barcode_candidates(names)}
+    assert got["barcode:head:."]["n_groups"] == 6
+    assert got["barcode:prefix:."]["n_groups"] == 2
+    A = ad.AnnData(X=sp.csr_matrix((len(names), 3), dtype=np.float32))
+    A.obs_names = pd.Index(names, dtype=object)
+    assert obsprofile.derive_values(A, "barcode:head:.").iloc[0] == "Donor1.M0-1"
+    # one delimiter: the head is the prefix and is not listed twice
+    single = {c["label"] for c in obsprofile.barcode_candidates([f"b{i % 2}-C{i}" for i in range(40)])}
+    assert "barcode:head:-" not in single and "barcode:prefix:-" in single
