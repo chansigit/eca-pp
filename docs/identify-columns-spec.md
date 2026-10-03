@@ -345,9 +345,11 @@ owner 的定位:数据用于构建图谱和 foundation model 训练集,目标是
   barcode 列、所有细胞名派生、含它们的组合)标为 excluded,注明原因;"无批次"是正常结论。
   PanSci 的 `scripts/mouse-pansci/gen.sh` 显式传 `--platform split-pool`。
 - **文库**(`columns.library`,仅 droplet / microwell / unknown):一个 10x 通道最多回收
-  约 2 万细胞;采用的批次(无批次时为整个数据集)若有一组超过 3 万细胞,说明文库信息丢了。
-  此时在候选中按档、再按组数从多到少,找第一个嵌套在批次之内、每组 200–3 万细胞的分组,
-  写入 `columns.library`(派生值写 `library.tsv`)。下游(eca-rsi)用它做单样本 QC 单位,
+  约 2 万细胞,超过 3 万细胞的组一定是多个文库。在第 1、2 档候选中按档、再按组数从多到少,
+  找第一个比批次更细、嵌套在批次之内(无批次时为整个数据集)、每组 200–3 万细胞的分组,
+  写入 `columns.library`(派生值写 `library.tsv`);找不到就不写,批次即 QC 单位。这样即使
+  采用的批次较粗(患者、组),单样本 QC 仍按文库做:9 月已发布的 3CA 数据里,它找回了
+  Wu2020、Yost2019、Wang2019 原来的 `sample`,并在另外 5 个数据集的细胞名里找到 GEM 编号。下游(eca-rsi)用它做单样本 QC 单位,
   批次仍是 `columns.batch`。Hua Heart:批次 = 供体(≡ reagent),文库 = 细胞名 head 的
   23 个文库,每个 5–9.6 千细胞。
 - **重跑**:`scripts/rerun-identify-columns.sh [--platform P] <eca-pp 输出目录>...`,每个

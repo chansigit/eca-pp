@@ -13,8 +13,9 @@ rung 2 segments of the cell names, rung 3 conditions, sex and their
 composites. The model orders candidates within a rung; the code never lets a
 lower rung go before a higher one and gives every rung at least one probe.
 The platform (``--platform``, else detected) excludes the split-pool
-technical units, and on droplet-like platforms a batch whose groups are too
-big for one library gets a finer ``library`` column for per-sample QC.
+technical units; on droplet-like platforms the finest grouping nested in the
+batch whose groups fit one library becomes ``library``, the per-sample QC
+unit.
 """
 
 from __future__ import annotations
@@ -75,7 +76,8 @@ SPLIT_POOL_NOTE = ("split-pool technical unit: every well, sublibrary and barcod
 # The largest group one library can hold: a 10x channel recovers at most ~20k cells (GEM-X), so on
 # a droplet-like platform a bigger group is several libraries whose identity was lost (Hua Heart:
 # two donors of 75-85k cells, 23 libraries hidden in the cell names). Plates and split-pool have
-# no such unit. Unknown platforms are treated as droplet-like.
+# no such unit. Unknown platforms are treated as droplet-like. The library (per-sample QC unit) is the
+# finest existing column or cell-name segment nested in the batch whose groups fit one library.
 LIBRARY_MAX_CELLS = 30000
 LIBRARY_MIN_CELLS = 200
 
@@ -560,16 +562,17 @@ def candidate_values(adata, cand: dict):
 
 def find_library(adata, candidates: dict, batch, cap: int = LIBRARY_MAX_CELLS,
                  floor: int = LIBRARY_MIN_CELLS):
-    """(candidate, values) of the finest grouping that splits groups too big
-    for one library: nested in the batch when there is one, every group
-    between `floor` and `cap` cells; rung order first, then more groups.
-    (None, None) when the batch (or the whole dataset) fits one library or
-    nothing qualifies."""
-    biggest = int(batch.value_counts().max()) if batch is not None else adata.n_obs
-    if biggest <= cap:
-        return None, None
+    """(candidate, values) of the per-sample QC unit when it is finer than the
+    batch: the first existing column or cell-name segment (rungs 1-2, in
+    ladder order) that splits the batch (or, without one, the dataset) into
+    more groups, nested in it, every group between `floor` and `cap` cells.
+    (None, None) when nothing qualifies: then the batch is the unit.
+    A coarse adopted batch (patient, group) keeps its libraries this way: on
+    the September releases it gave back the `sample` of Wu2020, Yost2019 and
+    Wang2019 and found GEM-well suffixes in five more 3CA datasets."""
+    n_batch = batch.nunique() if batch is not None else 1
     for c in candidates["batch"]:  # sorted: rung, class, more groups first
-        if c["excluded"] or c.get("equivalent_to"):
+        if c["excluded"] or c.get("equivalent_to") or c["rung"] > 2 or c["n_groups"] <= n_batch:
             continue
         values = candidate_values(adata, c)
         counts = values.value_counts()
@@ -598,10 +601,9 @@ def _library_block(adata, candidates: dict, platform: str, batch_cand: dict | No
     where = f"batch {batch_cand['label']!r}" if batch_cand else "the dataset"
     return {"value": value, "kind": kind, "label": cand["label"], "rung": cand["rung"],
             "n_groups": int(len(counts)),
-            "evidence": (f"{where} has a group of more than {LIBRARY_MAX_CELLS} cells, more "
-                         f"than one library holds on a {platform} platform; "
-                         f"{cand['label']} splits it into {len(counts)} groups of "
-                         f"{int(counts.min())}-{int(counts.max())} cells")}
+            "evidence": (f"{cand['label']} splits {where} into {len(counts)} groups of "
+                         f"{int(counts.min())}-{int(counts.max())} cells, each within one "
+                         f"library on a {platform} platform (at most {LIBRARY_MAX_CELLS})")}
 
 
 def _candidate_spec(adata, cand: dict, outdir: str) -> str:

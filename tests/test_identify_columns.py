@@ -263,7 +263,11 @@ def test_library_splits_a_batch_too_big_for_one_library():
     donors = candidate_values(A, by_label["donor"])
     cand, values = find_library(A, candidates, donors, cap=200, floor=50)
     assert cand["label"] == "barcode:head:." and values.nunique() == 6
-    assert find_library(A, candidates, donors, cap=300, floor=50) == (None, None)
+    # finer than the batch even when the batch would fit (a patient batch keeps its samples)
+    assert find_library(A, candidates, donors, cap=300, floor=50)[0]["label"] == "barcode:head:."
+    libraries = candidate_values(A, by_label["barcode:head:."])
+    assert find_library(A, candidates, libraries, cap=300, floor=50) == (None, None)  # nothing finer
+    assert find_library(A, candidates, donors, cap=200, floor=150) == (None, None)  # groups too small
     cand, _ = find_library(A, candidates, None, cap=200, floor=50)  # no batch: anything that fits
     assert cand["label"] == "lane"
 
