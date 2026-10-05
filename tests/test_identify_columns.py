@@ -318,6 +318,19 @@ def test_no_grouping_columns_concludes_no_batch(tmp_path):
     assert code == 0
     assert res["columns"]["batch"] is None
     assert any(w["code"] == "no_batch_candidate" for w in res["warnings"])
+    assert res["sample_unit"]["value"] == "whole" and res["n_obs"] <= 30000  # fits one library
+
+
+def test_sample_unit_is_the_library_then_the_batch_then_the_whole_dataset_or_stop():
+    from eca_pp.identify_columns.cli import sample_unit
+    library, batch = {"evidence": "23 libraries"}, {"label": "donor"}
+    assert sample_unit(batch, library, "droplet", 160_000)["value"] == "library"
+    assert sample_unit(batch, None, "droplet", 160_000)["value"] == "batch"
+    assert sample_unit(None, None, "split-pool", 465_000)["value"] == "whole"
+    assert sample_unit(None, None, "plate", 200_000)["value"] == "whole"
+    assert sample_unit(None, None, "droplet", 8_000)["value"] == "whole"
+    stop = sample_unit(None, None, "unknown", 200_000)
+    assert stop["value"] == "stop" and "--platform" in stop["reason"]
 
 
 def test_agent_unavailable_continues_deterministically(tmp_path):

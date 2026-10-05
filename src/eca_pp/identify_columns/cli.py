@@ -798,6 +798,28 @@ def _warn_if_null_cell_type(res: dict, ct: dict | None, candidates: dict) -> Non
               "no author cell-type annotation found; cell_type is null")
 
 
+def sample_unit(batch_block: dict | None, library: dict | None, platform: str, n_obs: int) -> dict:
+    """The per-sample QC unit a pipeline should take (eca-rsi decision 0016, owner 2026-10-03): the library
+    when one was found, else the batch, else the whole dataset when it is one sample by construction --
+    a split-pool or plate assay has no library unit, and a dataset that fits one library is one -- and
+    otherwise "stop": a large droplet-like dataset with no batch lost its library identity, and only
+    the owner (a sample map) or a re-run with --platform may decide it. Downstream reads this verdict
+    and keeps no copy of the rule."""
+    if library:
+        return {"value": "library", "reason": library["evidence"]}
+    if batch_block:
+        return {"value": "batch", "reason": f"batch {batch_block.get('label') or batch_block.get('value')!r}"}
+    if platform in ("split-pool", "plate"):
+        return {"value": "whole", "reason": f"no batch on a {platform} platform, whose wells are no samples"}
+    if n_obs <= LIBRARY_MAX_CELLS:
+        return {"value": "whole", "reason": f"no batch; {n_obs} cells fit one library (at most {LIBRARY_MAX_CELLS})"}
+    return {"value": "stop", "reason": (
+        f"{n_obs} cells and no batch on a {platform} platform: more than one library holds "
+        f"(> {LIBRARY_MAX_CELLS}), so the library identity was lost. Name the sample column in the "
+        "pipeline's sample map, or re-run identify-columns with --platform when the assay is split-pool "
+        "(Parse, SPLiT-seq, EasySci, sci-RNA-seq3)")}
+
+
 def _finish(res: dict, batch_block: dict | None, ct_block: dict | None,
             batch_evidence: str | None = None, library: dict | None = None) -> int:
     res["columns"] = {"batch": batch_block, "cell_type": ct_block, "organ": res.pop("organ", None),
@@ -881,6 +903,8 @@ def _run(args, res: dict, classifier) -> int:
                                            if t["batch_col"] == b["column"]), "not probed")}
                          for b in ranked]
         library = _library_block(adata, candidates, platform["value"], batch_cand, args.outdir)
+        res["n_obs"] = int(adata.n_obs)
+        res["sample_unit"] = sample_unit(batch_block, library, platform["value"], adata.n_obs)
         return _finish(res, batch_block, ct_block, evidence, library)
 
     # ③ verify the ranked batch candidates in order

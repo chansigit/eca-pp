@@ -352,6 +352,11 @@ owner 的定位:数据用于构建图谱和 foundation model 训练集,目标是
   Wu2020、Yost2019、Wang2019 原来的 `sample`,并在另外 5 个数据集的细胞名里找到 GEM 编号。下游(eca-rsi)用它做单样本 QC 单位,
   批次仍是 `columns.batch`。Hua Heart:批次 = 供体(≡ reagent),文库 = 细胞名 head 的
   23 个文库,每个 5–9.6 千细胞。
+- **样本单位**(`result.sample_unit = {value, reason}`,0.5.4 起,另有 `result.n_obs`):下游取什么做
+  单样本 QC 单位的结论,规则只写在这里(`cli.sample_unit`),下游不再保留副本:有文库取 `library`;
+  否则有批次取 `batch`;都没有时,split-pool / plate 平台或不超过 3 万细胞取 `whole`(整个数据集是一个
+  样本);否则 `stop`(大的液滴类数据没有批次,文库信息已丢,只能由下游的 sample map 指定或带
+  `--platform` 重跑)。是否做批次校正仍看 `columns.batch.correction`。
 - **重跑**:`scripts/rerun-identify-columns.sh [--platform P] <eca-pp 输出目录>...`,每个
   目录一个 sbatch,原地重跑,旧结果由本环节移入 `identify_columns/.history/`。
 
