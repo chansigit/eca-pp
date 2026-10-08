@@ -325,6 +325,10 @@ def test_sample_unit_is_the_library_then_the_batch_then_the_whole_dataset_or_sto
     from eca_pp.identify_columns.cli import sample_unit
     library, batch = {"evidence": "23 libraries"}, {"label": "donor"}
     assert sample_unit(batch, library, "droplet", 160_000)["value"] == "library"
+    sample = {"label": "sample_id", "evidence": "rung-1 donor column"}
+    assert sample_unit(batch, library, "split-pool", 160_000, sample)["value"] == "library"
+    assert sample_unit(batch, None, "split-pool", 160_000, sample)["value"] == "sample"
+    assert sample_unit(None, None, "split-pool", 160_000, sample)["value"] == "sample"
     assert sample_unit(batch, None, "droplet", 160_000)["value"] == "batch"
     assert sample_unit(None, None, "split-pool", 465_000)["value"] == "whole"
     assert sample_unit(None, None, "plate", 200_000)["value"] == "whole"
@@ -695,3 +699,26 @@ def test_pseudo_clisi_uses_weaker_but_still_conservative_veto():
     assert qualifies({**base, "clisi_labels": "pseudo"})
     assert not qualifies({**base, "clisi_labels": "pseudo",
                            "clisi_norm_post": 0.7})
+
+
+def test_the_sample_is_the_rung1_column_when_harmony_takes_a_condition(tmp_path):
+    """Owner 2026-10-08 (eca-rsi #56), PanSci heart_Prkdc: the probe adopted Age_group and rejected sample_id
+    (age x sex); the batch stays Age_group, the per-sample QC unit is sample_id. Without a rung-1 column,
+    or with a rung-1 batch, nothing changes."""
+    import anndata as ad
+    n = 600
+    src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
+    A = ad.read_h5ad(src)
+    A.obs["Age_group"] = A.obs.pop("batch")
+    A.obs["sample_id"] = np.array([f"g{i % 12}" for i in range(n)])  # random: rejected
+    A.write_h5ad(src)
+    code, res, _ = run(tmp_path, src, ScriptedClassifier(["sample_id", "Age_group"], "cell_type"),
+                       "--n-cells", 600)
+    assert code == 0
+    assert [(s["label"], s["verdict"]) for s in res["ladder"]] == [("sample_id", "rejected"), ("Age_group", "adopted")]
+    assert res["columns"]["batch"]["label"] == "Age_group"
+    assert res["columns"]["sample"]["value"] == "sample_id" and "rejected" in res["columns"]["sample"]["evidence"]
+    assert res["sample_unit"]["value"] == "sample"
+    _, res, _ = run(tmp_path, make_integration_h5ad(tmp_path / "t.h5ad", effect=4.0),
+                    ScriptedClassifier(["batch"], "cell_type"), "--n-cells", 600)
+    assert res["columns"]["sample"] is None and res["sample_unit"]["value"] == "batch"

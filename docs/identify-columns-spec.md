@@ -246,7 +246,9 @@ eca-pp-identify-columns SRC.h5ad -o OUTDIR \
                "correction": "recommended | unnecessary | null",
                "confidence": 0.0, "evidence": "" },
     "cell_type": { "value": "", "kind": "existing", "confidence": 0.0,
-                   "evidence": "" } // 或 null;两者均为成功结果
+                   "evidence": "" }, // 或 null;两者均为成功结果
+    "library": { ... },  // 或 null,见 §10 文库
+    "sample": { "value": "obs 列名", "kind": "existing", "label": "", "evidence": "" }  // 或 null,0.5.5 起,见 §10 样本单位
   },
   "metrics": {
     "timings": {},
@@ -354,9 +356,13 @@ owner 的定位:数据用于构建图谱和 foundation model 训练集,目标是
   23 个文库,每个 5–9.6 千细胞。
 - **样本单位**(`result.sample_unit = {value, reason}`,0.5.4 起,另有 `result.n_obs`):下游取什么做
   单样本 QC 单位的结论,规则只写在这里(`cli.sample_unit`),下游不再保留副本:有文库取 `library`;
-  否则有批次取 `batch`;都没有时,split-pool / plate 平台或不超过 3 万细胞取 `whole`(整个数据集是一个
+  否则有 `columns.sample` 取 `sample`;否则有批次取 `batch`;都没有时,split-pool / plate 平台或不超过 3 万细胞取 `whole`(整个数据集是一个
   样本);否则 `stop`(大的液滴类数据没有批次,文库信息已丢,只能由下游的 sample map 指定或带
   `--platform` 重跑)。是否做批次校正仍看 `columns.batch.correction`。
+  - **样本与批次分开**(0.5.5 起,owner 2026-10-08,eca-rsi #56):样本是实验单位,不随 Harmony 校正什么而变。
+    采用的批次是第 3 档分组(条件、性别、组合),或没有候选通过试验,而阶梯里有第 1 档列(现有的技术 / 供体列)时,
+    第一个第 1 档列写入 `columns.sample`,作样本单位;它自己的试验结论只决定是否校正。条件或性别列仍可作批次
+    (2026-09-10 的规则不变)。PanSci heart_Prkdc:批次 = Age_group(采用),样本 = sample_id(年龄 × 性别,被拒)。
 - **重跑**:`scripts/rerun-identify-columns.sh [--platform P] <eca-pp 输出目录>...`,每个
   目录一个 sbatch,原地重跑,旧结果由本环节移入 `identify_columns/.history/`。
 

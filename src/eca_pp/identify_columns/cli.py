@@ -15,7 +15,9 @@ lower rung go before a higher one and gives every rung at least one probe.
 The platform (``--platform``, else detected) excludes the split-pool
 technical units; on droplet-like platforms the finest grouping nested in the
 batch whose groups fit one library becomes ``library``, the per-sample QC
-unit.
+unit. The sample is the experimental unit whatever Harmony corrects (owner
+2026-10-08, eca-rsi #56): when the batch is a rung-3 grouping or no candidate
+qualified, the first rung-1 column of the ladder is ``sample``.
 """
 
 from __future__ import annotations
@@ -798,15 +800,35 @@ def _warn_if_null_cell_type(res: dict, ct: dict | None, candidates: dict) -> Non
               "no author cell-type annotation found; cell_type is null")
 
 
-def sample_unit(batch_block: dict | None, library: dict | None, platform: str, n_obs: int) -> dict:
+def _sample_block(ranked: list, by_label: dict, batch_cand: dict | None, ladder: list) -> dict | None:
+    """The sample when the batch is no experimental unit (owner 2026-10-08, eca-rsi #56): a probe verdict only
+    decides what Harmony corrects, so when the batch is a rung-3 grouping (condition, sex, composite) or no
+    candidate qualified, the first rung-1 column of the ladder (an existing technical or donor column) is the
+    per-sample QC unit, whatever its own verdict. PanSci: Age_group adopted, sample_id (age x sex) rejected."""
+    if batch_cand is not None and batch_cand["rung"] < 3:
+        return None
+    first = next((by_label[b["column"]] for b in ranked if by_label[b["column"]]["rung"] == 1), None)
+    if first is None:
+        return None
+    verdict = next(s["verdict"] for s in ladder if s["label"] == first["label"])
+    return {"value": first["label"], "kind": "existing", "label": first["label"],
+            "evidence": (f"rung-1 {first['class']} column, {first['n_groups']} groups; its probe verdict "
+                         f"({verdict}) only decides the batch correction")}
+
+
+def sample_unit(batch_block: dict | None, library: dict | None, platform: str, n_obs: int,
+                sample: dict | None = None) -> dict:
     """The per-sample QC unit a pipeline should take (eca-rsi decision 0016, owner 2026-10-03): the library
-    when one was found, else the batch, else the whole dataset when it is one sample by construction --
+    when one was found, else the sample (`_sample_block`, owner 2026-10-08), else the batch, else the whole
+    dataset when it is one sample by construction --
     a split-pool or plate assay has no library unit, and a dataset that fits one library is one -- and
     otherwise "stop": a large droplet-like dataset with no batch lost its library identity, and only
     the owner (a sample map) or a re-run with --platform may decide it. Downstream reads this verdict
     and keeps no copy of the rule."""
     if library:
         return {"value": "library", "reason": library["evidence"]}
+    if sample:
+        return {"value": "sample", "reason": f"sample {sample['label']!r}: {sample['evidence']}"}
     if batch_block:
         return {"value": "batch", "reason": f"batch {batch_block.get('label') or batch_block.get('value')!r}"}
     if platform in ("split-pool", "plate"):
@@ -821,9 +843,9 @@ def sample_unit(batch_block: dict | None, library: dict | None, platform: str, n
 
 
 def _finish(res: dict, batch_block: dict | None, ct_block: dict | None,
-            batch_evidence: str | None = None, library: dict | None = None) -> int:
+            batch_evidence: str | None = None, library: dict | None = None, sample: dict | None = None) -> int:
     res["columns"] = {"batch": batch_block, "cell_type": ct_block, "organ": res.pop("organ", None),
-                      "library": library}
+                      "library": library, "sample": sample}
     if batch_block is None and batch_evidence:
         res["columns"]["batch_evidence"] = batch_evidence
     res["status"] = "ok"
@@ -897,15 +919,16 @@ def _run(args, res: dict, classifier) -> int:
     _warn_if_null_cell_type(res, ct, candidates)
     ct_spec = ct["label"] if ct and ct["usable_for_clisi"] else None
 
-    def finish(batch_block, ct_block, evidence=None, batch_cand=None):
+    def finish(batch_block, ct_block, evidence=None, batch_cand=None, probed=False):
         res["ladder"] = [{"rung": by_label[b["column"]]["rung"], "label": b["column"],
                           "verdict": next((t["verdict"] for t in trials
                                            if t["batch_col"] == b["column"]), "not probed")}
                          for b in ranked]
         library = _library_block(adata, candidates, platform["value"], batch_cand, args.outdir)
         res["n_obs"] = int(adata.n_obs)
-        res["sample_unit"] = sample_unit(batch_block, library, platform["value"], adata.n_obs)
-        return _finish(res, batch_block, ct_block, evidence, library)
+        sample = _sample_block(ranked, by_label, batch_cand, res["ladder"]) if probed and not library else None
+        res["sample_unit"] = sample_unit(batch_block, library, platform["value"], adata.n_obs, sample)
+        return _finish(res, batch_block, ct_block, evidence, library, sample)
 
     # ③ verify the ranked batch candidates in order
     trials = res["trials"] = []
@@ -978,13 +1001,13 @@ def _run(args, res: dict, classifier) -> int:
                   "selected batch column contains missing values",
                   candidate=cand["label"], missing_frac=cand["missing_frac"])
         return finish(batch_block, _ct_block(ct, classification, source, candidates, trials),
-                      batch_cand=cand)
+                      batch_cand=cand, probed=True)
     untried = [b["column"] for b in ranked[len(trials):]]
     reason = "no ranked batch candidate qualified in the probes (" + "; ".join(verdicts) + ")"
     if untried:
         reason += f"; not probed within --max-probes: {untried}"
     _warn(res, "batch_evidence_insufficient", reason)
-    return finish(None, _ct_block(ct, classification, source, candidates, trials), reason)
+    return finish(None, _ct_block(ct, classification, source, candidates, trials), reason, probed=True)
 
 
 def main(argv=None, *, classifier="auto") -> int:
