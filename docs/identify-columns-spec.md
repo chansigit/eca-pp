@@ -361,7 +361,8 @@ owner 的定位:数据用于构建图谱和 foundation model 训练集,目标是
   `--platform` 重跑)。是否做批次校正仍看 `columns.batch.correction`。
   - **样本与批次分开**(0.5.5 起,owner 2026-10-08,eca-rsi #56):样本是实验单位,不随 Harmony 校正什么而变。
     采用的批次是第 3 档分组(条件、性别、组合),或没有候选通过试验,而阶梯里有第 1 档列(现有的技术 / 供体列)时,
-    第一个第 1 档列写入 `columns.sample`,作样本单位;它自己的试验结论只决定是否校正。条件或性别列仍可作批次
+    第一个第 1 档列写入 `columns.sample`,作样本单位;它自己的试验结论只决定是否校正。样本须嵌套在批次内
+    (每个样本只有一个批次值,下游 Harmony 需要);跨批次的第 1 档列(同一供体多个时间点)不取,仍以批次为单位。条件或性别列仍可作批次
     (2026-09-10 的规则不变)。PanSci heart_Prkdc:批次 = Age_group(采用),样本 = sample_id(年龄 × 性别,被拒)。
 - **重跑**:`scripts/rerun-identify-columns.sh [--platform P] <eca-pp 输出目录>...`,每个
   目录一个 sbatch,原地重跑,旧结果由本环节移入 `identify_columns/.history/`。

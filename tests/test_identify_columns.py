@@ -703,22 +703,34 @@ def test_pseudo_clisi_uses_weaker_but_still_conservative_veto():
 
 def test_the_sample_is_the_rung1_column_when_harmony_takes_a_condition(tmp_path):
     """Owner 2026-10-08 (eca-rsi #56), PanSci heart_Prkdc: the probe adopted Age_group and rejected sample_id
-    (age x sex); the batch stays Age_group, the per-sample QC unit is sample_id. Without a rung-1 column,
-    or with a rung-1 batch, nothing changes."""
+    (age x sex); the batch stays Age_group, the per-sample QC unit is sample_id, which nests in it."""
+    from eca_pp.identify_columns.cli import _sample_block
+    sid = {"label": "sample_id", "rung": 1, "class": "donor", "n_groups": 4,
+           "nested_within": [{"column": "Age_group", "class": "condition"}]}
+    by_label = {"sample_id": sid, "Age_group": {"label": "Age_group", "rung": 3}, "lane": {"label": "lane", "rung": 1}}
+    ranked = [{"column": "sample_id"}, {"column": "Age_group"}]
+    ladder = [{"label": "sample_id", "verdict": "rejected"}, {"label": "Age_group", "verdict": "adopted"}]
+    block = _sample_block(ranked, by_label, by_label["Age_group"], ladder)
+    assert block["value"] == "sample_id" and "rejected" in block["evidence"]
+    assert _sample_block(ranked, by_label, None, ladder)["value"] == "sample_id"  # no batch qualified
+    assert _sample_block(ranked, by_label, by_label["lane"], ladder) is None  # a rung-1 batch is the unit
+    crossing = {**by_label, "sample_id": {**sid, "nested_within": []}}  # a donor seen in both age groups
+    assert _sample_block(ranked, crossing, by_label["Age_group"], ladder) is None
+    assert _sample_block([{"column": "Age_group"}], by_label, by_label["Age_group"], ladder) is None
+
+
+def test_result_names_the_sample_when_no_batch_qualified(tmp_path):
+    """PanSci brain_5xFAD: sample_id rejected and nothing else qualified on a split-pool assay; the unit is
+    sample_id, no longer the whole dataset. Once sample_id is the batch, it is the unit as before."""
     import anndata as ad
-    n = 600
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0)
     A = ad.read_h5ad(src)
-    A.obs["Age_group"] = A.obs.pop("batch")
-    A.obs["sample_id"] = np.array([f"g{i % 12}" for i in range(n)])  # random: rejected
+    A.obs["sample_id"] = A.obs.pop("batch")
     A.write_h5ad(src)
-    code, res, _ = run(tmp_path, src, ScriptedClassifier(["sample_id", "Age_group"], "cell_type"),
-                       "--n-cells", 600)
-    assert code == 0
-    assert [(s["label"], s["verdict"]) for s in res["ladder"]] == [("sample_id", "rejected"), ("Age_group", "adopted")]
-    assert res["columns"]["batch"]["label"] == "Age_group"
-    assert res["columns"]["sample"]["value"] == "sample_id" and "rejected" in res["columns"]["sample"]["evidence"]
-    assert res["sample_unit"]["value"] == "sample"
-    _, res, _ = run(tmp_path, make_integration_h5ad(tmp_path / "t.h5ad", effect=4.0),
-                    ScriptedClassifier(["batch"], "cell_type"), "--n-cells", 600)
+    clf = ScriptedClassifier(["sample_id"], "cell_type")
+    code, res, _ = run(tmp_path, src, clf, "--platform", "split-pool", "--max-probes", 0)
+    assert code == 0 and res["columns"]["batch"] is None and res["columns"]["library"] is None
+    assert res["columns"]["sample"]["value"] == "sample_id" and res["sample_unit"]["value"] == "sample"
+    _, res, _ = run(tmp_path, src, clf, "--platform", "split-pool", "--n-cells", 600)
+    assert res["columns"]["batch"]["value"] == "sample_id"
     assert res["columns"]["sample"] is None and res["sample_unit"]["value"] == "batch"

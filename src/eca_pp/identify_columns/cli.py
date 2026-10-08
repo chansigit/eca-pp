@@ -804,11 +804,14 @@ def _sample_block(ranked: list, by_label: dict, batch_cand: dict | None, ladder:
     """The sample when the batch is no experimental unit (owner 2026-10-08, eca-rsi #56): a probe verdict only
     decides what Harmony corrects, so when the batch is a rung-3 grouping (condition, sex, composite) or no
     candidate qualified, the first rung-1 column of the ladder (an existing technical or donor column) is the
-    per-sample QC unit, whatever its own verdict. PanSci: Age_group adopted, sample_id (age x sex) rejected."""
+    per-sample QC unit, whatever its own verdict. PanSci: Age_group adopted, sample_id (age x sex) rejected.
+    The sample must nest in the batch (one batch value per sample, as Harmony downstream needs); a rung-1 column
+    that crosses the batch (a donor seen at several timepoints) leaves the batch as the unit."""
     if batch_cand is not None and batch_cand["rung"] < 3:
         return None
     first = next((by_label[b["column"]] for b in ranked if by_label[b["column"]]["rung"] == 1), None)
-    if first is None:
+    if first is None or (batch_cand is not None and batch_cand["label"] not in
+                         {n["column"] for n in first.get("nested_within", [])}):
         return None
     verdict = next(s["verdict"] for s in ladder if s["label"] == first["label"])
     return {"value": first["label"], "kind": "existing", "label": first["label"],
