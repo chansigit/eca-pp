@@ -62,6 +62,22 @@ class _Stop(Exception):
         self.reasons = reasons
 
 
+def x_problem(X) -> str | None:
+    """Why X is not the standard form's log1p(normalize_total(counts)) (contract I2),
+    or None. Raw counts in X break HVG selection (the seurat flavor applies expm1):
+    a hand-made subset of tabula-sapiens did, 2026-09-07."""
+    from stancounts import detect_normalization
+
+    if X is None:
+        return "X is missing; run eca-pp-standardize or eca-pp-subset first"
+    d = detect_normalization(X)
+    if d["is_log1p"]:
+        return None
+    kind = "raw counts" if d["is_integer"] else "values that are not log1p-normalised"
+    return (f"X holds {kind} (max {d['max_value']:.4g}), not the standard form's "
+            f"log1p(normalize_total(counts)); run eca-pp-standardize or eca-pp-subset first")
+
+
 def _group_stats(values: pd.Series) -> dict:
     sizes = values.value_counts(dropna=True)
     if not len(sizes):
@@ -198,6 +214,9 @@ def _run(args, res: dict) -> int:
     t0 = time.perf_counter()
 
     adata = ad.read_h5ad(args.src)
+    problem = x_problem(adata.X)
+    if problem:
+        raise _Stop(EXIT_REJECTED, [problem])
     if adata.n_obs < MIN_CELLS:
         raise _Stop(EXIT_REJECTED, [f"only {adata.n_obs} cells (< {MIN_CELLS}) "
                                     f"— too small to probe"])

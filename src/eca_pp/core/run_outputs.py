@@ -19,8 +19,10 @@ def archive_outputs(outdir: str, step: str, src: str) -> None:
     if not root.is_dir():
         return
     names = {"result.json"}
-    if step == "standardize":
+    if step in ("standardize", "subset"):
         names.add("standardized.h5ad")
+    if step == "subset":
+        names.add("dropped_cells.csv.gz")
     elif step == "identify_columns":
         names.update({"batch.tsv", "candidates"})
     targets = [p for p in root.iterdir() if p.name in names or (

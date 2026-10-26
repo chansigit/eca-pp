@@ -861,6 +861,11 @@ def _run(args, res: dict, classifier) -> int:
     timings = res["metrics"].setdefault("timings", {})
     t0 = time.perf_counter()
     adata = ad.read_h5ad(args.src)
+    problem = probe.x_problem(adata.X)  # before the model call: the probes would fail on this X
+    if problem:
+        res["status"], res["rejected_at"] = "rejected", "input"
+        res["reasons"].append(problem)
+        return EXIT_REJECTED
     profile = obsprofile.profile_obs(adata)
     res["profile"] = profile
     platform = res["platform"] = detect_platform(profile, args.platform)

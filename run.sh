@@ -23,6 +23,7 @@
 #
 # ALWAYS run on a compute node, never the login node:
 #   bash run.sh standardize SRC.h5ad -o OUTDIR [--min-cells N ...]
+#   bash run.sh subset PRODUCT_DIR -o OUTDIR [--obs COL=VALUE ...] [--min-genes N] [--min-counts N]
 #   bash run.sh identify-columns STD.h5ad -o OUTDIR [--max-probes N ...]
 #   bash run.sh integration-probe STD.h5ad --batch-col COL -o OUTDIR
 #   bash run.sh test [pytest args]
@@ -45,10 +46,11 @@ cmd="${1:-}"
 shift || true
 case "$cmd" in
   standardize)       exec "$PY" -m eca_pp.standardize "$@" ;;
+  subset)            exec "$PY" -m eca_pp.subset "$@" ;;
   identify-columns)  exec "$PY" -m eca_pp.identify_columns "$@" ;;
   integration-probe) exec "$PY" -m eca_pp.probe "$@" ;;
   test)        cd "$REPO"
                exec "$PY" -m pytest -p no:cacheprovider -o addopts="" "$@" ;;
   python)      exec "$PY" "$@" ;;
-  *) echo "usage: bash run.sh {standardize|identify-columns|integration-probe|test|python} [args...]" >&2; exit 64 ;;
+  *) echo "usage: bash run.sh {standardize|subset|identify-columns|integration-probe|test|python} [args...]" >&2; exit 64 ;;
 esac

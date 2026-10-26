@@ -5,6 +5,7 @@
 > 原 F6(元数据角色识别)**移出本环节**,独立为 agent 型环节
 > [identify-columns](identify-columns-spec.md);F8(报告物)留此待做。
 > 原则:从 eca-prefect-v2 继承的是**需求**,不是代码;实现可以重写。
+> 从已标准化产物挑出一部分细胞,走 [subset](subset-spec.md)(0.5.6):输出同一标准形,不要手工派生。
 
 ## 1. 目标与架构原则
 
