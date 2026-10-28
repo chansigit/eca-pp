@@ -272,6 +272,25 @@ def test_library_splits_a_batch_too_big_for_one_library():
     assert cand["label"] == "lane"
 
 
+def test_one_small_library_does_not_hide_the_library_column():
+    """Tabula Sapiens Ear: four 10X runs of 57-2,397 cells in two donors; the 57-cell run once sent the
+    unit to the donor column (_scvi_batch). A column of the data needs a library-sized median group."""
+    import anndata as ad
+    import pandas as pd
+    import scipy.sparse as sp
+    from eca_pp.identify_columns.cli import find_library
+
+    sizes = {"TSP21_Mesenchymal": 57, "TSP21_Sensory": 322, "TSP25_Ampulla": 2397, "TSP25_Utricle": 279}
+    run = np.concatenate([[k] * v for k, v in sizes.items()])
+    A = ad.AnnData(X=sp.csr_matrix((len(run), 5), dtype=np.float32))
+    A.obs_names = pd.Index([f"CELL{i:05d}" for i in range(len(run))], dtype=object)
+    A.obs["10X_run"] = run
+    A.obs["_scvi_batch"] = np.array([r[:5] for r in run])
+    candidates = build_candidates(obsprofile.profile_obs(A), "droplet")
+    cand, values = find_library(A, candidates, None)
+    assert cand["label"] == "10X_run" and values.nunique() == 4
+
+
 def test_derived_barcode_batch_materialized_as_tsv(tmp_path):
     src = make_integration_h5ad(tmp_path / "s.h5ad", effect=4.0,
                                 barcode_batch=True)

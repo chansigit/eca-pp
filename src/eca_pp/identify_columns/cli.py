@@ -567,7 +567,9 @@ def find_library(adata, candidates: dict, batch, cap: int = LIBRARY_MAX_CELLS,
     """(candidate, values) of the per-sample QC unit when it is finer than the
     batch: the first existing column or cell-name segment (rungs 1-2, in
     ladder order) that splits the batch (or, without one, the dataset) into
-    more groups, nested in it, every group between `floor` and `cap` cells.
+    more groups, nested in it, every group at most `cap` cells and at least `floor`: the median group of a
+    column of the data, since one small library is still a library (Tabula Sapiens Ear's 57-cell 10X run
+    sent the unit to a donor column, 2026-10-27), every group of a cell-name segment.
     (None, None) when nothing qualifies: then the batch is the unit.
     A coarse adopted batch (patient, group) keeps its libraries this way: on
     the September releases it gave back the `sample` of Wu2020, Yost2019 and
@@ -578,8 +580,9 @@ def find_library(adata, candidates: dict, batch, cap: int = LIBRARY_MAX_CELLS,
             continue
         values = candidate_values(adata, c)
         counts = values.value_counts()
+        smallest = counts.median() if c["kind"] == "existing" else counts.min()
         if (values.isna().any() or not len(counts) or counts.max() > cap
-                or counts.min() < floor):
+                or smallest < floor):
             continue
         if batch is not None and not obsprofile._refines(values, batch):
             continue

@@ -348,7 +348,9 @@ owner 的定位:数据用于构建图谱和 foundation model 训练集,目标是
   PanSci 的 `scripts/mouse-pansci/gen.sh` 显式传 `--platform split-pool`。
 - **文库**(`columns.library`,仅 droplet / microwell / unknown):一个 10x 通道最多回收
   约 2 万细胞,超过 3 万细胞的组一定是多个文库。在第 1、2 档候选中按档、再按组数从多到少,
-  找第一个比批次更细、嵌套在批次之内(无批次时为整个数据集)、每组 200–3 万细胞的分组,
+  找第一个比批次更细、嵌套在批次之内(无批次时为整个数据集)、每组不超过 3 万细胞、且不太小的分组
+  (数据里已有的列看中位组 ≥ 200 细胞:一个小文库仍是文库,Tabula Sapiens Ear 的 57 细胞文库曾让单位退到供体列;
+  细胞名派生的段要求每组 ≥ 200),
   写入 `columns.library`(派生值写 `library.tsv`);找不到就不写,批次即 QC 单位。这样即使
   采用的批次较粗(患者、组),单样本 QC 仍按文库做:9 月已发布的 3CA 数据里,它找回了
   Wu2020、Yost2019、Wang2019 原来的 `sample`,并在另外 5 个数据集的细胞名里找到 GEM 编号。下游(eca-rsi)用它做单样本 QC 单位,
